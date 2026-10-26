@@ -33,7 +33,8 @@ $customized = count(array_filter(array_merge(...array_values(array_map('array_va
 	</nav>
 </div>
 
-<form method="post" action="options.php">
+<?php // The number field sits in a closed section, where a value the browser rejects would block the save without a message ?>
+<form method="post" action="options.php" novalidate>
 	<?php settings_fields('twcp_prompts_group'); ?>
 
 	<?php foreach ($groups as $group => $info) {

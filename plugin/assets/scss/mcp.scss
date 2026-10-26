@@ -97,6 +97,11 @@
 		}
 	}
 
+	// API keys use text fields, which password managers leave alone, and are masked here instead
+	.masked {
+		-webkit-text-security: disc;
+	}
+
 	// Other plugins style a bare .switch class on every admin screen, so the size and visibility are set here too
 	.switch {
 		display: inline-flex;

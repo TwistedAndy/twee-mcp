@@ -102,13 +102,17 @@ $providers = [
 				<div class="field" style="margin-bottom: 0;">
 					<label class="label" for="twcp_key_unsplash"><?php echo esc_html__('Unsplash Access Key', 'twee-mcp'); ?></label>
 					<input
-						type="password"
+						type="text"
 						id="twcp_key_unsplash"
 						name="twcp_stock_api_keys[unsplash]"
-						class="regular-text"
+						class="regular-text masked"
 						value="<?php echo esc_attr($saved_twcp_keys['unsplash'] ?? ''); ?>"
 						placeholder="<?php echo !empty($keys['unsplash']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'Access Key'; ?>"
 						autocomplete="off"
+						spellcheck="false"
+						data-1p-ignore
+						data-lpignore="true"
+						data-bwignore
 					/>
 					<p class="text text_muted">
 						<a href="https://unsplash.com/developers" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get an Unsplash Access Key', 'twee-mcp'); ?></a>
@@ -119,13 +123,17 @@ $providers = [
 				<div class="field" style="margin-bottom: 0;">
 					<label class="label" for="twcp_key_pexels"><?php echo esc_html__('Pexels API Key', 'twee-mcp'); ?></label>
 					<input
-						type="password"
+						type="text"
 						id="twcp_key_pexels"
 						name="twcp_stock_api_keys[pexels]"
-						class="regular-text"
+						class="regular-text masked"
 						value="<?php echo esc_attr($saved_twcp_keys['pexels'] ?? ''); ?>"
 						placeholder="<?php echo !empty($keys['pexels']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
 						autocomplete="off"
+						spellcheck="false"
+						data-1p-ignore
+						data-lpignore="true"
+						data-bwignore
 					/>
 					<p class="text text_muted">
 						<a href="https://www.pexels.com/join-consumer/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a Pexels API Key', 'twee-mcp'); ?></a>
@@ -136,13 +144,17 @@ $providers = [
 				<div class="field" style="margin-bottom: 0;">
 					<label class="label" for="twcp_key_pixabay"><?php echo esc_html__('Pixabay API Key', 'twee-mcp'); ?></label>
 					<input
-						type="password"
+						type="text"
 						id="twcp_key_pixabay"
 						name="twcp_stock_api_keys[pixabay]"
-						class="regular-text"
+						class="regular-text masked"
 						value="<?php echo esc_attr($saved_twcp_keys['pixabay'] ?? ''); ?>"
 						placeholder="<?php echo !empty($keys['pixabay']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
 						autocomplete="off"
+						spellcheck="false"
+						data-1p-ignore
+						data-lpignore="true"
+						data-bwignore
 					/>
 					<p class="text text_muted">
 						<a href="https://pixabay.com/service/about/api/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a Pixabay API Key', 'twee-mcp'); ?></a>
@@ -153,13 +165,17 @@ $providers = [
 				<div class="field" style="margin-bottom: 0;">
 					<label class="label" for="twcp_key_giphy"><?php echo esc_html__('Giphy API Key', 'twee-mcp'); ?></label>
 					<input
-						type="password"
+						type="text"
 						id="twcp_key_giphy"
 						name="twcp_stock_api_keys[giphy]"
-						class="regular-text"
+						class="regular-text masked"
 						value="<?php echo esc_attr($saved_twcp_keys['giphy'] ?? ''); ?>"
 						placeholder="<?php echo !empty($keys['giphy']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
 						autocomplete="off"
+						spellcheck="false"
+						data-1p-ignore
+						data-lpignore="true"
+						data-bwignore
 					/>
 					<p class="text text_muted">
 						<a href="https://developers.giphy.com/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a GIPHY API Key', 'twee-mcp'); ?></a>

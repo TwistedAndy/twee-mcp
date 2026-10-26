@@ -99,10 +99,8 @@ jQuery(function($) {
 	// 2. Show / Hide API Key
 	$('#twcp_toggle_key_btn').on('click', function(e) {
 		e.preventDefault();
-		const $input = $('#twcp_model_api_key');
-		const isPassword = $input.attr('type') === 'password';
-		$input.attr('type', isPassword ? 'text' : 'password');
-		$(this).text(isPassword ? 'Hide' : 'Show');
+		const masked = $('#twcp_model_api_key').toggleClass('masked').hasClass('masked');
+		$(this).text(masked ? 'Show' : 'Hide');
 	});
 
 	// 3. Dynamic Model Dropdown Filter based on Provider Dropdown

@@ -81,6 +81,9 @@
   width: 100%;
   max-width: 400px;
 }
+.mcp_box .masked {
+  -webkit-text-security: disc;
+}
 .mcp_box .switch {
   display: inline-flex;
   width: auto;

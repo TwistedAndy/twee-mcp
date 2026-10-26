@@ -82,7 +82,8 @@ defined('ABSPATH') or exit;
 				<li>
 					<?php echo esc_html(sprintf(__('The tab then ends on a page at %s that cannot be reached. That is expected and no local server is needed: the sign-in code is in the address bar. Copy the full address from that tab and paste it here. This works from any computer.', 'twee-mcp'), '127.0.0.1:1455')); ?>
 					<div class="chatgpt_action chatgpt_finish">
-						<input type="url" id="twcp_chatgpt_callback" class="regular-text" placeholder="<?php echo esc_attr($chatgpt['redirect'] . '?code=...'); ?>" autocomplete="off" />
+						<?php // A URL field hidden with the panel blocks the form when the browser fills a login name into it ?>
+						<input type="text" id="twcp_chatgpt_callback" class="regular-text" placeholder="<?php echo esc_attr($chatgpt['redirect'] . '?code=...'); ?>" autocomplete="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore />
 						<button type="button" id="twcp_chatgpt_finish" class="button button_primary"><?php echo esc_html__('Complete Sign-in', 'twee-mcp'); ?></button>
 					</div>
 				</li>
@@ -180,7 +181,8 @@ defined('ABSPATH') or exit;
 		<div class="field" data-provider-hide="chatgpt" <?php echo $model_settings['provider'] === 'chatgpt' ? 'style="display: none;"' : ''; ?>>
 			<label class="label" for="twcp_model_api_key"><?php echo esc_html__('API Key', 'twee-mcp'); ?></label>
 			<div class="control">
-				<input type="password" id="twcp_model_api_key" name="twcp_model_api_key" class="regular-text" value="<?php echo esc_attr($model_settings['api_key']); ?>" placeholder="sk-..." autocomplete="off" />
+				<?php // A password field gets the saved site login filled in, and the stored key is shown for every provider, so saving never replaces it ?>
+				<input type="text" id="twcp_model_api_key" name="twcp_model_api_key" class="regular-text masked" value="<?php echo esc_attr(get_option('twcp_model_api_key', '')); ?>" placeholder="sk-..." autocomplete="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore />
 				<button type="button" id="twcp_toggle_key_btn" class="button">
 					Show
 				</button>

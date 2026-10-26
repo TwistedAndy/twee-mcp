@@ -129,4 +129,39 @@ class AdminTest extends TWCP_TestCase {
 		$this->assertSame('', sanitize_option('twcp_block_conventions', $lf));
 		$this->assertSame('Use short headings.', sanitize_option('twcp_block_conventions', ' Use short headings. '));
 	}
+
+	/**
+	 * Saving the Library form keeps the descriptions of layouts it does not list, such as those of another field.
+	 */
+	public function test_block_descriptions_keep_unlisted_layouts(): void
+	{
+		twcp_admin_init();
+		update_option('twcp_block_descriptions', ['hero' => 'A large banner.', 'faq' => 'Questions and answers.']);
+
+		update_option('twcp_block_descriptions', ['faq' => 'Common questions.', 'gallery' => '']);
+		$this->assertSame(['hero' => 'A large banner.', 'faq' => 'Common questions.', 'gallery' => ''], get_option('twcp_block_descriptions'));
+
+		// A screen without the layout table posts nothing, which keeps every description
+		update_option('twcp_block_descriptions', null);
+		$this->assertSame('A large banner.', get_option('twcp_block_descriptions')['hero']);
+	}
+
+	/**
+	 * Key fields are text fields that password managers skip, so a saved login never replaces a key or blocks the form.
+	 */
+	public function test_key_fields_are_not_password_fields(): void
+	{
+		update_option('twcp_model_provider', 'chatgpt');
+		update_option('twcp_model_api_key', 'sk-stored');
+
+		$html = twcp_template('model', twcp_admin_data('model')) . twcp_template('images', twcp_admin_data('images'));
+		$this->assertStringNotContainsString('type="password"', $html);
+		$this->assertStringNotContainsString('type="url"', $html);
+
+		// The stored key stays in the field for the ChatGPT plan, so saving the form does not clear it
+		$this->assertMatchesRegularExpression('/id="twcp_model_api_key"[^>]+value="sk-stored"/', $html);
+
+		delete_option('twcp_model_provider');
+		delete_option('twcp_model_api_key');
+	}
 }

@@ -173,8 +173,9 @@ function twcp_admin_init(): void
 	]);
 	register_setting('twcp_blocks_group', 'twcp_block_descriptions', [
 		'type'              => 'array',
+		// The Library lists the layouts of the current field only, so the descriptions it does not list are kept
 		'sanitize_callback' => function($input) {
-			$clean = [];
+			$clean = (array) get_option('twcp_block_descriptions', []);
 			foreach ((array) $input as $layout => $description) {
 				$clean[sanitize_key($layout)] = sanitize_textarea_field($description);
 			}
@@ -294,7 +295,8 @@ function twcp_admin_ajax_models(): void
 	twcp_admin_ajax();
 
 	$provider = isset($_POST['provider']) ? sanitize_key($_POST['provider']) : null;
-	$api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : null;
+	// An empty field falls back to the saved key, then to the one in wp-config.php
+	$api_key = !empty($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : null;
 	$models = twcp_model_fetch($provider, $api_key, true);
 
 	if (empty($models)) {
