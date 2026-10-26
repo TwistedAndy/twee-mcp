@@ -1,0 +1,8 @@
+vendor/
+tests/build/
+node_modules/
+.phpunit
+.idea
+.DS_Store
+composer.lock
+phpunit.xml.dist
