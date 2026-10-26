@@ -9,6 +9,12 @@
 		"yoast/phpunit-polyfills": "^4.0"
 	},
 	"scripts": {
-		"test": "@php -d extension=pcov -d pcov.enabled=1 -d pcov.directory=. -d opcache.jit=disable -d opcache.enable_cli=1 vendor/phpunit/phpunit/phpunit"
+		"test": "@php -d extension=pcov -d pcov.enabled=1 -d pcov.directory=. -d opcache.jit=disable -d opcache.enable_cli=1 vendor/phpunit/phpunit/phpunit",
+		"zip": "@php bin/release.php zip",
+		"release": "@php bin/release.php publish"
+	},
+	"scripts-descriptions": {
+		"zip": "Builds build/twee-mcp-{version}.zip from the plugin directory at HEAD.",
+		"release": "Publishes the ZIP as GitHub release v{version}. Pass a notes file after --, or the notes list the commits since the last release."
 	}
 }

@@ -92,7 +92,8 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 ## Installation
 
 - Use PHP 8.0 or newer. The plugin is tested with WordPress 7.1 and WooCommerce 11.2. ACF Pro is needed for the block tools and WooCommerce for the store tools.
-- Copy the contents of this repository's `plugin/` directory into `wp-content/plugins/twee-mcp/`, so `index.php` is directly inside that directory, then activate the plugin.
+- Download `twee-mcp-{version}.zip` from the [latest release](https://github.com/TwistedAndy/twee-mcp/releases/latest) and upload it in **Plugins → Add New → Upload Plugin**, then activate the plugin. To install from the repository instead, copy the contents of its `plugin/` directory into `wp-content/plugins/twee-mcp/`, so `index.php` is directly inside that directory.
+- New releases appear under **Dashboard → Updates** like any other plugin update. The `Update URI` header sends the update check to the GitHub releases, which are checked at most every 12 hours.
 - Open **AI Tools → AI Provider**, choose a provider, and enter an API key or sign in with ChatGPT.
 - Open **AI Tools → Agent Access** for the server URL and the steps for each client.
 - If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/mcp`, `/.well-known/oauth-*`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen has the exact expression.
@@ -142,6 +143,7 @@ twee-mcp/
 │   ├── includes/      Server, OAuth, models, batch jobs, admin, and tools/
 │   ├── parts/         Admin screen templates
 │   └── index.php      Plugin header and loader
+├── bin/release.php    Builds the release ZIP and publishes GitHub releases
 ├── tests/             PHPUnit integration tests (core/ and tools/)
 ├── composer.json
 └── phpunit.xml
@@ -164,6 +166,16 @@ php vendor/phpunit/phpunit/phpunit --no-coverage
 
 The WordPress test library supports PHPUnit up to 9.6, so the suite stays on PHPUnit 9.
 
+### Releases
+
+Sites update from the ZIP attached to the latest GitHub release, so every release needs one. The scripts build it from the `plugin/` directory at `HEAD`.
+
+- Bump the `Version` header and `TWCP_VERSION` in `plugin/index.php`, then commit and push.
+- Run `composer zip` to build `build/twee-mcp-{version}.zip` without publishing it.
+- Run `composer release` to build the ZIP and publish release `v{version}`, titled with the same tag. The notes list the commits since the previous release, or pass a Markdown file with `composer release -- notes.md`.
+
+The release script needs the [GitHub CLI](https://cli.github.com), signed in with `gh auth login`. It stops when the two versions differ, the working tree has changes, `HEAD` is not pushed, or the release already exists.
+
 ### Working on a Site
 
 Link the `plugin/` directory into a site instead of copying it. On Windows, run in an elevated prompt or with Developer Mode on:
@@ -171,6 +183,8 @@ Link the `plugin/` directory into a site instead of copying it. On Windows, run 
 ```bash
 cmd /c mklink /D "Z:\work\upweb\wp-content\plugins\twee-mcp" "D:\Work\wp-content\plugins\twee-mcp\plugin"
 ```
+
+A linked plugin folder is never offered an update, so an update cannot replace the working copy.
 
 ## About
 

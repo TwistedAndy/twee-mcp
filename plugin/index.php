@@ -3,17 +3,18 @@
  * Plugin Name:       Twee MCP
  * Plugin URI:        https://www.linkedin.com/in/toniievych/
  * Description:       Model Context Protocol (MCP) server for WordPress with OAuth 2.1, AI model connectivity, and batch content helpers.
- * Version:           1.1.1
+ * Version:           1.1.2
  * Author:            Twee
  * Author URI:        https://www.linkedin.com/in/toniievych/
  * License:           MIT
  * Text Domain:       twee-mcp
  * Domain Path:       /languages
+ * Update URI:        https://github.com/TwistedAndy/twee-mcp
  */
 
 defined('ABSPATH') or exit;
 
-define('TWCP_VERSION', '1.1.1');
+define('TWCP_VERSION', '1.1.2');
 define('TWCP_PATH', plugin_dir_path(__FILE__));
 define('TWCP_URL', plugin_dir_url(__FILE__));
 define('TWCP_PROTOCOL', '2025-06-18');
@@ -85,3 +86,4 @@ require_once TWCP_PATH . 'includes/tools/order.php';
 require_once TWCP_PATH . 'includes/tools.php';
 require_once TWCP_PATH . 'includes/batch.php';
 require_once TWCP_PATH . 'includes/admin.php';
+require_once TWCP_PATH . 'includes/update.php';

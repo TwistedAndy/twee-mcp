@@ -1,4 +1,5 @@
 vendor/
+build/
 tests/build/
 node_modules/
 .phpunit
