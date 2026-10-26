@@ -97,8 +97,11 @@
 		}
 	}
 
+	// Other plugins style a bare .switch class on every admin screen, so the size and visibility are set here too
 	.switch {
 		display: inline-flex;
+		width: auto;
+		height: auto;
 		align-items: center;
 		font-size: 15px;
 		font-weight: 600;
@@ -114,6 +117,7 @@
 			min-height: 24px !important;
 			padding: 0;
 			margin: 0;
+			opacity: 1;
 			border: none !important;
 			border-radius: 12px;
 			outline: none;
