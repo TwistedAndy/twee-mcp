@@ -131,7 +131,10 @@ function twcp_admin_init(): void
 			$input = is_array($input) ? $input : [];
 			$clean = [];
 			$clean['max_links'] = isset($input['max_links']) ? min(15, max(0, (int) $input['max_links'])) : 6;
-			$clean['custom_rules'] = !empty($input['custom_rules']) ? sanitize_textarea_field($input['custom_rules']) : '';
+			$rules = sanitize_textarea_field((string) ($input['custom_rules'] ?? ''));
+
+			// Guidelines equal to the built-in text are stored empty, so a newer default still applies
+			$clean['custom_rules'] = $rules === twcp_product_settings_default()['custom_rules'] ? '' : $rules;
 
 			return $clean;
 		},
@@ -384,6 +387,30 @@ function twcp_admin_ajax_test(): void
 
 	$result = twcp_model_test();
 	$result['success'] ? wp_send_json_success($result) : wp_send_json_error($result);
+}
+
+
+/**
+ * AJAX: Generate the store profile from the website
+ */
+add_action('wp_ajax_twcp_generate_context', 'twcp_admin_ajax_context');
+
+/**
+ * Generate the Store Profile & Website Context text for the Prompts screen.
+ *
+ * @return void Sends a JSON response.
+ */
+function twcp_admin_ajax_context(): void
+{
+	twcp_admin_ajax();
+
+	$missing = twcp_model_missing();
+	if ($missing) {
+		wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the AI Provider screen first.', 'twee-mcp')]);
+	}
+
+	$context = twcp_general_context_generate();
+	$context ? wp_send_json_success(['context' => $context]) : wp_send_json_error(['message' => twcp_model_last_error() ? : __('The model returned no text.', 'twee-mcp')]);
 }
 
 

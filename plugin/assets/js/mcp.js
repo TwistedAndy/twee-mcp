@@ -74,6 +74,28 @@ jQuery(function($) {
 		input.focus();
 	});
 
+	$('.twcp_generate_context').on('click', function() {
+		const $btn = $(this);
+		const input = document.getElementById(this.dataset.target);
+		const originalText = $btn.text();
+
+		$btn.prop('disabled', true).text('Generating...');
+
+		sendAjax('twcp_generate_context', {}, function(res) {
+			$btn.prop('disabled', false).text(originalText);
+			if (res.success && res.data && res.data.context) {
+				input.value = res.data.context;
+				$(input).trigger('input').trigger('change');
+				input.focus();
+			} else {
+				alert((res.data && res.data.message) || 'Failed to generate the website context.');
+			}
+		}, function() {
+			$btn.prop('disabled', false).text(originalText);
+			alert('Server communication error during context generation.');
+		});
+	});
+
 	// 1. Copy Server URL with visual feedback
 	$('#twcp_copy_url_btn').on('click', function(e) {
 		e.preventDefault();
@@ -295,6 +317,7 @@ jQuery(function($) {
 				// Update vision select as well if present
 				const $visionSelect = $('#twcp_vision_model');
 				if ($visionSelect.length) {
+					const currentVision = $visionSelect.val();
 					let $vgroup = $visionSelect.find('optgroup[data-provider="' + provider + '"]');
 					if (!$vgroup.length) {
 						$vgroup = $('<optgroup>').attr('data-provider', provider).attr('label', provider.toUpperCase());
@@ -305,6 +328,12 @@ jQuery(function($) {
 						const $opt = $('<option>').val(item.id).text(item.label || item.id);
 						$vgroup.append($opt);
 					});
+
+					// Rebuilding the list drops the selection, so the next save would store another model
+					$visionSelect.val(currentVision);
+					if (!$visionSelect.val() && models.length > 0) {
+						$visionSelect.val(models[0].id);
+					}
 				}
 
 				$status.text(res.data.message || ('Loaded ' + models.length + ' models.')).css('color', '#1e7e34');
@@ -504,7 +533,8 @@ jQuery(function($) {
 		const mode = state.mode || 'fill';
 		const $badge = $card.find('.batch_badge');
 		if ($badge.length) {
-			$badge.text(mode === 'fill' ? (total + ' Missing') : (total + ' Total'));
+			// Items filled during a run are no longer missing, while failed ones still are
+			$badge.text(mode === 'fill' ? (Math.max(0, total - (parseInt(state.success, 10) || 0)) + ' Missing') : (total + ' Total'));
 		}
 		$card.find('.twcp_batch_mode').val(mode);
 		$card.find('.btn_undo').toggle(parseInt(state.undo, 10) > 0 && state.status !== 'running');

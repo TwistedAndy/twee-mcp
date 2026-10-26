@@ -131,6 +131,46 @@ class AdminTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * The generated site profile is based on what the site says about itself, since the model cannot open the home page.
+	 */
+	public function test_context_generate_sends_site_facts(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		update_option('blogname', 'Leather Works');
+		self::factory()->post->create(['post_title' => 'Caring for calfskin boots', 'post_type' => twcp_product_active() ? 'product' : 'post']);
+		$requests = $this->mock_model(['choices' => [['message' => ['content' => " Leather Works makes boots. \n"]]]]);
+
+		$this->assertSame('Leather Works makes boots.', twcp_general_context_generate());
+
+		$prompt = wp_json_encode($requests[0]['body']);
+		foreach ([home_url('/'), 'Leather Works', 'Caring for calfskin boots'] as $fact) {
+			$this->assertStringContainsString(trim(wp_json_encode($fact), '"'), $prompt);
+		}
+
+		remove_all_filters('pre_http_request');
+		delete_option('twcp_model_api_key');
+	}
+
+	/**
+	 * Saving the Prompts form with the built-in Store Guidelines stores nothing, and empty guidelines read as the default.
+	 */
+	public function test_product_rules_drop_default(): void
+	{
+		twcp_admin_init();
+		$default = twcp_product_settings_default();
+
+		update_option('twcp_product_settings', ['max_links' => '0', 'custom_rules' => ' ' . $default['custom_rules'] . "\n"]);
+		$this->assertSame(['max_links' => 0, 'custom_rules' => ''], get_option('twcp_product_settings'));
+		$this->assertSame(['max_links' => 0, 'custom_rules' => $default['custom_rules']], twcp_product_settings());
+
+		update_option('twcp_product_settings', ['max_links' => 3, 'custom_rules' => 'Link to the size guide.']);
+		$this->assertSame(['max_links' => 3, 'custom_rules' => 'Link to the size guide.'], twcp_product_settings());
+
+		delete_option('twcp_product_settings');
+	}
+
+	/**
 	 * Saving the Library form keeps the descriptions of layouts it does not list, such as those of another field.
 	 */
 	public function test_block_descriptions_keep_unlisted_layouts(): void

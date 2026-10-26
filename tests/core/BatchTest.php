@@ -458,6 +458,29 @@ class BatchTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * Bulk generate actions count items that already have the value as skipped, not as processed.
+	 */
+	public function test_bulk_counts_skipped_items(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$empty = self::factory()->post->create(['post_excerpt' => '']);
+		$filled = self::factory()->post->create(['post_excerpt' => 'Already written.']);
+
+		remove_all_filters('handle_bulk_actions-edit-post');
+		twcp_batch_bulk();
+		wp_parse_str((string) wp_parse_url(apply_filters('handle_bulk_actions-edit-post', 'https://example.com/', 'twcp_excerpt', [$empty, $filled]), PHP_URL_QUERY), $args);
+
+		$this->assertSame(['twcp_processed' => '1', 'twcp_skipped' => '1', 'twcp_selected' => '2'], $args);
+		$this->assertCount(1, $requests);
+		$this->assertSame('Already written.', get_post_field('post_excerpt', $filled));
+
+		remove_all_filters('pre_http_request');
+		delete_option('twcp_model_api_key');
+	}
+
+	/**
 	 * Terms with several meta rows are counted once, so the total matches the terms a run goes through.
 	 */
 	public function test_term_total_counts_each_term_once(): void

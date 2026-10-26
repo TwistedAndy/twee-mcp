@@ -488,14 +488,29 @@ function twcp_product_variation_save(array $args): array
  */
 function twcp_product_settings(): array
 {
-	$defaults = [
+	$saved = get_option('twcp_product_settings', get_option('twcp_product_desc_settings', []));
+	$saved = is_array($saved) ? $saved : [];
+
+	// Empty guidelines fall back to the built-in text, which the settings form saves as empty
+	if (trim((string) ($saved['custom_rules'] ?? '')) === '') {
+		unset($saved['custom_rules']);
+	}
+
+	return array_merge(twcp_product_settings_default(), $saved);
+}
+
+
+/**
+ * Default product description copywriting settings
+ *
+ * @return array
+ */
+function twcp_product_settings_default(): array
+{
+	return [
 		'max_links'    => 6,
 		'custom_rules' => 'Use natural descriptive anchor text for internal links.',
 	];
-
-	$saved = get_option('twcp_product_settings', get_option('twcp_product_desc_settings', []));
-
-	return is_array($saved) ? array_merge($defaults, $saved) : $defaults;
 }
 
 

@@ -1337,6 +1337,49 @@ function twcp_general_context_default(): string
 	return implode(' ', $lines);
 }
 
+
+/**
+ * Ask the model for a short profile of the website, for the Prompts screen
+ *
+ * The model cannot open the home page, so the prompt carries what the site says about itself.
+ *
+ * @return string Empty on failure
+ */
+function twcp_general_context_generate(): string
+{
+	$facts = ['Name: ' . twcp_site_name()];
+
+	$tagline = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	if ($tagline) {
+		$facts[] = 'Tagline: ' . $tagline;
+	}
+
+	$front = get_option('show_on_front') === 'page' ? twcp_post_context((int) get_option('page_on_front')) : null;
+	if ($front) {
+		$text = trim(preg_replace('/\s+/', ' ', $front['blocks_text'] . ' ' . $front['content']));
+		$facts[] = 'Home page: ' . $front['title'] . ($text ? ' - ' . mb_substr($text, 0, 1500) : '');
+	}
+
+	$store = twcp_product_active();
+	$categories = get_terms(['taxonomy' => $store ? 'product_cat' : 'category', 'number' => 12, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
+	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
+	if ($categories) {
+		$facts[] = 'Main categories: ' . implode(', ', $categories);
+	}
+
+	$recent = get_posts(['post_type' => $store ? 'product' : 'post', 'posts_per_page' => 12, 'fields' => 'ids']);
+	if ($recent) {
+		$titles = array_map(fn($id) => html_entity_decode(get_the_title($id), ENT_QUOTES | ENT_HTML5, 'UTF-8'), $recent);
+		$facts[] = ($store ? 'Recent products: ' : 'Recent posts: ') . implode('; ', $titles);
+	}
+
+	$prompt = 'Create a short description of the website ' . home_url('/') . ' in 5 to 6 sentences, as general context for an AI that writes its content: what the site is, what it does or sells, and who it is for.' . "\n\n";
+	$prompt .= "What the site says about itself:\n- " . implode("\n- ", $facts) . "\n\n";
+	$prompt .= 'Use only these facts and do not invent prices, guarantees, or claims. Output only the description as plain text.';
+
+	return trim(twcp_model_request($prompt, 'You write short, factual profiles of websites and businesses.', [], ['temperature' => 0.4]));
+}
+
 /**
  * Cleanly extract and decode JSON from a model response
  *

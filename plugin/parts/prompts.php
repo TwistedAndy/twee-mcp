@@ -67,6 +67,9 @@ $customized = count(array_filter(array_merge(...array_values(array_map('array_va
 						<label class="screen-reader-text" for="<?php echo esc_attr($option); ?>"><?php echo esc_html($prompt['label']); ?></label>
 						<textarea id="<?php echo esc_attr($option); ?>" name="<?php echo esc_attr($option); ?>" rows="<?php echo esc_attr($prompt['rows']); ?>" class="large-text" data-default="<?php echo esc_attr($prompt['default']); ?>"><?php echo esc_textarea($prompt['value']); ?></textarea>
 						<button type="button" class="button twcp_reset_prompt" data-target="<?php echo esc_attr($option); ?>"><?php echo esc_html__('Reset to default', 'twee-mcp'); ?></button>
+						<?php if ($option === 'twcp_general_context') { ?>
+							<button type="button" class="button twcp_generate_context" data-target="<?php echo esc_attr($option); ?>"><?php echo esc_html__('Generate from website', 'twee-mcp'); ?></button>
+						<?php } ?>
 					</div>
 				</details>
 			<?php } ?>

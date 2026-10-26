@@ -1548,7 +1548,7 @@ function twcp_batch_cards(): array
 		}
 		$badge = $state['mode'] !== 'fill'
 			? ($unit ? sprintf(__('%d Total %s', 'twee-mcp'), $state['total'], $unit) : sprintf(__('%d Total', 'twee-mcp'), $state['total']))
-			: sprintf(__('%d Missing', 'twee-mcp'), $state['total']);
+			: sprintf(__('%d Missing', 'twee-mcp'), max(0, $state['total'] - $state['success']));
 
 		$sections[$conf['section']][] = $conf + [
 				'type'      => $type,
@@ -1605,7 +1605,7 @@ function twcp_batch_overview(): array
 /**
  * WordPress list-table bulk actions per screen
  *
- * @return array Screen ID => [ action => [ label, callback ] ]
+ * @return array Screen ID => [ action => [ label, callback, batch type of the fields a generate action skips when they are set ] ]
  */
 function twcp_batch_actions(): array
 {
@@ -1619,7 +1619,8 @@ function twcp_batch_actions(): array
 	];
 	$screens['upload']['twcp_alt'] = [
 		__('Generate Alt Text', 'twee-mcp'),
-		fn(int $id) => (bool) twcp_media_generate_alt($id, false)
+		fn(int $id) => (bool) twcp_media_generate_alt($id, false),
+		'alts',
 	];
 	$screens['upload']['twcp_alt_regen'] = [
 		__('Regenerate Alt Text', 'twee-mcp'),
@@ -1640,19 +1641,21 @@ function twcp_batch_actions(): array
 		];
 
 		// SEO: Generate (if empty) vs Regenerate (always override)
-		$screens[$screen_id]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_post_generate_seo($id, false)];
+		$screens[$screen_id]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_post_generate_seo($id, false), 'seo'];
 		$screens[$screen_id]['twcp_seo_regen'] = [$seo_regen, fn(int $id) => twcp_post_generate_seo($id, true)];
 
 		// Featured Image
 		$screens[$screen_id]['twcp_featured_image'] = [
 			__('Assign Featured Image', 'twee-mcp'),
 			'twcp_post_assign_image',
+			'featured_images',
 		];
 
 		// Excerpt: Generate (if empty) vs Regenerate (override)
 		$screens[$screen_id]['twcp_excerpt'] = [
 			__('Generate Short Excerpt', 'twee-mcp'),
 			fn(int $id) => twcp_post_generate_excerpt($id, false),
+			'post_excerpt',
 		];
 		$screens[$screen_id]['twcp_excerpt_regen'] = [
 			__('Regenerate Short Excerpt', 'twee-mcp'),
@@ -1663,6 +1666,7 @@ function twcp_batch_actions(): array
 		$screens[$screen_id]['twcp_content'] = [
 			__('Generate Full Content', 'twee-mcp'),
 			fn(int $id) => twcp_post_generate_content($id, false),
+			'post_content',
 		];
 		$screens[$screen_id]['twcp_content_regen'] = [
 			__('Regenerate Full Content', 'twee-mcp'),
@@ -1681,7 +1685,8 @@ function twcp_batch_actions(): array
 		if ($post_type === 'product' and twcp_product_active()) {
 			$screens['edit-product']['twcp_short'] = [
 				__('Generate Short Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_short($id, false)
+				fn(int $id) => twcp_product_short($id, false),
+				'products_short',
 			];
 			$screens['edit-product']['twcp_short_regen'] = [
 				__('Regenerate Short Product Descriptions', 'twee-mcp'),
@@ -1689,7 +1694,8 @@ function twcp_batch_actions(): array
 			];
 			$screens['edit-product']['twcp_full'] = [
 				__('Generate Full Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_full($id, false)
+				fn(int $id) => twcp_product_full($id, false),
+				'products',
 			];
 			$screens['edit-product']['twcp_full_regen'] = [
 				__('Regenerate Full Product Descriptions', 'twee-mcp'),
@@ -1699,9 +1705,9 @@ function twcp_batch_actions(): array
 	}
 
 	foreach (get_taxonomies(['public' => true], 'names') as $taxonomy) {
-		$screens['edit-' . $taxonomy]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_term_generate_seo($id, $taxonomy, false)];
+		$screens['edit-' . $taxonomy]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_term_generate_seo($id, $taxonomy, false), 'term_seo'];
 		$screens['edit-' . $taxonomy]['twcp_seo_regen'] = [$seo_regen, fn(int $id) => twcp_term_generate_seo($id, $taxonomy, true)];
-		$screens['edit-' . $taxonomy]['twcp_description'] = [__('Generate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, false)];
+		$screens['edit-' . $taxonomy]['twcp_description'] = [__('Generate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, false), 'term_description'];
 		$screens['edit-' . $taxonomy]['twcp_description_regen'] = [__('Regenerate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, true)];
 	}
 
@@ -1752,13 +1758,21 @@ function twcp_batch_bulk(): void
 				}
 
 				$processed = 0;
+				$skipped = 0;
 				foreach ($item_ids as $id) {
-					if (call_user_func($info[1], (int) $id)) {
+					// Generate actions succeed without a change on items that already have the value
+					$before = isset($info[2]) ? twcp_batch_snapshot($info[2], (int) $id) : null;
+					if (!call_user_func($info[1], (int) $id)) {
+						continue;
+					}
+					if ($before !== null and $before === twcp_batch_snapshot($info[2], (int) $id)) {
+						$skipped++;
+					} else {
 						$processed++;
 					}
 				}
 
-				$redirect_to = add_query_arg('twcp_processed', $processed, $redirect_to);
+				$redirect_to = add_query_arg(['twcp_processed' => $processed, 'twcp_skipped' => $skipped, 'twcp_selected' => count($item_ids)], $redirect_to);
 				if ($action === 'twcp_create_similar') {
 					$redirect_to = add_query_arg('twcp_created_similar', $processed, $redirect_to);
 				}
@@ -1808,9 +1822,19 @@ function twcp_batch_bulk(): void
 	} elseif (isset($_GET['twcp_processed'])) {
 		add_action('admin_notices', function() {
 			$count = absint($_GET['twcp_processed']);
+			$skipped = absint($_GET['twcp_skipped'] ?? 0);
+			$failed = max(0, absint($_GET['twcp_selected'] ?? 0) - $count - $skipped);
+
+			$message = sprintf(_n('Processed %d item with AI.', 'Processed %d items with AI.', $count, 'twee-mcp'), $count);
+			if ($skipped) {
+				$message .= ' ' . sprintf(_n('%d item already had a value and was left as it is.', '%d items already had a value and were left as they are.', $skipped, 'twee-mcp'), $skipped);
+			}
+			if ($failed) {
+				$message .= ' ' . sprintf(_n('%d item failed: check the AI Provider connection and try it again.', '%d items failed: check the AI Provider connection and try them again.', $failed, 'twee-mcp'), $failed);
+			}
 			?>
-			<div class="notice notice-success is-dismissible">
-			<p><?php echo sprintf(esc_html(_n('Successfully processed %d item with AI.', 'Successfully processed %d items with AI.', $count, 'twee-mcp')), $count); ?></p>
+			<div class="notice <?php echo $failed ? 'notice-warning' : 'notice-success'; ?> is-dismissible">
+				<p><?php echo esc_html($message); ?></p>
 			</div>
 			<?php
 		});

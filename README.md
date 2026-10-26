@@ -69,7 +69,7 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 ### 6. Prompts & Block Conventions
 
 - The **Prompts** screen holds the instructions for every generator, grouped into site context, content, store, terms, and media. Each prompt can be reset to its default.
-- The default site context is built from the site name, tagline, main categories, and whether WooCommerce is active. It's added to every prompt, so describe the business, audience, and tone there.
+- The default site context is built from the site name, tagline, main categories, and whether WooCommerce is active. It's added to every prompt, so describe the business, audience, and tone there. **Generate from website** drafts a 5 to 6 sentence profile from the site name, tagline, home page, main categories, and recent posts or products; review it, then save.
 - The **Library** screen keeps the block conventions that `get_block_types` hands to agents. The conventions explain page structure, layout options, query layouts, repeaters, and text formats of the theme's ACF blocks.
 
 ## Tools
