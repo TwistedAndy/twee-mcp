@@ -54,7 +54,7 @@ All modes fill empty items. Jobs that assign images, categories, cross-sells, or
 
 - **Estimate:** each card shows a rough number of AI requests and tokens for the items left in the chosen mode.
 - **Undo Last Run:** before a job changes an item, it saves the item's current values. Undo puts them back. Starting a new run replaces the saved values.
-- **Background runs:** when Action Scheduler is available (it ships with WooCommerce), jobs run on the server as the user who started them, so the page can be closed. The screen follows their progress. Without it, jobs run while the page stays open. The `twcp_batch_background` filter turns background runs off.
+- **Background runs:** when Action Scheduler is available (it ships with WooCommerce), jobs run on the server as the user who started them, so the page can be closed. The screen follows their progress. Without it, jobs run while the page stays open, and a running job carries on when the screen is opened again. The `twcp_batch_background` filter turns background runs off.
 
 - **Content Automation:** short excerpts, post content, SEO titles and descriptions, featured images, categories, term SEO, and term descriptions.
   - **Term descriptions** fill the short description WordPress shows on category, tag, and brand archives.

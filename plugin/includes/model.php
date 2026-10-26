@@ -1278,7 +1278,8 @@ function twcp_prompt_sanitize($input, string $option): string
 	$text = is_string($input) ? trim(wp_check_invalid_utf8($input)) : '';
 	$default = twcp_prompt_registry()[$option]['default'] ?? null;
 
-	return ($default and $text === $default()) ? '' : $text;
+	// Browsers send line breaks as CRLF and the defaults follow the line endings of the source files
+	return ($default and str_replace("\r\n", "\n", $text) === str_replace("\r\n", "\n", trim($default()))) ? '' : $text;
 }
 
 

@@ -97,7 +97,6 @@ add_action('admin_init', 'twcp_admin_init');
 function twcp_admin_init(): void
 {
 	$text = ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => ''];
-	$area = ['type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field', 'default' => ''];
 
 	// Connection
 	register_setting('twcp_general_group', 'twcp_enabled', ['type' => 'integer', 'sanitize_callback' => 'absint', 'default' => 1]);
@@ -161,7 +160,17 @@ function twcp_admin_init(): void
 		'sanitize_callback' => 'sanitize_text_field',
 		'default'           => 'assets/preview'
 	]);
-	register_setting('twcp_blocks_group', 'twcp_block_conventions', $area);
+	register_setting('twcp_blocks_group', 'twcp_block_conventions', [
+		'type'              => 'string',
+		// Conventions equal to the built-in text are stored empty, so a newer default still applies
+		'sanitize_callback' => function($input): string {
+			$text = sanitize_textarea_field((string) $input);
+			$default = sanitize_textarea_field(twcp_block_conventions_default());
+
+			return str_replace("\r\n", "\n", $text) === str_replace("\r\n", "\n", $default) ? '' : $text;
+		},
+		'default'           => '',
+	]);
 	register_setting('twcp_blocks_group', 'twcp_block_descriptions', [
 		'type'              => 'array',
 		'sanitize_callback' => function($input) {

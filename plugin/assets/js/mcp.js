@@ -159,9 +159,19 @@ jQuery(function($) {
 		});
 	}
 
+	// Remember the models picked for each provider, so switching away and back keeps them
+	const pickedModels = {};
+	let currentProvider = $('#twcp_model_provider').val() || 'openai';
+
 	$('#twcp_model_provider').on('change', function() {
-		syncModelDropdown($(this).val());
-		syncProviderPanels($(this).val());
+		pickedModels[currentProvider] = {model: $('#twcp_model_name').val(), vision: $('#twcp_vision_model').val()};
+		currentProvider = $(this).val();
+		if (pickedModels[currentProvider]) {
+			$('#twcp_model_name').val(pickedModels[currentProvider].model);
+			$('#twcp_vision_model').val(pickedModels[currentProvider].vision);
+		}
+		syncModelDropdown(currentProvider);
+		syncProviderPanels(currentProvider);
 	});
 
 	syncModelDropdown($('#twcp_model_provider').val() || 'openai');
@@ -567,6 +577,9 @@ jQuery(function($) {
 
 		const $card = $('.batch_card[data-type="' + type + '"]');
 
+		// A slice can take a minute, so follow its items while it runs
+		pollBatches();
+
 		sendAjax('twcp_batch_step', {
 			type: type
 		}, function(res) {
@@ -575,10 +588,11 @@ jQuery(function($) {
 				activeJobs[type] = state;
 				updateBatchUI($card, state);
 
+				// A busy job is still running a slice started from another tab or before a refresh
 				if (state.status === 'running') {
 					setTimeout(function() {
 						runBatchStep(type);
-					}, 600);
+					}, state.busy ? 3000 : 600);
 				}
 			} else {
 				alert((res.data && res.data.message) || 'Batch step failed.');
@@ -590,7 +604,7 @@ jQuery(function($) {
 		});
 	}
 
-	// Background jobs run on the server, so the page only follows their progress
+	// Follow the progress of running jobs: background ones and slices still in progress
 	let pollTimer = null;
 
 	function pollBatches() {
@@ -600,12 +614,12 @@ jQuery(function($) {
 				let running = false;
 				if (res.success && res.data && res.data.batches) {
 					$.each(res.data.batches, function(type, state) {
-						if (!activeJobs[type] || !activeJobs[type].background) {
+						if (!activeJobs[type] || activeJobs[type].status !== 'running') {
 							return;
 						}
 						activeJobs[type] = state;
 						updateBatchUI($('.batch_card[data-type="' + type + '"]'), state);
-						running = running || (state.status === 'running' && state.background);
+						running = running || state.status === 'running';
 					});
 				}
 				if (running) {
@@ -614,7 +628,7 @@ jQuery(function($) {
 			}, function() {
 				pollBatches();
 			});
-		}, 4000);
+		}, 3000);
 	}
 
 	function runBatch(type, state) {
@@ -635,9 +649,10 @@ jQuery(function($) {
 					if ($card.length) {
 						updateBatchUI($card, state);
 					}
-					if (state.status === 'running' && state.background) {
+					// A job left running by a refresh or a closed tab carries on from this page
+					if (state.status === 'running') {
 						$card.find('.batch_log_wrapper').show();
-						pollBatches();
+						runBatch(type, state);
 					}
 				});
 			}

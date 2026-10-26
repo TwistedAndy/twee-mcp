@@ -322,6 +322,9 @@
   cursor: pointer;
   gap: 8px;
 }
+.mcp_box .prompt .prompt_summary .text {
+  margin: 0;
+}
 .mcp_box .prompt .prompt_label {
   font-size: 14px;
   font-weight: 600;

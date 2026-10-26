@@ -372,6 +372,11 @@
 			align-items: center;
 			cursor: pointer;
 			gap: 8px;
+
+			// The token count sits centered with the badges, without the margins of paragraph text
+			.text {
+				margin: 0;
+			}
 		}
 
 		.prompt_label {

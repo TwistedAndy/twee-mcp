@@ -110,5 +110,23 @@ class AdminTest extends TWCP_TestCase {
 		$this->assertSame('', twcp_prompt_sanitize("  \n" . twcp_prompt_excerpt_default() . "\n", $option));
 		$this->assertSame('Keep <b>HTML</b> examples.', twcp_prompt_sanitize(' Keep <b>HTML</b> examples. ', $option));
 		$this->assertSame('', twcp_prompt_sanitize(['not', 'text'], $option));
+
+		// Line endings differ between the browser (CRLF) and the source files, which may use either
+		$lf = str_replace("\r\n", "\n", twcp_prompt_excerpt_default());
+		$this->assertSame('', twcp_prompt_sanitize($lf, $option));
+		$this->assertSame('', twcp_prompt_sanitize(str_replace("\n", "\r\n", $lf), $option));
+	}
+
+	/**
+	 * Saving the Library form with the built-in block conventions stores nothing.
+	 */
+	public function test_block_conventions_drop_default(): void
+	{
+		twcp_admin_init();
+		$lf = str_replace("\r\n", "\n", twcp_block_conventions_default());
+
+		$this->assertSame('', sanitize_option('twcp_block_conventions', str_replace("\n", "\r\n", $lf)));
+		$this->assertSame('', sanitize_option('twcp_block_conventions', $lf));
+		$this->assertSame('Use short headings.', sanitize_option('twcp_block_conventions', ' Use short headings. '));
 	}
 }

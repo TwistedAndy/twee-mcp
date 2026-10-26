@@ -369,6 +369,171 @@ class BatchTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * A slice that is still running makes the next request wait, and the lock is freed when the slice ends.
+	 */
+	public function test_slice_lock(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$post = self::factory()->post->create(['post_excerpt' => '']);
+
+		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
+		$state['status'] = 'running';
+		twcp_batch_save('post_excerpt', $state);
+
+		update_option('twcp_batch_lock_post_excerpt', time(), false);
+		$state = twcp_batch_slice('post_excerpt');
+		$this->assertTrue($state['busy']);
+		$this->assertSame('running', $state['status']);
+		$this->assertCount(0, $requests);
+
+		// A lock older than a slice can take is left by a crash and is taken over
+		update_option('twcp_batch_lock_post_excerpt', time() - HOUR_IN_SECONDS, false);
+		$state = twcp_batch_slice('post_excerpt');
+		$this->assertArrayNotHasKey('busy', $state);
+		$this->assertSame('A fresh excerpt.', get_post_field('post_excerpt', $post));
+		$this->assertFalse(get_option('twcp_batch_lock_post_excerpt'));
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * Stop pressed during a slice ends it after the current item, and every item is saved as it finishes.
+	 */
+	public function test_stop_during_slice(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		self::factory()->post->create_many(3, ['post_excerpt' => '']);
+
+		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
+		$state['status'] = 'running';
+		twcp_batch_save('post_excerpt', $state);
+
+		// Another request saves the paused state while the first item is written
+		add_filter('pre_http_request', function($response) {
+			$saved = get_option('twcp_batch_post_excerpt');
+			$saved['status'] = 'paused';
+			update_option('twcp_batch_post_excerpt', $saved, false);
+
+			return $response;
+		}, 5);
+
+		$state = twcp_batch_slice('post_excerpt');
+		$this->assertSame('paused', $state['status']);
+		$this->assertSame(1, $state['processed']);
+		$this->assertSame('paused', twcp_batch_state('post_excerpt')['status']);
+		$this->assertSame(1, twcp_batch_state('post_excerpt')['processed']);
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * Stop pressed during the last item completes the job instead of leaving nothing to resume.
+	 */
+	public function test_stop_on_last_item_completes(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		self::factory()->post->create(['post_excerpt' => '']);
+
+		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
+		$state['status'] = 'running';
+		twcp_batch_save('post_excerpt', $state);
+
+		add_filter('pre_http_request', function($response) {
+			$saved = get_option('twcp_batch_post_excerpt');
+			$saved['status'] = 'paused';
+			update_option('twcp_batch_post_excerpt', $saved, false);
+
+			return $response;
+		}, 5);
+
+		$this->assertSame('completed', twcp_batch_slice('post_excerpt')['status']);
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * Terms with several meta rows are counted once, so the total matches the terms a run goes through.
+	 */
+	public function test_term_total_counts_each_term_once(): void
+	{
+		foreach (self::factory()->category->create_many(3) as $term_id) {
+			add_term_meta($term_id, 'color', 'red');
+			add_term_meta($term_id, 'icon', 'star');
+			add_term_meta($term_id, 'order', '1');
+		}
+
+		$ids = twcp_batch_query('term_seo', 0, 100, false, 'category');
+		$this->assertGreaterThanOrEqual(3, count($ids));
+		$this->assertSame(count($ids), twcp_batch_total('term_seo', false, 'category'));
+	}
+
+	/**
+	 * Changing the mode or scope keeps the Undo button for the last run.
+	 */
+	public function test_restart_keeps_undo_count(): void
+	{
+		$post = self::factory()->post->create();
+		update_option('twcp_batch_undo_post_excerpt', [$post => ['post:post_excerpt' => '']], false);
+
+		$this->assertSame(1, twcp_batch_restart('post_excerpt', 'refine', 'post')['undo']);
+	}
+
+	/**
+	 * Block layouts are described a slice at a time, so a long list never runs in one request.
+	 */
+	public function test_blocks_run_in_slices(): void
+	{
+		if (!function_exists('acf_add_local_field_group')) {
+			$this->markTestSkipped('ACF is not available. Set ACF_DIR to run block layout tests.');
+		}
+
+		acf_add_local_field_group([
+			'key'      => 'group_twcp_blocks',
+			'title'    => 'Blocks',
+			'fields'   => [[
+				'key'     => 'field_twcp_blocks',
+				'name'    => 'blocks',
+				'label'   => 'Blocks',
+				'type'    => 'flexible_content',
+				'layouts' => [
+					'layout_a' => ['key' => 'layout_a', 'name' => 'alpha', 'label' => 'Alpha', 'sub_fields' => []],
+					'layout_b' => ['key' => 'layout_b', 'name' => 'beta', 'label' => 'Beta', 'sub_fields' => []],
+					'layout_c' => ['key' => 'layout_c', 'name' => 'gamma', 'label' => 'Gamma', 'sub_fields' => []],
+				],
+			]],
+			'location' => [[['param' => 'post_type', 'operator' => '==', 'value' => 'page']]],
+		]);
+		update_option('twcp_blocks_field', 'blocks');
+		update_option('twcp_block_descriptions', ['beta' => 'Already described.']);
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A described layout.']]]]);
+
+		$this->assertSame([0, 2], twcp_batch_query('blocks', 0, 5));
+		$this->assertSame(2, twcp_batch_total('blocks'));
+
+		$state = twcp_batch_restart('blocks', 'fill', 'all');
+		$state['status'] = 'running';
+		twcp_batch_save('blocks', $state);
+		$state = twcp_batch_slice('blocks');
+
+		$this->assertSame(2, $state['processed']);
+		$this->assertCount(2, $requests);
+		$saved = twcp_block_saved_descriptions();
+		$this->assertSame('A described layout.', $saved['alpha']);
+		$this->assertSame('Already described.', $saved['beta']);
+		$this->assertSame('A described layout.', $saved['gamma']);
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
 	 * Meta that did not exist before a run is removed again, and term SEO restores Rank Math and Yoast values.
 	 */
 	public function test_snapshot_restores_missing_meta_and_terms(): void

@@ -94,7 +94,9 @@ defined('ABSPATH') or exit;
 				<?php foreach ($dynamic_layouts as $layout) {
 					$lname = $layout['name'];
 					$llabel = $layout['label'] ?? $lname;
-					$cur_desc = $saved_descriptions[$lname] ?? ($default_descriptions[$lname] ?? '');
+					// The fallback is only a placeholder, so saving the form does not store it as a written description
+					$cur_desc = $saved_descriptions[$lname] ?? '';
+					$fallback = $default_descriptions[$lname] ?? '';
 					$preview_file = function_exists('twcp_block_find_preview') ? twcp_block_find_preview($lname) : null;
 					$preview_url = $preview_file && function_exists('twcp_block_preview_url') ? twcp_block_preview_url($preview_file) : '';
 					$sub_count = count($layout['sub_fields'] ?? []);
@@ -122,7 +124,7 @@ defined('ABSPATH') or exit;
 							</div>
 						</td>
 						<td style="vertical-align: top;">
-							<textarea id="twcp_desc_<?php echo esc_attr($lname); ?>" name="twcp_block_descriptions[<?php echo esc_attr($lname); ?>]" rows="3" class="large-text" style="width: 100%; transition: background-color 0.4s ease;"><?php echo esc_textarea($cur_desc); ?></textarea>
+							<textarea id="twcp_desc_<?php echo esc_attr($lname); ?>" name="twcp_block_descriptions[<?php echo esc_attr($lname); ?>]" rows="3" class="large-text" style="width: 100%; transition: background-color 0.4s ease;" placeholder="<?php echo esc_attr($fallback); ?>"><?php echo esc_textarea($cur_desc); ?></textarea>
 						</td>
 					</tr>
 				<?php } ?>

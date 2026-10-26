@@ -68,7 +68,7 @@ function twcp_batch_types(): array
 		'term_seo'        => ['slice' => 5, 'run' => 'twcp_batch_run_term_seo', 'capability' => 'edit_others_posts', 'terms' => true, 'text' => 'archive SEO title and description'],
 		'term_description' => ['slice' => 5, 'run' => 'twcp_batch_run_term_description', 'capability' => 'edit_others_posts', 'terms' => true, 'text' => 'archive description (1 to 3 sentences)'],
 		'alts'            => ['slice' => 5, 'run' => 'twcp_batch_run_alt', 'capability' => 'upload_files', 'text' => 'image Alt text (10 to 30 words)'],
-		'blocks'          => ['slice' => 0, 'run' => null, 'capability' => 'manage_options'],
+		'blocks'          => ['slice' => 2, 'run' => 'twcp_batch_run_block', 'capability' => 'manage_options'],
 	];
 
 	if (twcp_term_acf_fields('content')) {
@@ -551,7 +551,7 @@ function twcp_batch_run_term_description(int $id, bool $override = false): array
 	}
 
 	if (twcp_term_generate_description($id, $term->taxonomy, $override)) {
-		return ['success' => true, 'message' => sprintf(__('Wrote a description for "%s" (%s): "%s"', 'twee-mcp'), $term->name, $term->taxonomy, mb_strimwidth((string) get_term_field('description', $id), 0, 60, '...'))];
+		return ['success' => true, 'message' => sprintf(__('Wrote a description for "%s" (%s): "%s"', 'twee-mcp'), $term->name, $term->taxonomy, mb_strimwidth((string) get_term_field('description', $id, '', 'raw'), 0, 60, '...'))];
 	}
 
 	return ['success' => false, 'message' => sprintf(__('Failed to write a description for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
@@ -592,6 +592,25 @@ function twcp_batch_run_term_faq(int $id, bool $override = false): array
 	}
 
 	return ['success' => false, 'message' => sprintf(__('Failed to write an FAQ for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
+}
+
+
+/**
+ * Process a single page builder layout for its description
+ *
+ * @param int  $index    Position of the layout in twcp_block_get_layouts()
+ * @param bool $override Unused, the query already picks the layouts to describe
+ */
+function twcp_batch_run_block(int $index, bool $override = false): array
+{
+	$layout = twcp_block_get_layouts()[$index] ?? null;
+	if (!$layout) {
+		return ['success' => false, 'message' => sprintf(__('Layout #%d is not available.', 'twee-mcp'), $index)];
+	}
+
+	$description = (string) twcp_block_describe_single($layout['name'], twcp_block_previews_folder());
+
+	return ['success' => true, 'message' => sprintf(__('Described "%s": "%s"', 'twee-mcp'), $layout['label'] ?? $layout['name'], mb_strimwidth($description, 0, 60, '...'))];
 }
 
 
@@ -823,6 +842,13 @@ function twcp_batch_term_args(bool $override, string $taxonomy = 'all', string $
  */
 function twcp_batch_query(string $type, int $offset, int $limit, bool $override = false, string $post_type = 'all'): array
 {
+	// Layouts have no IDs, so their position in the layout list stands in for one
+	if ($type === 'blocks') {
+		$saved = twcp_block_saved_descriptions();
+		$layouts = array_filter(twcp_block_get_layouts(), fn(array $layout) => $override or empty($saved[$layout['name']]));
+
+		return array_slice(array_keys($layouts), $offset, max(0, $limit));
+	}
 	if (!empty(twcp_batch_types()[$type]['terms'])) {
 		$args = twcp_batch_term_args($override, $post_type, $type);
 
@@ -864,8 +890,14 @@ function twcp_batch_total(string $type, bool $override = false, string $post_typ
 	}
 	if (!empty(twcp_batch_types()[$type]['terms'])) {
 		$args = twcp_batch_term_args($override, $post_type, $type);
+		if (!$args) {
+			return 0;
+		}
 
-		return $args ? (int) get_terms($args + ['fields' => 'count']) : 0;
+		// A "count" query counts a term once per joined meta row, so count the distinct IDs instead
+		$ids = get_terms($args + ['fields' => 'ids']);
+
+		return is_array($ids) ? count($ids) : 0;
 	}
 
 	$args = twcp_batch_args($type, $override, $post_type);
@@ -1014,6 +1046,7 @@ function twcp_batch_restart(string $type, string $mode, string $post_type): arra
 	$state['post_type'] = sanitize_key($post_type) ? : 'all';
 	$state['field'] = twcp_batch_field($type)['key'] ?? '';
 	$state['total'] = twcp_batch_total($type, $state['override'], $state['post_type']);
+	$state['undo'] = count(twcp_batch_backup($type));
 	twcp_batch_save($type, $state);
 
 	return $state;
@@ -1021,7 +1054,10 @@ function twcp_batch_restart(string $type, string $mode, string $post_type): arra
 
 
 /**
- * Execute one slice of a batch job
+ * Execute one slice of a batch job, unless another request is still running one
+ *
+ * A refreshed page or a second tab asks for the next slice while the previous one may still run,
+ * so the job is locked for the length of a slice. The state then comes back with "busy" set.
  *
  * @param string $type
  *
@@ -1036,89 +1072,100 @@ function twcp_batch_slice(string $type): array
 		return $state;
 	}
 
+	// add_option() fails while another request holds the lock; a lock left by a crashed slice expires
+	$lock = 'twcp_batch_lock_' . $type;
+	if (!add_option($lock, time(), '', false)) {
+		wp_cache_delete($lock, 'options');
+		if ((int) get_option($lock) > time() - 10 * MINUTE_IN_SECONDS) {
+			return $state + ['busy' => true];
+		}
+		update_option($lock, time(), false);
+	}
+
 	$job = $types[$type];
 	$state['status'] = 'running';
 	$override = !empty($state['override']);
 	$logs = $state['logs'] ?? [];
 
-	if ($type === 'blocks') {
-		$folder = twcp_block_previews_folder();
-		$done = twcp_block_generate_descriptions($folder, $override);
-		$state['processed'] += $done;
-		$state['success'] += $done;
-		$state['offset'] = $state['total'];
-		$state['status'] = 'completed';
+	// When not overriding, handled items leave the missing set, so query offset is only failed items
+	$post_type = !empty($state['post_type']) ? sanitize_key($state['post_type']) : 'all';
+	$offset = $override ? $state['offset'] : $state['errors'];
+	$ids = twcp_batch_query($type, $offset, $job['slice'], $override, $post_type);
+
+	// In "poor" mode, existing values are checked together first and only the poor ones are rewritten
+	$current = [];
+	$poor = [];
+	if ($state['mode'] === 'poor' and !empty($job['text'])) {
+		$current = array_filter(array_combine($ids, array_map(fn(int $id) => twcp_batch_current($type, $id), $ids)) ? : []);
+		$poor = twcp_batch_audit($type, $current);
+	}
+
+	twcp_rewrite_mode($state['mode']);
+	$backup = twcp_batch_backup($type);
+
+	foreach ($ids as $id) {
+		$state['processed']++;
+
+		if (isset($current[$id]) and ($poor === null or !in_array($id, $poor, true))) {
+			$name = !empty($job['terms']) ? (get_term($id)->name ?? '#' . $id) : (get_the_title($id) ? : '#' . $id);
+			$res = $poor === null
+				? ['success' => false, 'message' => sprintf(__('Could not check the quality of "%s" (ID: %d).', 'twee-mcp'), $name, $id)]
+				: ['success' => true, 'message' => sprintf(__('Kept "%s": the current text looks good.', 'twee-mcp'), $name)];
+		} else {
+			// Keep the values from before the first change, so Undo returns to them
+			$backup[$id] = $backup[$id] ?? twcp_batch_snapshot($type, $id);
+			$res = call_user_func($job['run'], $id, $override);
+		}
+
+		$is_ok = is_array($res) ? !empty($res['success']) : (bool) $res;
+		$msg = is_array($res) && !empty($res['message']) ? $res['message'] : sprintf(__('Processed item ID #%d', 'twee-mcp'), $id);
+
+		if ($is_ok) {
+			$state['success']++;
+		} else {
+			$state['errors']++;
+		}
 
 		$logs[] = [
 			'time'    => current_time('H:i:s'),
-			'success' => true,
-			'message' => sprintf(__('Generated descriptions for %d block layout(s).', 'twee-mcp'), $done),
+			'success' => $is_ok,
+			'message' => $msg,
 		];
-	} else {
-		// When not overriding, handled items leave the missing set, so query offset is only failed items
-		$post_type = !empty($state['post_type']) ? sanitize_key($state['post_type']) : 'all';
-		$offset = $override ? $state['offset'] : $state['errors'];
-		$ids = twcp_batch_query($type, $offset, $job['slice'], $override, $post_type);
+		$state['offset']++;
 
-		// In "poor" mode, existing values are checked together first and only the poor ones are rewritten
-		$current = [];
-		$poor = [];
-		if ($state['mode'] === 'poor' and !empty($job['text'])) {
-			$current = array_filter(array_combine($ids, array_map(fn(int $id) => twcp_batch_current($type, $id), $ids)) ? : []);
-			$poor = twcp_batch_audit($type, $current);
+		// Stop pressed during this item ends the slice here, instead of being overwritten by the save below
+		wp_cache_delete('twcp_batch_' . $type, 'options');
+		if ((get_option('twcp_batch_' . $type, [])['status'] ?? '') === 'paused') {
+			$state['status'] = 'paused';
 		}
 
-		twcp_rewrite_mode($state['mode']);
-		$backup = twcp_batch_backup($type);
+		// Save after every item, so the screen can follow a slice while it runs
+		$state['logs'] = $logs;
+		twcp_batch_save($type, $state);
 
-		foreach ($ids as $id) {
-			$state['processed']++;
-
-			if (isset($current[$id]) and ($poor === null or !in_array($id, $poor, true))) {
-				$name = !empty($job['terms']) ? (get_term($id)->name ?? '#' . $id) : (get_the_title($id) ? : '#' . $id);
-				$res = $poor === null
-					? ['success' => false, 'message' => sprintf(__('Could not check the quality of "%s" (ID: %d).', 'twee-mcp'), $name, $id)]
-					: ['success' => true, 'message' => sprintf(__('Kept "%s": the current text looks good.', 'twee-mcp'), $name)];
-			} else {
-				// Keep the values from before the first change, so Undo returns to them
-				$backup[$id] = $backup[$id] ?? twcp_batch_snapshot($type, $id);
-				$res = call_user_func($job['run'], $id, $override);
-			}
-
-			$is_ok = is_array($res) ? !empty($res['success']) : (bool) $res;
-			$msg = is_array($res) && !empty($res['message']) ? $res['message'] : sprintf(__('Processed item ID #%d', 'twee-mcp'), $id);
-
-			if ($is_ok) {
-				$state['success']++;
-			} else {
-				$state['errors']++;
-			}
-
-			$logs[] = [
-				'time'    => current_time('H:i:s'),
-				'success' => $is_ok,
-				'message' => $msg,
-			];
+		if ($state['status'] === 'paused') {
+			break;
 		}
+	}
 
-		twcp_rewrite_mode('');
-		update_option('twcp_batch_undo_' . $type, $backup, false);
-		$state['undo'] = count($backup);
-		$state['offset'] += count($ids);
+	twcp_rewrite_mode('');
+	update_option('twcp_batch_undo_' . $type, $backup, false);
+	$state['undo'] = count($backup);
 
-		if (count($ids) < $job['slice'] or ($state['total'] > 0 and $state['processed'] >= $state['total'])) {
-			$state['status'] = 'completed';
-			$state['total'] = $state['processed'];
-			$logs[] = [
-				'time'    => current_time('H:i:s'),
-				'success' => true,
-				'message' => sprintf(__('Batch complete. Total %d processed (%d successful, %d errors).', 'twee-mcp'), $state['processed'], $state['success'], $state['errors']),
-			];
-		}
+	// A job stopped on its last item is complete as well
+	if (($state['status'] === 'running' and count($ids) < $job['slice']) or ($state['total'] > 0 and $state['processed'] >= $state['total'])) {
+		$state['status'] = 'completed';
+		$state['total'] = $state['processed'];
+		$logs[] = [
+			'time'    => current_time('H:i:s'),
+			'success' => true,
+			'message' => sprintf(__('Batch complete. Total %d processed (%d successful, %d errors).', 'twee-mcp'), $state['processed'], $state['success'], $state['errors']),
+		];
 	}
 
 	$state['logs'] = array_slice($logs, -40);
 	twcp_batch_save($type, $state);
+	delete_option($lock);
 
 	return $state;
 }
@@ -1243,7 +1290,7 @@ function twcp_batch_ajax_control(): void
 		$state['post_type'] = $post_type;
 		$state['status'] = 'running';
 		$state['user'] = get_current_user_id();
-		$state['background'] = twcp_batch_background() && $type !== 'blocks';
+		$state['background'] = twcp_batch_background();
 		if ($state['background']) {
 			$state['logs'][] = ['time' => current_time('H:i:s'), 'success' => true, 'message' => __('Running on the server. You can close this page; the job keeps going.', 'twee-mcp')];
 		}
@@ -1338,7 +1385,9 @@ function twcp_batch_run_background(string $type): void
 		return;
 	}
 
-	if (twcp_batch_slice($type)['status'] === 'running') {
+	// A busy job is queued again by the slice that holds the lock
+	$state = twcp_batch_slice($type);
+	if ($state['status'] === 'running' and empty($state['busy'])) {
 		twcp_batch_schedule($type, false);
 	}
 }
@@ -1478,7 +1527,6 @@ function twcp_batch_cards(): array
 			'section'        => 'site',
 			'title'          => __('ACF Block Descriptions', 'twee-mcp'),
 			'description'    => __('Describes page builder layouts from their fields and preview screenshots.', 'twee-mcp'),
-			'has_pause'      => false,
 			'btn_text'       => __('Generate Block Descriptions', 'twee-mcp'),
 			'unit'           => __('Layouts', 'twee-mcp'),
 		],
