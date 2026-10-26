@@ -290,7 +290,7 @@ function twcp_tools_registry(): array
 }
 
 /**
- * Tool groups shown on the Tools screen. A group with "active" set to false
+ * Tool groups shown on the Agent Tools screen. A group with "active" set to false
  * depends on a plugin that is not running, so its tools are unavailable.
  *
  * @return array Group => [ label, tools, plugin, active ]
@@ -332,7 +332,7 @@ function twcp_tools_missing(string $name): ?string
 
 
 /**
- * Tools switched off on the Tools screen
+ * Tools switched off on the Agent Tools screen
  *
  * @return string[]
  */
@@ -344,7 +344,7 @@ function twcp_tools_disabled(): array
 
 /**
  * Sanitize the disabled tools setting.
- * The Tools screen posts name => 1|0 (1 = enabled), code may store a plain list of names.
+ * The Agent Tools screen posts name => 1|0 (1 = enabled), code may store a plain list of names.
  *
  * @param mixed $input
  *

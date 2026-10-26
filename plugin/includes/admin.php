@@ -3,14 +3,15 @@
  * Twee MCP — AI Tools Admin Interface
  *
  * Top-level "AI Tools" menu (last item of the admin menu) with one submenu page per tab:
- * - Tools      (automation for content and shop managers, MCP tool switches)
- * - Prompts    (system prompts by area, copy-ready agent prompts)
- * - Library    (ACF blocks and stock image providers)
- * - AI Models  (text & vision models, image size, API key, connection test)
- * - Connection (server toggle, endpoint, setup guides, OAuth sessions)
+ * - Automation   (batch jobs for content and shop managers, internal link settings)
+ * - Prompts      (system prompts by area, copy-ready agent prompts)
+ * - Library      (ACF blocks and stock image providers)
+ * - AI Provider  (text & vision models, image size, API key, connection test)
+ * - Agent Access (server toggle, endpoint, setup guides, OAuth sessions)
+ * - Agent Tools  (MCP tool switches)
  *
  * Every tab renders template parts from parts/{part}.php that receive only the data they need.
- * Tools is open to editors and shop managers; the other tabs need manage_options.
+ * Automation is open to editors and shop managers; the other tabs need manage_options.
  *
  * @package Twee_MCP
  */
@@ -26,11 +27,12 @@ defined('ABSPATH') or exit;
 function twcp_admin_tabs(): array
 {
 	return [
-		'tools'      => ['label' => __('Tools', 'twee-mcp'), 'capability' => 'edit_others_posts', 'parts' => ['tools']],
+		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'parts' => ['automation']],
 		'prompts'    => ['label' => __('Prompts', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['prompts', 'examples']],
 		'library'    => ['label' => __('Library', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['blocks', 'images']],
-		'model'      => ['label' => __('AI Models', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['model']],
-		'connection' => ['label' => __('Connection', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['connection']],
+		'model'      => ['label' => __('AI Provider', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['model']],
+		'connection' => ['label' => __('Agent Access', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['connection']],
+		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['tools']],
 	];
 }
 
@@ -43,7 +45,6 @@ function twcp_admin_tabs(): array
 function twcp_admin_legacy(): array
 {
 	return [
-		'tw-mcp-tools'    => 'tools',
 		'tw-mcp-blocks'   => 'library',
 		'tw-mcp-images'   => 'library',
 		'tw-mcp-examples' => 'prompts',
@@ -122,7 +123,7 @@ function twcp_admin_init(): void
 		]);
 	}
 
-	// MCP tools switched off on the Tools screen
+	// MCP tools switched off on the Agent Tools screen
 	register_setting('twcp_tools_group', 'twcp_disabled_tools', ['type' => 'array', 'sanitize_callback' => 'twcp_tools_sanitize_disabled', 'default' => []]);
 
 	register_setting('twcp_prompts_group', 'twcp_product_settings', [
@@ -137,6 +138,21 @@ function twcp_admin_init(): void
 		},
 		'default'           => [],
 	]);
+
+	// Internal links of generated post content, saved from the Content Automation section by anyone who runs its jobs
+	register_setting('twcp_content_group', 'twcp_post_links', [
+		'type'              => 'array',
+		'sanitize_callback' => function($input) {
+			$input = is_array($input) ? $input : [];
+
+			return [
+				'max'     => isset($input['max']) ? min(15, max(0, (int) $input['max'])) : 4,
+				'sources' => array_values(array_intersect(['terms', 'posts', 'pages', 'products', 'lookup'], (array) ($input['sources'] ?? []))),
+			];
+		},
+		'default'           => [],
+	]);
+	add_filter('option_page_capability_twcp_content_group', fn() => 'edit_others_posts');
 
 	// Blocks
 	register_setting('twcp_blocks_group', 'twcp_blocks_field', ['type' => 'string', 'sanitize_callback' => 'sanitize_key', 'default' => 'blocks']);
@@ -488,7 +504,7 @@ function twcp_admin_data(string $part): array
 				'chatgpt'        => twcp_chatgpt_status(),
 			];
 
-		case 'tools':
+		case 'automation':
 			return [
 				'overview'         => twcp_batch_overview(),
 				'sections'         => twcp_batch_sections(),
@@ -497,6 +513,13 @@ function twcp_admin_data(string $part): array
 				'yoast_active'     => defined('WPSEO_VERSION'),
 				'woo_active'       => twcp_product_active(),
 				'can_manage'       => current_user_can('manage_options'),
+				'model_missing'    => twcp_model_missing(),
+				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('model')),
+				'post_links'       => array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', [])),
+			];
+
+		case 'tools':
+			return [
 				'tools'            => twcp_tools_registry(),
 				'tool_groups'      => twcp_tools_groups(),
 				'disabled_tools'   => twcp_tools_disabled(),

@@ -18,11 +18,11 @@ I need to create a new post on %1$s using MCP (%2$s).
 
 Instructions to create a new post:
 1. Review the available post category list and select one or two categories for the post.
-2. Choose a relevant and unique title that fits the selected categories and includes target keywords like "straps," "watches," "bands," etc.
+2. Choose a relevant and unique title that fits the selected categories and includes the site's target keywords.
 3. Create the post with a featured image, assign the selected categories, and publish it.
 4. Add relevant images from the WordPress media library; if none are available, use the `search_stock_images` MCP command to find stock images, add them to the media library, and use them in the article.
 5. Ensure the article has the correct SEO Title, SEO Description, and short excerpt.
-6. Review the newly created post on the website. If blocked by Cloudflare, use `simona` as the User-Agent when making requests.
+6. Review the newly created post on the website.
 
 Requirements for post content:
 * Align with the store's topic and selected categories.
@@ -39,7 +39,7 @@ Requirements for post content:
 * Include 5 to 10 links to product categories, pages, article categories, etc., naturally integrated into the text. You can modify link text and add words to fit better in the text.
 * Utilize MCP tools to gather relevant products, categories, or terms (e.g., `get_posts`, `get_terms`).
 * Include a pros and cons section if applicable, with lists followed by comparative summaries.
-* Incorporate categories, popular watch models, and other technical information to enhance the article's informativeness.
+* Incorporate categories, relevant products or services, and technical details to make the article more informative.
 PROMPT,
 	$site_name,
 	$site_url
@@ -163,7 +163,7 @@ $coupon_prompt = sprintf(
 	<<<'PROMPT'
 Set up a promotion on %1$s using MCP (%2$s).
 
-Promotion: [e.g. 15%% off leather straps until the end of the month]
+Promotion: [e.g. 15%% off one product category until the end of the month]
 
 1. Use `get_terms` with taxonomy "product_cat" to find the matching product categories.
 2. Use `get_coupons` to make sure no active coupon uses the same code.

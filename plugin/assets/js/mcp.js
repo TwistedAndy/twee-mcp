@@ -493,15 +493,26 @@ jQuery(function($) {
 		$card.find('.percent_text').text(percent + '%');
 		$card.find('.info_text').text('Processed: ' + processed + ' / ' + total);
 
-		const isOverride = !!state.override;
+		const mode = state.mode || 'fill';
 		const $badge = $card.find('.batch_badge');
 		if ($badge.length) {
-			$badge.text(isOverride ? (total + ' Total') : (total + ' Missing'));
+			$badge.text(mode === 'fill' ? (total + ' Missing') : (total + ' Total'));
 		}
-		$card.find('.twcp_batch_override').prop('checked', isOverride);
+		$card.find('.twcp_batch_mode').val(mode);
+		$card.find('.btn_undo').toggle(parseInt(state.undo, 10) > 0 && state.status !== 'running');
+
+		// Rough cost of the items left; "Rewrite if poor" adds one quality check per slice
+		const left = Math.max(0, total - processed);
+		const slice = parseInt($card.data('slice'), 10) || 1;
+		const calls = left * (parseInt($card.data('calls'), 10) || 1) + (mode === 'poor' ? Math.ceil(left / slice) : 0);
+		const tokens = left * (parseInt($card.data('tokens'), 10) || 0) + (mode === 'poor' ? Math.ceil(left / slice) * 1500 : 0);
+		$card.find('.batch_estimate').text(left && state.status !== 'completed' ? '≈ ' + calls + ' AI request' + (calls === 1 ? '' : 's') + ', ' + (tokens >= 1000 ? Math.round(tokens / 1000) + 'k' : tokens) + ' tokens' : '');
 
 		if (state.post_type) {
 			$card.find('.twcp_batch_post_type').val(state.post_type);
+		}
+		if (state.field) {
+			$card.find('.twcp_batch_field').val(state.field);
 		}
 
 		const $start = $card.find('.btn_start');
@@ -523,29 +534,29 @@ jQuery(function($) {
 			$pause.show().prop('disabled', false);
 			$resume.hide();
 			$reset.prop('disabled', true);
-			$card.find('.twcp_batch_override').prop('disabled', true);
-			$card.find('.twcp_batch_post_type').prop('disabled', true);
+			$card.find('.twcp_batch_mode').prop('disabled', true);
+			$card.find('.twcp_batch_post_type, .twcp_batch_field').prop('disabled', true);
 		} else if (state.status === 'paused') {
 			$start.hide();
 			$pause.hide();
 			$resume.show().prop('disabled', false);
 			$reset.prop('disabled', false);
-			$card.find('.twcp_batch_override').prop('disabled', true);
-			$card.find('.twcp_batch_post_type').prop('disabled', true);
+			$card.find('.twcp_batch_mode').prop('disabled', true);
+			$card.find('.twcp_batch_post_type, .twcp_batch_field').prop('disabled', true);
 		} else if (state.status === 'completed') {
 			$start.show().text('Completed').prop('disabled', true);
 			$pause.hide();
 			$resume.hide();
 			$reset.prop('disabled', false);
-			$card.find('.twcp_batch_override').prop('disabled', false);
-			$card.find('.twcp_batch_post_type').prop('disabled', false);
+			$card.find('.twcp_batch_mode').prop('disabled', false);
+			$card.find('.twcp_batch_post_type, .twcp_batch_field').prop('disabled', false);
 		} else { // idle
-			$start.show().text($start.data('orig-text') || $start.text()).prop('disabled', total === 0);
+			$start.show().text($start.data('orig-text') || $start.text()).prop('disabled', total === 0 || !!$card.data('locked'));
 			$pause.hide();
 			$resume.hide();
 			$reset.prop('disabled', false);
-			$card.find('.twcp_batch_override').prop('disabled', false);
-			$card.find('.twcp_batch_post_type').prop('disabled', false);
+			$card.find('.twcp_batch_mode').prop('disabled', false);
+			$card.find('.twcp_batch_post_type, .twcp_batch_field').prop('disabled', false);
 		}
 	}
 
@@ -579,6 +590,41 @@ jQuery(function($) {
 		});
 	}
 
+	// Background jobs run on the server, so the page only follows their progress
+	let pollTimer = null;
+
+	function pollBatches() {
+		clearTimeout(pollTimer);
+		pollTimer = setTimeout(function() {
+			sendAjax('twcp_batch_status', {}, function(res) {
+				let running = false;
+				if (res.success && res.data && res.data.batches) {
+					$.each(res.data.batches, function(type, state) {
+						if (!activeJobs[type] || !activeJobs[type].background) {
+							return;
+						}
+						activeJobs[type] = state;
+						updateBatchUI($('.batch_card[data-type="' + type + '"]'), state);
+						running = running || (state.status === 'running' && state.background);
+					});
+				}
+				if (running) {
+					pollBatches();
+				}
+			}, function() {
+				pollBatches();
+			});
+		}, 4000);
+	}
+
+	function runBatch(type, state) {
+		if (state && state.background) {
+			pollBatches();
+		} else {
+			runBatchStep(type);
+		}
+	}
+
 	// Fetch initial batch states
 	if ($('.batch_card').length) {
 		sendAjax('twcp_batch_status', {}, function(res) {
@@ -588,6 +634,10 @@ jQuery(function($) {
 					const $card = $('.batch_card[data-type="' + type + '"]');
 					if ($card.length) {
 						updateBatchUI($card, state);
+					}
+					if (state.status === 'running' && state.background) {
+						$card.find('.batch_log_wrapper').show();
+						pollBatches();
 					}
 				});
 			}
@@ -606,6 +656,8 @@ jQuery(function($) {
 				if (typeof callback === 'function') {
 					callback(type, res.data.state);
 				}
+			} else if (res.data && res.data.message) {
+				alert(res.data.message);
 			}
 		});
 	}
@@ -615,14 +667,23 @@ jQuery(function($) {
 		const $card = $(this).closest('.batch_card');
 		sendBatchControl($card, 'change_post_type', {
 			post_type: $(this).val() || 'all',
-			override: $card.find('.twcp_batch_override').is(':checked') ? 1 : 0
+			mode: $card.find('.twcp_batch_mode').val() || 'fill'
 		});
 	});
 
-	$('.batch_card').on('change', '.twcp_batch_override', function() {
+	$('.batch_card').on('change', '.twcp_batch_field', function() {
 		const $card = $(this).closest('.batch_card');
-		sendBatchControl($card, 'toggle_override', {
-			override: $(this).is(':checked') ? 1 : 0,
+		sendBatchControl($card, 'change_field', {
+			field: $(this).val() || '',
+			mode: $card.find('.twcp_batch_mode').val() || 'fill',
+			post_type: $card.find('.twcp_batch_post_type').val() || 'all'
+		});
+	});
+
+	$('.batch_card').on('change', '.twcp_batch_mode', function() {
+		const $card = $(this).closest('.batch_card');
+		sendBatchControl($card, 'change_mode', {
+			mode: $(this).val() || 'fill',
 			post_type: $card.find('.twcp_batch_post_type').val() || 'all'
 		});
 	});
@@ -631,10 +692,10 @@ jQuery(function($) {
 		const $card = $(this).closest('.batch_card');
 		$card.find('.batch_log_wrapper').show();
 		sendBatchControl($card, 'start', {
-			override: $card.find('.twcp_batch_override').is(':checked') ? 1 : 0,
+			mode: $card.find('.twcp_batch_mode').val() || 'fill',
 			post_type: $card.find('.twcp_batch_post_type').val() || 'all'
-		}, function(type) {
-			runBatchStep(type);
+		}, function(type, state) {
+			runBatch(type, state);
 		});
 	});
 
@@ -660,6 +721,16 @@ jQuery(function($) {
 			$card.find('.batch_log_wrapper').hide();
 			$card.find('.batch_log_box').empty();
 		});
+	});
+
+	$('.batch_card').on('click', '.btn_undo', function() {
+		const $card = $(this).closest('.batch_card');
+		const count = parseInt((activeJobs[$card.data('type')] || {}).undo, 10) || 0;
+		if (!confirm('Restore the values from before the last run on ' + count + ' item(s)? Changes made since then to those fields are lost.')) {
+			return;
+		}
+		$card.find('.batch_log_wrapper').show();
+		sendBatchControl($card, 'undo');
 	});
 
 	$('.batch_card').on('click', '.btn_clear_log', function(e) {

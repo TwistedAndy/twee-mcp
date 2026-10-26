@@ -479,22 +479,22 @@ function twcp_media_preview(array $args): array
  */
 function twcp_prompt_alt_default(): string
 {
-	$store_name = get_bloginfo('name') ? : 'Ele Straps';
+	$store_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior accessibility and visual SEO specialist writing descriptive HTML image alt text for {$store_name}, a premier retailer of watch straps, bands, deployant clasps, and horological accessories.
+You are a senior accessibility and visual SEO specialist writing descriptive HTML image alt text for {$store_name}.
 
 CORE OBJECTIVE:
-Generate clear, objective, and information-rich Alt text describing the provided product photo accurately for visually impaired users (screen readers), image search indexers (Google Images), and AI autonomous agents choosing photos for new catalog content.
+Generate clear, objective, and information-rich Alt text describing the provided image accurately for visually impaired users (screen readers), image search indexers (Google Images), and AI autonomous agents choosing photos for new catalog content.
 
 GUIDELINES:
 1. Conciseness: Strictly 1 to 2 sentences (between 15 and 35 words).
 2. Key Attributes to Identify:
-   - Specific product type (e.g. vintage leather strap, jubilee bracelet, rubber diver band, NATO strap, deployment buckle)
-   - Color and finish (e.g. cognac brown, matte black, olive drab, polished stainless steel, rose gold PVD)
-   - Material characteristics and texture (e.g. contrast white saddle stitching, alligator grain embossed, perforated rally holes, waffle pattern)
-   - Hardware details (e.g. pre-V buckle, brushed steel keeper, quick-release pins)
-   - Photographic presentation angle (e.g. flat lay view, isolated side profile, installed on wrist, macro buckle closeup)
+   - The main subject and its specific type (e.g. a product, a person at work, a place, a diagram, a screenshot)
+   - Color and finish (e.g. navy blue, matte black, brushed steel, pastel)
+   - Material, texture, and visible details that matter for the subject
+   - Visible text, logos, or labels when they carry meaning
+   - Setting and presentation (e.g. flat lay, close-up, in use, on a white background)
 3. Formatting:
    - Output strictly plain text.
    - Do NOT include labels like "Alt text:", "Image of", or "Photo shows".
@@ -523,13 +523,12 @@ function twcp_media_generate_alt(int $attachment_id, bool $force = false): ?stri
 		return $current_alt;
 	}
 
-	$prompt = "Analyze this image for an e-commerce store (luxury watch straps, bands, buckles, and accessories).\n";
+	$prompt = "Analyze this image from " . twcp_site_name() . ".\n";
 	$prompt .= "Generate a concise, highly descriptive Alt text (1 to 2 sentences, 10 to 30 words).\n";
-	$prompt .= "Include key details: item type (e.g. leather watch strap, steel mesh bracelet), color, material, texture/stitching, hardware finish, and view angle.\n";
+	$prompt .= "Include key details: the main subject and its type, color, material or texture, setting, and view angle.\n";
 
 	if (!empty($current_alt)) {
-		$prompt .= "\nCurrent Alt Text:\n\"{$current_alt}\"\n";
-		$prompt .= "Improve, refine, or rewrite this Alt text to be more precise, descriptive, and SEO-friendly based on the photo.\n";
+		$prompt .= twcp_rewrite_note('Alt text', "\"{$current_alt}\"", 'Improve, refine, or rewrite this Alt text to be more precise, descriptive, and SEO-friendly based on the photo.');
 	}
 
 	$associated = twcp_media_associated_post($post);
@@ -778,16 +777,16 @@ function twcp_media_check_batch(array $attachment_ids): array
 		$chunks = array_chunk($items_to_audit, 25, true);
 
 		foreach ($chunks as $chunk) {
-			$audit_prompt = "You are a professional image accessibility and SEO auditor for an e-commerce watch straps and accessories store.\n";
+			$audit_prompt = "You are a professional image accessibility and SEO auditor for " . twcp_site_name() . ".\n";
 			$audit_prompt .= "Evaluate whether the existing Alt text for each image is POOR QUALITY and should be REGENERATED, or ACCEPTABLE.\n\n";
 			$audit_prompt .= "CRITERIA FOR POOR QUALITY (needs_update: true):\n";
-			$audit_prompt .= "- Merely a raw filename, camera code, or extension (e.g. 'IMG_0921', 'DSC1234.jpg', 'strap-banner-final-v2')\n";
-			$audit_prompt .= "- Keyword stuffing without grammatical structure (e.g. 'watch strap band leather replacement 20mm rolex buy')\n";
-			$audit_prompt .= "- Generic placeholders (e.g. 'image', 'photo', 'watch strap', 'product', 'banner')\n";
+			$audit_prompt .= "- Merely a raw filename, camera code, or extension (e.g. 'IMG_0921', 'DSC1234.jpg', 'banner-final-v2')\n";
+			$audit_prompt .= "- Keyword stuffing without grammatical structure (e.g. 'shoes running cheap best buy sale 2024')\n";
+			$audit_prompt .= "- Generic placeholders (e.g. 'image', 'photo', 'product', 'banner')\n";
 			$audit_prompt .= "- Under-descriptive: 1 or 2 generic words with zero description of material, color, texture, or style\n";
 			$audit_prompt .= "- Spammy, garbled, or repetitive phrases\n\n";
 			$audit_prompt .= "CRITERIA FOR ACCEPTABLE (needs_update: false):\n";
-			$audit_prompt .= "- Descriptive and meaningful: describes the strap material, color, hardware, or view in a coherent phrase or sentence\n";
+			$audit_prompt .= "- Descriptive and meaningful: describes the subject, color, material, or setting in a coherent phrase or sentence\n";
 			$audit_prompt .= "- Informative for visually impaired users and image search engines\n\n";
 			$audit_prompt .= "IMAGES TO EVALUATE:\n";
 

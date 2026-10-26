@@ -452,7 +452,7 @@ function twcp_block_default_descriptions(): array
 		'products' => 'Curated WooCommerce product showcase grid (featured, sale, or recent items) with price, ratings, and add-to-cart buttons.',
 		'contact'  => 'Contact information block with physical address, phone numbers, email, business hours, and interactive Google map.',
 		'product'  => 'Single featured product spotlight banner highlighting specs, special discounts, and direct checkout action.',
-		'catalog'  => 'Full store catalog grid or category navigation tiles for browsing watch strap collections.',
+		'catalog'  => 'Full store catalog grid or category navigation tiles for browsing product collections.',
 		'comments' => 'Customer reviews and comments list section with submission form and star ratings.',
 		'set'      => 'Reusable block set reference that embeds a pre-configured collection of blocks from post_type block_set.',
 	];

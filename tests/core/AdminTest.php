@@ -18,22 +18,23 @@ class AdminTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * Tools is open to content managers while settings tabs stay with administrators.
+	 * Automation is open to content managers while settings and agent tabs stay with administrators.
 	 */
 	public function test_tab_capabilities(): void
 	{
 		$tabs = twcp_admin_tabs();
 
-		$this->assertSame('tools', array_key_first($tabs));
-		$this->assertSame('edit_others_posts', $tabs['tools']['capability']);
-		foreach (['prompts', 'library', 'model', 'connection'] as $tab) {
+		$this->assertSame('automation', array_key_first($tabs));
+		$this->assertSame('edit_others_posts', $tabs['automation']['capability']);
+		foreach (['prompts', 'library', 'model', 'connection', 'tools'] as $tab) {
 			$this->assertSame('manage_options', $tabs[$tab]['capability'], $tab);
 		}
 
 		$editor = self::factory()->user->create(['role' => 'editor']);
 		wp_set_current_user($editor);
-		$this->assertTrue(current_user_can($tabs['tools']['capability']));
+		$this->assertTrue(current_user_can($tabs['automation']['capability']));
 		$this->assertFalse(current_user_can($tabs['prompts']['capability']));
+		$this->assertFalse(current_user_can($tabs['tools']['capability']));
 	}
 
 	/**
@@ -41,8 +42,9 @@ class AdminTest extends TWCP_TestCase {
 	 */
 	public function test_slugs_resolve_to_tabs(): void
 	{
-		$this->assertSame('tw-mcp', twcp_admin_slug('tools'));
+		$this->assertSame('tw-mcp', twcp_admin_slug('automation'));
 		$this->assertSame('tw-mcp-prompts', twcp_admin_slug('prompts'));
+		$this->assertSame('tw-mcp-tools', twcp_admin_slug('tools'));
 
 		foreach (array_keys(twcp_admin_tabs()) as $tab) {
 			$_GET['page'] = twcp_admin_slug($tab);
@@ -64,7 +66,7 @@ class AdminTest extends TWCP_TestCase {
 		}
 
 		$_GET['page'] = 'unknown';
-		$this->assertSame('tools', twcp_admin_tab());
+		$this->assertSame('automation', twcp_admin_tab());
 	}
 
 

@@ -711,10 +711,10 @@ function twcp_post_seo_json(string $response): ?array
  */
 function twcp_prompt_seo_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior search engine optimization (SEO) strategist and conversion copywriter specializing in organic search rankings and click-through-rate (CTR) maximization for e-commerce and lifestyle websites.
+You are a senior search engine optimization (SEO) strategist and conversion copywriter specializing in organic search rankings and click-through-rate (CTR) maximization for business, content, and e-commerce websites.
 
 Your objective is to generate the highest-performing SEO Title tag and Meta Description for given website content on {$site_name}.
 
@@ -729,7 +729,7 @@ CORE PRINCIPLES & GUIDELINES:
 
 2. META DESCRIPTION SPECIFICATIONS:
    - Length: Strictly between 135 and 155 characters (optimal for Google's desktop snippet and mobile displays).
-   - Structure: State the main value proposition, highlight unique attributes (e.g. materials, compatibility, fast shipping), and conclude with an enticing, active call-to-action (e.g. "Shop now", "Explore the guide", "Find your perfect fit").
+   - Structure: State the main value proposition, highlight unique attributes (e.g. features, expertise, pricing, delivery), and conclude with an enticing, active call-to-action (e.g. "Shop now", "Read the guide", "Get a quote").
    - Voice: Active, confident, clear, and direct. Avoid passive phrasing like "This post is about...".
    - Keyword Integration: Include secondary keyword variations naturally without keyword stuffing.
 
@@ -739,11 +739,11 @@ CORE PRINCIPLES & GUIDELINES:
      {"title": "Compelling Title Here | {$site_name}", "description": "Engaging description here under 155 characters."}
 
 4. FEW-SHOT EXAMPLES:
-   Input: Title: Horween Leather Watch Strap Guide, Post Type: post
-   Output: {"title": "Horween Leather Watch Strap Guide | {$site_name}", "description": "Discover genuine Horween leather watch straps. Learn about Chromexcel and Shell Cordovan durability, patina, and styling. Read the expert guide."}
+   Input: Title: How to Choose a Project Management Tool, Post Type: post
+   Output: {"title": "How to Choose a Project Management Tool | {$site_name}", "description": "Compare features, pricing, and team fit to pick the right project management tool. Use our checklist to decide with confidence. Read the guide."}
 
-   Input: Title: Quick-Release Stainless Steel Mesh Bands, Post Type: page
-   Output: {"title": "Stainless Steel Mesh Watch Bands | {$site_name}", "description": "Upgrade your timepiece with premium stainless steel mesh watch bands. Featuring quick-release spring bars and secure clasps. Shop now."}
+   Input: Title: Web Design Services, Post Type: page
+   Output: {"title": "Custom Web Design Services | {$site_name}", "description": "Get a fast, accessible website designed around your goals. See our process, recent projects, and pricing, then book a free consultation today."}
 PROMPT;
 }
 
@@ -787,7 +787,7 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
 		$summary .= "Post Body Content:\n" . substr($content, 0, 1000) . "\n";
 	}
 
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 
 	$prompt = "Generate an SEO Title and Meta Description for the following content on {$site_name} store.\n";
 	$prompt .= "Title: {$title}\n";
@@ -797,14 +797,9 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
 	}
 
 	if (!empty($current_title) or !empty($current_desc)) {
-		$prompt .= "\nCurrent Existing SEO Tags to review and improve/rewrite:\n";
-		if (!empty($current_title)) {
-			$prompt .= "- Current Title: \"{$current_title}\"\n";
-		}
-		if (!empty($current_desc)) {
-			$prompt .= "- Current Meta Description: \"{$current_desc}\"\n";
-		}
-		$prompt .= "Improve these SEO tags to maximize organic search CTR and ranking.\n\n";
+		$current = !empty($current_title) ? "- Title: \"{$current_title}\"\n" : '';
+		$current .= !empty($current_desc) ? "- Meta Description: \"{$current_desc}\"\n" : '';
+		$prompt .= twcp_rewrite_note('SEO tags', rtrim($current), 'Improve these SEO tags to maximize organic search CTR and ranking.');
 	}
 
 	$prompt .= "Requirements:\n";
@@ -849,7 +844,7 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
  */
 function twcp_prompt_excerpt_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 
 	return <<<PROMPT
 You are a senior editor and conversion copywriter for {$site_name}.
@@ -904,7 +899,7 @@ function twcp_post_generate_excerpt(int $post_id, bool $force = false): bool
 	}
 	$current_excerpt = trim($post->post_excerpt);
 	if (!empty($current_excerpt)) {
-		$prompt .= "\nCurrent Excerpt to review, improve, and rewrite:\n\"{$current_excerpt}\"\n\n";
+		$prompt .= twcp_rewrite_note('excerpt', "\"{$current_excerpt}\"");
 	}
 	$prompt .= "Output strictly 1 to 2 sentences in plain text without quotes or markdown.";
 
@@ -935,15 +930,15 @@ function twcp_post_generate_excerpt(int $post_id, bool $force = false): bool
  */
 function twcp_prompt_content_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 	$site_url = home_url('/');
 
 	return <<<PROMPT
-You are a senior content creator, watch specialist, and horological writer for {$site_name} ({$site_url}).
+You are a senior content creator and subject-matter writer for {$site_name} ({$site_url}).
 Your objective is to write a complete, high-quality, long-form article for the blog.
 
 Requirements for post content:
-* Align with the store's topic (watch straps, bands, materials, fitment, and watch care).
+* Align with the topics, products, and services in the store profile.
 * Be engaging and interesting, combining technical information with fascinating facts.
 * Length & Structure: Comprehensive article divided into 4 to 8 sections using proper HTML headings (H2, H3).
 * Use valid WordPress HTML without wrapper tags (no <html>, <body>, or duplicate H1).
@@ -954,9 +949,119 @@ Requirements for post content:
 * Include ordered or unordered lists (UL/OL and LI) with 3 to 8 items to present key points clearly.
 * In addition to lists, consider using comparison tables (<table class=\"table\">) to present relevant specs or comparisons.
 * Begin the first section with a natural, engaging summary—consider using an open question to invite further reading.
-* Include natural references to product types, materials, popular watch models, and technical information to enhance informativeness.
+* Include natural references to relevant products, services, examples, and technical details to make the article more informative.
 * Output strictly valid HTML content ready to be saved into post_content. Do not include markdown code block ticks (```html).
 PROMPT;
+}
+
+
+/**
+ * Approved internal links for generated post content, or generated HTML with unapproved links unwrapped
+ *
+ * The link sources and the maximum number of links are chosen in the Internal Links panel of the Automation screen.
+ *
+ * @param int         $post_id Post the content is written for, or the source of a similar post
+ * @param string|null $html    Generated HTML to check
+ *
+ * @return array|string [ note => prompt text, read_tools => lookups to offer ], or the checked HTML
+ */
+function twcp_post_links(int $post_id, ?string $html = null)
+{
+	$settings = array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', []));
+	$sources = (array) $settings['sources'];
+	$post = get_post($post_id);
+	$links = [];
+
+	if ($post and $settings['max'] > 0) {
+		// The post's own categories and tags, which also pick the related posts
+		$tax_query = ['relation' => 'OR'];
+		$default_category = (int) get_option('default_category');
+		foreach (get_object_taxonomies($post->post_type, 'objects') as $taxonomy) {
+			$terms = $taxonomy->public ? wp_get_object_terms($post_id, $taxonomy->name) : [];
+			foreach (is_wp_error($terms) ? [] : $terms as $term) {
+				if ((int) $term->term_id === $default_category) {
+					continue;
+				}
+				$tax_query[] = ['taxonomy' => $term->taxonomy, 'terms' => $term->term_id];
+				$link = get_term_link($term);
+				if (in_array('terms', $sources, true) and !is_wp_error($link)) {
+					$links[$link] = $term->name;
+				}
+			}
+		}
+
+		if (in_array('posts', $sources, true)) {
+			$related = get_posts([
+				'post_type'    => $post->post_type,
+				'post_status'  => 'publish',
+				'numberposts'  => 5,
+				'post__not_in' => [$post_id],
+				'tax_query'    => count($tax_query) > 1 ? $tax_query : [],
+			]);
+			foreach ($related as $item) {
+				$links[get_permalink($item)] = $item->post_title;
+			}
+		}
+
+		if (in_array('pages', $sources, true)) {
+			$exclude = [$post_id, (int) get_option('page_on_front'), (int) get_option('wp_page_for_privacy_policy')];
+			foreach (get_pages(['parent' => 0, 'number' => 6, 'sort_column' => 'menu_order', 'exclude' => $exclude]) as $page) {
+				$links[get_permalink($page)] = $page->post_title;
+			}
+		}
+
+		if (in_array('products', $sources, true) and twcp_product_active()) {
+			$categories = get_terms(['taxonomy' => 'product_cat', 'number' => 5, 'orderby' => 'count', 'order' => 'DESC', 'exclude' => [(int) get_option('default_product_cat')]]);
+			foreach (is_wp_error($categories) ? [] : $categories as $term) {
+				$link = get_term_link($term);
+				if (!is_wp_error($link)) {
+					$links[$link] = $term->name;
+				}
+			}
+		}
+	}
+
+	$lookup = $settings['max'] > 0 && in_array('lookup', $sources, true);
+
+	if ($html === null) {
+		$note = '';
+		if ($links or $lookup) {
+			$note = "\nInternal links: add 1 to {$settings['max']} links where they fit the text naturally, spread across sections, with descriptive anchor text. ";
+			$note .= $lookup ? "Use only the approved URLs below or URLs returned by the lookup tools." : "Use only the approved URLs below.";
+			$note .= " Never invent URLs or output naked URLs.\n";
+			foreach ($links as $url => $name) {
+				$note .= '<a href="' . esc_url($url) . '">' . esc_html($name) . "</a>\n";
+			}
+		} else {
+			$note = "\nDo not add links.\n";
+		}
+
+		return ['note' => $note, 'read_tools' => $lookup ? ['get_posts', 'get_terms'] : false];
+	}
+
+	// Keep approved links, links the post already had, in-page anchors, and site URLs found by lookups
+	preg_match_all('/href=["\']([^"\']+)["\']/i', $post->post_content ?? '', $existing);
+	$known = array_map('untrailingslashit', array_merge(array_keys($links), $existing[1]));
+
+	return preg_replace_callback('#<a\s[^>]*?href=["\']([^"\']*)["\'][^>]*>(.*?)</a>#is', function(array $match) use ($known, $lookup): string {
+		$url = html_entity_decode($match[1]);
+		if (str_starts_with($url, '#') or in_array(untrailingslashit($url), $known, true)) {
+			return $match[0];
+		}
+		if ($lookup and wp_parse_url($url, PHP_URL_HOST) === wp_parse_url(home_url(), PHP_URL_HOST)) {
+			if (url_to_postid($url)) {
+				return $match[0];
+			}
+			$terms = get_terms(['slug' => basename((string) wp_parse_url($url, PHP_URL_PATH)), 'hide_empty' => false]);
+			foreach (is_wp_error($terms) ? [] : $terms as $term) {
+				if (untrailingslashit(get_term_link($term)) === untrailingslashit($url)) {
+					return $match[0];
+				}
+			}
+		}
+
+		return $match[2];
+	}, $html);
 }
 
 
@@ -994,7 +1099,7 @@ function twcp_post_generate_content(int $post_id, bool $force = false): bool
 	$prompt .= "Title: \"{$title}\"\n";
 	$prompt .= "Post Type: {$post->post_type}\n";
 	if (!empty($stripped)) {
-		$prompt .= "\nCurrent Content to review, improve, and expand:\n" . substr($stripped, 0, 2500) . "\n\n";
+		$prompt .= twcp_rewrite_note('content', substr($stripped, 0, 2500), 'Review, improve, and expand it.');
 	}
 	if (!empty($post->post_excerpt)) {
 		$prompt .= "Excerpt / Focus: \"{$post->post_excerpt}\"\n";
@@ -1002,11 +1107,14 @@ function twcp_post_generate_content(int $post_id, bool $force = false): bool
 	if (!empty($terms_list)) {
 		$prompt .= "Associated Categories/Tags: " . implode(', ', array_unique($terms_list)) . "\n";
 	}
+	$links = twcp_post_links($post_id);
+	$prompt .= $links['note'];
 	$prompt .= "\nFollow all structural HTML requirements (H2, H3, paragraphs, lists, table). Output strictly HTML content.";
 
 	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_post_content', 'twcp_prompt_content_default'), [], [
 			'temperature' => 0.5,
-			'max_tokens'  => 4000
+			'max_tokens'  => 4000,
+			'read_tools'  => $links['read_tools'],
 		]);
 
 	if (empty($response)) {
@@ -1020,7 +1128,7 @@ function twcp_post_generate_content(int $post_id, bool $force = false): bool
 
 	wp_update_post([
 		'ID'           => $post_id,
-		'post_content' => wp_kses_post($clean_html),
+		'post_content' => wp_kses_post(twcp_post_links($post_id, $clean_html)),
 	]);
 
 	return true;
@@ -1217,11 +1325,11 @@ function twcp_post_assign_categories(int $post_id): bool
  */
 function twcp_prompt_similar_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 	$site_url = home_url('/');
 
 	return <<<PROMPT
-You are a senior content strategist, horological editor, and copywriting specialist for {$site_name} ({$site_url}).
+You are a senior content strategist, editor, and copywriting specialist for {$site_name} ({$site_url}).
 Your objective is to create a complete, high-quality SIMILAR post on an adjacent, complementary, or related topic in the same niche and category.
 
 Guidelines:
@@ -1262,7 +1370,7 @@ function twcp_post_create_similar(int $source_id)
 	}
 
 	$post_type = $source->post_type;
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 
 	// 1. Gather context from source post
 	$source_title = $source->post_title;
@@ -1305,18 +1413,21 @@ function twcp_post_create_similar(int $source_id)
 	if ($source_content) {
 		$prompt .= "Original Body Content Summary:\n" . substr($source_content, 0, 1000) . "\n\n";
 	}
+	$links = twcp_post_links($source_id);
+	$prompt .= str_replace('Internal links:', 'Internal links in the content:', $links['note']);
 	$prompt .= "Generate a complete, high-quality similar post covering an adjacent/complementary topic in the same category. Output strictly JSON matching the required schema.";
 
 	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_post_similar', 'twcp_prompt_similar_default'), [], [
 			'temperature' => 0.6,
-			'max_tokens'  => 4000
+			'max_tokens'  => 4000,
+			'read_tools'  => $links['read_tools'],
 		]);
 
 	$data = twcp_model_response($response);
 
 	$new_title = (!empty($data) and !empty($data['title'])) ? sanitize_text_field($data['title']) : '';
 	$new_excerpt = (!empty($data) and !empty($data['excerpt'])) ? sanitize_textarea_field($data['excerpt']) : '';
-	$new_content = (!empty($data) and !empty($data['content'])) ? wp_kses_post($data['content']) : '';
+	$new_content = (!empty($data) and !empty($data['content'])) ? wp_kses_post(twcp_post_links($source_id, $data['content'])) : '';
 	$new_seo_title = (!empty($data) and !empty($data['seo_title'])) ? sanitize_text_field($data['seo_title']) : '';
 	$new_seo_desc = (!empty($data) and !empty($data['seo_description'])) ? sanitize_text_field($data['seo_description']) : '';
 	$image_query = (!empty($data) and !empty($data['image_query'])) ? sanitize_text_field($data['image_query']) : '';

@@ -490,7 +490,7 @@ function twcp_product_settings(): array
 {
 	$defaults = [
 		'max_links'    => 6,
-		'custom_rules' => "Avoid using the word StrapsCo.\nHighlight quick-release spring bars and hardware quality.\nUse natural descriptive anchor text for internal links.",
+		'custom_rules' => 'Use natural descriptive anchor text for internal links.',
 	];
 
 	$saved = get_option('twcp_product_settings', get_option('twcp_product_desc_settings', []));
@@ -506,37 +506,36 @@ function twcp_product_settings(): array
  */
 function twcp_prompt_full_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 	$settings = twcp_product_settings();
 	$max_links = (int) $settings['max_links'] ? : 6;
 
 	return <<<PROMPT
-You are a master horological copywriter and e-commerce conversion specialist crafting premium, informative product descriptions for {$site_name}.
+You are a senior e-commerce copywriter and conversion specialist crafting informative, persuasive product descriptions for {$site_name}.
 
 CORE PRINCIPLES & GUIDELINES:
 
 1. TARGET AUDIENCE & TONE:
-   - Passionate watch enthusiasts, collectors, and everyday timepiece owners seeking superior quality, comfort, and aesthetics.
-   - Tone: Authoritative, refined, engaging, and trustworthy.
+   - The customers described in the store profile, from first-time buyers to experienced ones comparing options.
+   - Tone: Knowledgeable, clear, engaging, and trustworthy.
 
 2. STRUCTURE OF THE DESCRIPTION (Clean Semantic HTML):
-   - Opening Hook: 1-2 compelling paragraphs highlighting the strap's aesthetic character, leather/material origin, and transformation of the watch's presence.
-   - Design & Craftsmanship: Deep dive into the stitching technique, edge finishing, taper proportions, and hardware durability.
-   - Fitment & Compatibility: Clear details on lug width, buckle sizing, spring bar mechanism (especially quick-release), and recommended timepieces.
-   - Key Specifications Summary: An unordered list (<ul>) with key specs (Material, Lug Width, Buckle Width, Length, Hardware Finish, Thickness).
+   - Opening Hook: 1-2 compelling paragraphs on what the product is, who it is for, and the main benefit.
+   - Features & Quality: What it is made of or how it works, and what sets it apart. Use only details from the product data.
+   - Use & Compatibility: How it is used, what it works with, sizing or variants, and care where relevant.
+   - Key Specifications Summary: An unordered list (<ul>) with the specifications found in the product data and attributes.
 
-3. STRAP & ACCESSORY EXPERTISE:
-   - Emphasize genuine material properties (e.g. top-grain Italian leather, FKM rubber resilience, 316L stainless steel hardware).
-   - Detail comfort, wrist conformity, break-in period, and sweat resistance where relevant.
+3. ACCURACY:
+   - Never invent specifications, materials, certifications, compatibility, or prices that are not in the product data.
+   - When a detail is unknown, leave it out instead of guessing.
 
 4. NEGATIVE CONSTRAINTS (STRICT):
-   - NEVER use the word "StrapsCo" anywhere in the text or metadata.
    - NEVER use emojis in headings, body copy, or lists.
-   - Avoid cheesy marketing clichés (e.g. "look no further", "game changer", "elevate your wrist game").
+   - Avoid cheesy marketing clichés (e.g. "look no further", "game changer", "take it to the next level").
 
 5. SEO & CONVERSION FOCUS:
-   - Naturally integrate high-volume search keywords (e.g. "quick-release watch strap", "vintage leather band", "replacement watch bracelet").
-   - Cross-referencing compatible watch models and complementary straps or accessories using natural anchor text.
+   - Naturally integrate the search terms a shopper would use for this product, without keyword stuffing.
+   - Mention complementary products or categories using natural anchor text.
 
 6. INTERNAL LINKING RULES:
    - Embed between 3 and {$max_links} links using ONLY the approved links provided in the request.
@@ -545,7 +544,7 @@ CORE PRINCIPLES & GUIDELINES:
    - Distribute links evenly across paragraphs; avoid grouping links together in a single sentence.
 
 7. COMPLIANCE & TONE:
-   - Maintain a refined, knowledgeable, and horology-literate tone (avoid excessive hyperbole like "revolutionary" or "jaw-dropping").
+   - Maintain a refined, knowledgeable tone (avoid excessive hyperbole like "revolutionary" or "jaw-dropping").
    - Output must be clean, valid HTML ready for direct publication.
 PROMPT;
 }
@@ -579,20 +578,19 @@ function twcp_prompt_full(): string
  */
 function twcp_prompt_short_default(): string
 {
-	$store_name = get_bloginfo('name') ? : 'Ele Straps';
+	$store_name = twcp_site_name();
 
 	return <<<PROMPT
-You are an expert e-commerce search marketing copywriter crafting concise, high-CTR product summary excerpts for {$store_name}, a premier retailer of watch straps, bands, deployant clasps, and horological accessories.
+You are an expert e-commerce search marketing copywriter crafting concise, high-CTR product summary excerpts for {$store_name}.
 
 CORE OBJECTIVE:
 Generate a compelling, concise product short description (excerpt) designed for Google Search meta snippets and WooCommerce catalog listings.
 
 REQUIREMENTS:
 1. STRICT CHARACTER LIMIT: Strictly between 130 and 155 characters (including spaces).
-2. STYLE: Engaging, benefits-driven, and action-oriented for watch collectors and casual shoppers alike.
-3. CONTENT: State the strap material, key design highlight (e.g. quick-release bars, waterproof, vintage contrast stitch, deployant clasp), and primary timepiece compatibility.
+2. STYLE: Engaging, benefits-driven, and action-oriented for experienced and first-time shoppers alike.
+3. CONTENT: State what the product is, its key highlight, and who or what it is for, using only details from the product data.
 4. FORMAT: Plain text only. No HTML tags, no quotes, no markdown, and no hashtags.
-5. NEGATIVE CONSTRAINT: Never use the word "StrapsCo".
 PROMPT;
 }
 
@@ -734,7 +732,7 @@ function twcp_product_full(int $product_id, bool $regenerate = false): bool
 	}
 
 	if (!empty($current_desc)) {
-		$user_prompt .= "Current Full Description to review and improve/rewrite:\n" . substr(wp_strip_all_tags($current_desc), 0, 2500) . "\n\n";
+		$user_prompt .= twcp_rewrite_note('full description', substr(wp_strip_all_tags($current_desc), 0, 2500));
 	}
 
 	$short_current = $product->get_short_description();
@@ -794,7 +792,7 @@ function twcp_product_short(int $product_id, bool $regenerate = false): bool
 
 	$short_user_prompt = "Product Name: {$name}\n";
 	if (!empty($current_short)) {
-		$short_user_prompt .= "Current Short Description to review and improve/rewrite: \"{$current_short}\"\n";
+		$short_user_prompt .= twcp_rewrite_note('short description', "\"{$current_short}\"");
 	}
 	if ($attributes) {
 		$short_user_prompt .= "Attributes: " . implode(', ', array_slice($attributes, 0, 4)) . "\n";
@@ -887,10 +885,10 @@ function twcp_product_short_tool(array $args): array
  */
 function twcp_prompt_related(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
+	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior e-commerce merchandising specialist for {$site_name}, a premier retailer of watch straps, bands, and accessories.
+You are a senior e-commerce merchandising specialist for {$site_name}.
 
 OBJECTIVE:
 Given a target product and a candidate list of other products in the same category or brand, select the top complementary, alternative, or cross-sell products that maximize customer satisfaction, cart size, and average order value.

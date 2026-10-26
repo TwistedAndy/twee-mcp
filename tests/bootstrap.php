@@ -2,8 +2,8 @@
 /**
  * PHPUnit Bootstrap for WordPress Integration Tests
  *
- * WooCommerce tests run when the plugin is found next to this one,
- * or in the folder set by the WOOCOMMERCE_DIR environment variable.
+ * WooCommerce and ACF tests run when those plugins are found next to this one,
+ * or in the folders set by the WOOCOMMERCE_DIR and ACF_DIR environment variables.
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -22,6 +22,7 @@ if (!file_exists($wp_tests_dir . '/includes/functions.php')) {
 require_once $wp_tests_dir . '/includes/functions.php';
 
 define('TWCP_TESTS_WOOCOMMERCE', rtrim(getenv('WOOCOMMERCE_DIR') ? : dirname(__DIR__, 2) . '/woocommerce', '/\\') . '/woocommerce.php');
+define('TWCP_TESTS_ACF', rtrim(getenv('ACF_DIR') ? : dirname(__DIR__, 2) . '/advanced-custom-fields-pro', '/\\') . '/acf.php');
 
 /**
  * Manually load the plugin environment.
@@ -30,6 +31,9 @@ function _manually_load_plugin()
 {
 	if (is_file(TWCP_TESTS_WOOCOMMERCE)) {
 		require_once TWCP_TESTS_WOOCOMMERCE;
+	}
+	if (is_file(TWCP_TESTS_ACF)) {
+		require_once TWCP_TESTS_ACF;
 	}
 
 	require_once dirname(__DIR__) . '/plugin/index.php';

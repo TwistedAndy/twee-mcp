@@ -676,7 +676,7 @@ function twcp_model_chat(string $prompt, string $system, array $images, string $
 
 	if ($provider === 'openrouter') {
 		$headers['HTTP-Referer'] = home_url();
-		$headers['X-Title'] = get_bloginfo('name') ? : 'Ele Straps';
+		$headers['X-Title'] = twcp_site_name();
 	}
 
 	$body = [
@@ -996,6 +996,69 @@ function twcp_model_lookup_call(string $name, $input, int &$count): string
 
 
 /**
+ * Rewrite mode of the running batch job: fill, refine, poor, or all
+ *
+ * Generators read it to word the note about the current value. Outside batch jobs it is empty.
+ *
+ * @param string|null $mode New mode, or null to read the current one
+ *
+ * @return string
+ */
+function twcp_rewrite_mode(?string $mode = null): string
+{
+	static $current = '';
+
+	if ($mode !== null) {
+		$current = $mode;
+	}
+
+	return $current;
+}
+
+
+/**
+ * Prompt note that shows the current value and says what to do with it
+ *
+ * @param string $label   What the value is, e.g. "excerpt"
+ * @param string $current Current value as it should appear in the prompt
+ * @param string $default Instruction outside batch jobs
+ *
+ * @return string
+ */
+function twcp_rewrite_note(string $label, string $current, string $default = 'Review and improve it, or rewrite it where needed.'): string
+{
+	$instructions = [
+		'refine' => "Refine the current {$label}: keep its meaning, facts, and approximate length, and only change what makes it clearer, more accurate, or better for search.",
+		'poor'   => "The current {$label} was rated poor quality. Write a new one from scratch and reuse only the facts that are correct.",
+		'all'    => "Write a new {$label} from scratch. Use the current one only as a reference for facts.",
+	];
+
+	return "\nCurrent {$label}:\n{$current}\n" . ($instructions[twcp_rewrite_mode()] ?? $default) . "\n\n";
+}
+
+
+/**
+ * Explain why AI generation cannot run yet
+ *
+ * @return string Empty when the provider has an API key or a connected ChatGPT account
+ */
+function twcp_model_missing(): string
+{
+	$settings = twcp_model_settings();
+
+	if ($settings['provider'] === 'chatgpt') {
+		return twcp_chatgpt_connected() ? '' : __('The ChatGPT plan is selected, but no ChatGPT account is connected.', 'twee-mcp');
+	}
+
+	if ($settings['api_key'] === '') {
+		return sprintf(__('No %s API key is set.', 'twee-mcp'), twcp_model_providers()[$settings['provider']]['name']);
+	}
+
+	return '';
+}
+
+
+/**
  * Test connectivity with current model settings
  *
  * @return array
@@ -1164,6 +1227,30 @@ function twcp_prompt_registry(): array
 			'used_by'     => [__('Batch: Term SEO', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,
 		],
+		'twcp_system_prompt_term_description' => [
+			'group'       => 'terms',
+			'label'       => __('Taxonomy Archive Description', 'twee-mcp'),
+			'description' => __('Short introductions shown on category, tag, and brand archives.', 'twee-mcp'),
+			'default'     => 'twcp_prompt_term_description_default',
+			'used_by'     => [__('Batch: Term descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
+			'rows'        => 5,
+		],
+		'twcp_system_prompt_term_content'  => [
+			'group'       => 'terms',
+			'label'       => __('Taxonomy Archive Full Description', 'twee-mcp'),
+			'description' => __('Longer archive descriptions with headings and a list, saved to an ACF term field.', 'twee-mcp'),
+			'default'     => 'twcp_prompt_term_content_default',
+			'used_by'     => [__('Batch: Full term descriptions', 'twee-mcp')],
+			'rows'        => 6,
+		],
+		'twcp_system_prompt_term_faq'      => [
+			'group'       => 'terms',
+			'label'       => __('Taxonomy Archive FAQ', 'twee-mcp'),
+			'description' => __('Questions and answers for archives, saved to an ACF term repeater.', 'twee-mcp'),
+			'default'     => 'twcp_prompt_term_faq_default',
+			'used_by'     => [__('Batch: Term FAQs', 'twee-mcp')],
+			'rows'        => 6,
+		],
 		'twcp_system_prompt_media_alt'     => [
 			'group'       => 'media',
 			'label'       => __('Image Alt Text', 'twee-mcp'),
@@ -1212,21 +1299,41 @@ function twcp_general_context(): string
 
 
 /**
- * Default store context based on the website name and description
+ * Name of the site for prompts, falling back to its domain
+ *
+ * @return string
+ */
+function twcp_site_name(): string
+{
+	return html_entity_decode((string) get_bloginfo('name'), ENT_QUOTES | ENT_HTML5, 'UTF-8') ? : (string) wp_parse_url(home_url(), PHP_URL_HOST);
+}
+
+
+/**
+ * Default store context based on the website name, tagline, and catalog
+ *
+ * Replace it on the Prompts screen with a real description of the business: audience, offer, tone, and words to avoid.
  *
  * @return string
  */
 function twcp_general_context_default(): string
 {
-	$site_name = get_bloginfo('name') ? : 'Ele Straps';
-	$site_desc = get_bloginfo('description') ? : 'Premium Watch Straps & Accessories';
+	$site_name = twcp_site_name();
+	$site_desc = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-	return implode(' ', [
-		"{$site_name} is an e-commerce boutique specializing in premium watch straps, bands, bracelets, and horological accessories.",
-		'Focus is on high-grade materials (Italian leather, FKM rubber, 316L stainless steel, canvas), quick-release spring bars,',
-		'and precision fitment for luxury and enthusiast timepieces (Rolex, Omega, Seiko, Apple Watch, Cartier, Tudor, and universal lug widths).',
-		$site_desc,
-	]);
+	$categories = get_terms(['taxonomy' => twcp_product_active() ? 'product_cat' : 'category', 'number' => 8, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
+	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
+
+	$lines = [$site_desc ? "{$site_name}: {$site_desc}." : "{$site_name} is a website at " . home_url('/') . '.'];
+	if (twcp_product_active()) {
+		$lines[] = 'It sells products in an online store built on WooCommerce.';
+	}
+	if ($categories) {
+		$lines[] = 'Main topics and categories: ' . implode(', ', $categories) . '.';
+	}
+	$lines[] = 'Write for its visitors and customers, stay within these topics, and never invent facts, prices, guarantees, or claims about the business.';
+
+	return implode(' ', $lines);
 }
 
 /**

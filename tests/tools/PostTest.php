@@ -119,4 +119,97 @@ class PostTest extends TWCP_TestCase {
 
 		$this->assertArrayNotHasKey('taxonomies', $this->call('get_schema', ['type' => 'post_types']));
 	}
+
+	/**
+	 * Generated content gets the post's terms and related posts as approved links, and the settings choose the sources.
+	 */
+	public function test_post_links_note(): void
+	{
+		$category = self::factory()->category->create(['name' => 'Garden Tools']);
+		$related = self::factory()->post->create(['post_title' => 'Pruning Basics', 'post_category' => [$category]]);
+		$other = self::factory()->post->create(['post_title' => 'Unrelated Recipe']);
+		$post = self::factory()->post->create(['post_category' => [$category]]);
+
+		$links = twcp_post_links($post);
+		$this->assertStringContainsString('Internal links: add 1 to 4 links', $links['note']);
+		$this->assertStringContainsString(get_term_link($category), $links['note']);
+		$this->assertStringContainsString(get_permalink($related), $links['note']);
+		$this->assertStringNotContainsString(get_permalink($other), $links['note']);
+		$this->assertStringNotContainsString(get_permalink($post), $links['note']);
+		$this->assertFalse($links['read_tools']);
+
+		update_option('twcp_post_links', ['max' => 2, 'sources' => ['posts', 'lookup']]);
+		$links = twcp_post_links($post);
+		$this->assertStringContainsString('add 1 to 2 links', $links['note']);
+		$this->assertStringNotContainsString(get_term_link($category), $links['note']);
+		$this->assertSame(['get_posts', 'get_terms'], $links['read_tools']);
+
+		update_option('twcp_post_links', ['max' => 0, 'sources' => ['terms', 'posts']]);
+		$this->assertSame("\nDo not add links.\n", twcp_post_links($post)['note']);
+	}
+
+	/**
+	 * Links the model invents are unwrapped, while approved, existing, in-page, and looked-up site links stay.
+	 */
+	public function test_post_links_guard(): void
+	{
+		$category = self::factory()->category->create();
+		$found = self::factory()->post->create();
+		$post = self::factory()->post->create(['post_category' => [$category], 'post_content' => '<a href="https://partner.example/">Partner</a>']);
+
+		$html = '<p><a href="' . get_term_link($category) . '">Approved</a> <a href="https://partner.example/">Existing</a> '
+			. '<a href="#faq">Anchor</a> <a href="' . home_url('/made-up-page/') . '">Invented</a> <a href="https://elsewhere.example/x">External</a> '
+			. '<a href="' . get_permalink($found) . '">Found</a></p>';
+
+		$checked = twcp_post_links($post, $html);
+		$this->assertStringContainsString('">Approved</a>', $checked);
+		$this->assertStringContainsString('">Existing</a>', $checked);
+		$this->assertStringContainsString('">Anchor</a>', $checked);
+		$this->assertStringContainsString(' Invented ', $checked);
+		$this->assertStringNotContainsString('elsewhere.example', $checked);
+		$this->assertStringNotContainsString('">Found</a>', $checked);
+
+		// With lookups on, links to real posts on the site are kept
+		update_option('twcp_post_links', ['max' => 4, 'sources' => ['terms', 'lookup']]);
+		$this->assertStringContainsString('">Found</a>', twcp_post_links($post, $html));
+	}
+
+	/**
+	 * The content generator sends the approved links and saves the checked HTML.
+	 */
+	public function test_generate_content_links(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$category = self::factory()->category->create();
+		$post = self::factory()->post->create(['post_content' => '', 'post_category' => [$category]]);
+
+		$requests = $this->mock_model(['choices' => [['message' => ['content' => '<h2>Care</h2><p>See <a href="' . get_term_link($category) . '">the guide</a> and <a href="https://fake.example/">this</a>.</p>']]]]);
+		$this->assertTrue(twcp_post_generate_content($post, true));
+
+		$this->assertStringContainsString(get_term_link($category), end($requests[0]['body']['messages'])['content']);
+		$content = get_post_field('post_content', $post);
+		$this->assertStringContainsString('">the guide</a>', $content);
+		$this->assertStringNotContainsString('fake.example', $content);
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * Editors can save the link settings, which are cleaned on save.
+	 */
+	public function test_post_links_setting(): void
+	{
+		twcp_admin_init();
+		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
+		$this->assertSame('edit_others_posts', apply_filters('option_page_capability_twcp_content_group', 'manage_options'));
+
+		update_option('twcp_post_links', ['max' => 99, 'sources' => ['posts', 'bogus']]);
+		$this->assertSame(['max' => 15, 'sources' => ['posts']], get_option('twcp_post_links'));
+
+		$html = twcp_template('automation', twcp_admin_data('automation'));
+		$this->assertStringContainsString('Internal Links', $html);
+		$this->assertStringContainsString('Up to 15 links', $html);
+		$this->assertMatchesRegularExpression('/value="posts"\s+checked/', $html);
+	}
 }

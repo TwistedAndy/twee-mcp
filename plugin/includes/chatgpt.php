@@ -80,7 +80,7 @@ function twcp_chatgpt_host(): string
 
 
 /**
- * Connection details for the AI Models screen
+ * Connection details for the AI Provider screen
  *
  * @return array
  */
@@ -335,7 +335,7 @@ function twcp_chatgpt_token(): string
 			if ($locked) {
 				delete_option('twcp_chatgpt_lock');
 			}
-			twcp_model_last_error($account['error'] ?? __('ChatGPT is not connected. Sign in on the AI Models screen.', 'twee-mcp'));
+			twcp_model_last_error($account['error'] ?? __('ChatGPT is not connected. Sign in on the AI Provider screen.', 'twee-mcp'));
 
 			return '';
 		}
@@ -484,7 +484,7 @@ function twcp_chatgpt_request(string $prompt, string $system, array $images, str
 		$model = (string) (twcp_model_fetch('chatgpt')[0]['id'] ?? '');
 	}
 	if ($model === '') {
-		twcp_model_last_error(__('Choose a ChatGPT model on the AI Models screen.', 'twee-mcp'));
+		twcp_model_last_error(__('Choose a ChatGPT model on the AI Provider screen.', 'twee-mcp'));
 
 		return '';
 	}
@@ -683,7 +683,7 @@ function twcp_chatgpt_error(array $error, int $status): string
 		'subscription_sharing_user_not_eligible'     => __('ChatGPT plan usage is not available for this account or workspace.', 'twee-mcp'),
 		'subscription_sharing_usage_unavailable'     => __('ChatGPT plan usage is temporarily unavailable. Try again later.', 'twee-mcp'),
 		'subscription_sharing_user_unavailable'      => __('ChatGPT plan usage is temporarily unavailable. Try again later.', 'twee-mcp'),
-		'subscription_sharing_invalid_user'          => __('OpenAI did not accept the ChatGPT sign-in. Sign in again on the AI Models screen.', 'twee-mcp'),
+		'subscription_sharing_invalid_user'          => __('OpenAI did not accept the ChatGPT sign-in. Sign in again on the AI Provider screen.', 'twee-mcp'),
 		'subscription_sharing_unsupported_capability' => sprintf(__('The ChatGPT plan does not support this request (%s). Try another model or turn the feature off.', 'twee-mcp'), $error['param'] ?? 'unknown'),
 	];
 

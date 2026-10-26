@@ -191,7 +191,7 @@ $providers = [
 		<input
 			type="text"
 			id="twcp_stock_search_query"
-			placeholder="<?php echo esc_attr__('e.g. leather watch strap, vintage wristwatch, minimalist buckle...', 'twee-mcp'); ?>"
+			placeholder="<?php echo esc_attr__('e.g. team meeting, product on white background, city skyline...', 'twee-mcp'); ?>"
 			class="regular-text"
 			style="flex: 2; min-width: 260px;"
 		/>

@@ -31,7 +31,7 @@ function twcp_image_tools(): array
 			'parameters'  => [
 				'query'       => [
 					'type'        => 'string',
-					'description' => 'Keyword search term (e.g. "leather watch strap", "vintage chronograph", "stainless steel buckle").',
+					'description' => 'Keyword search term (e.g. "team meeting in office", "red running shoes", "city skyline at night").',
 				],
 				'provider'    => [
 					'type'        => 'string',
@@ -69,7 +69,7 @@ function twcp_image_tools(): array
 				'title'      => ['type' => 'string', 'description' => 'Title for the imported media attachment.'],
 				'alt'        => ['type' => 'string', 'description' => 'Descriptive Alt text for accessibility and SEO.'],
 				'caption'    => ['type' => 'string', 'description' => 'Caption or attribution credit.'],
-				'filename'   => ['type' => 'string', 'description' => 'SEO-friendly filename without extension, e.g. "italian-leather-watch-strap".'],
+				'filename'   => ['type' => 'string', 'description' => 'SEO-friendly filename without extension, e.g. "red-running-shoes-side-view".'],
 				'post_id'    => ['type' => 'integer', 'description' => 'Optional parent post ID to attach the image to.'],
 				'assign_to'  => [
 					'type'        => 'object',

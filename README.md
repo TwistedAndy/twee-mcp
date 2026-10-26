@@ -13,7 +13,7 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 - Each tool carries `readOnlyHint` and `destructiveHint` annotations, so clients can ask before writing or deleting.
 - Results are compact JSON to keep token usage low. Image previews are returned as small MCP image blocks.
 - Tool groups switch off by themselves when the plugin they need is inactive, for example the WooCommerce groups.
-- Single tools can be disabled on the **Tools** screen, and the whole server can be turned off on the **Connection** screen.
+- Single tools can be disabled on the **Agent Tools** screen, and the whole server can be turned off on the **Agent Access** screen.
 
 ### 2. OAuth 2.1 Authorization
 
@@ -23,7 +23,7 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 - Client IDs are stateless signed payloads. Tokens are stored hashed in the `twcp_sessions` user meta.
 - Access tokens last 1 hour, refresh tokens 90 days, and authorization codes 5 minutes.
 - Redirect hosts are limited to an allowlist. The default list is `claude.ai`, `claude.com`, `anthropic.com`, `chatgpt.com`, and `openai.com`.
-- Connected agents and active sessions are listed on the **Connection** screen, where they can be revoked.
+- Connected agents and active sessions are listed on the **Agent Access** screen, where they can be revoked.
 
 ### 3. Permissions
 
@@ -31,7 +31,9 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 - Every tool call is checked against the capabilities of the connected user. Publishing needs the post type's `publish_posts` capability. Comments need `moderate_comments`, menus `edit_theme_options`, orders `edit_shop_orders`, and coupons `edit_shop_coupons`.
 - Some tools have their own capability on top, for example `get_sales_summary` with `view_woocommerce_reports` and `generate_block_descriptions` with `manage_options`.
 
-### 4. AI Models
+### 4. AI Provider
+
+The **AI Provider** screen sets up the AI service the plugin itself uses to write content.
 
 - Providers: **OpenAI**, **OpenRouter**, **Anthropic**, and **ChatGPT Plan (Experimental)**.
 - Separate text and vision models. Images are scaled down to a chosen edge size before they are sent, to keep vision costs low.
@@ -41,9 +43,23 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 
 ### 5. Batch Automation
 
-The **Tools** screen runs batch jobs in small slices. By default, each job only picks items that lack the value. **Rewrite existing** regenerates values that are already filled in.
+The **Automation** screen lists what needs attention and runs batch jobs in small slices. Each text job has a mode:
 
-- **Content Automation:** short excerpts, post content, SEO titles and descriptions, featured images, categories, and term SEO.
+- **Fill empty:** only items that lack the value. This is the default.
+- **Refine existing:** polishes the current values and keeps their meaning, facts, and length.
+- **Rewrite if poor:** the model rates the current values of each slice, rewrites the poor ones, and keeps the rest.
+- **Rewrite all:** writes every value from scratch.
+
+All modes fill empty items. Jobs that assign images, categories, cross-sells, or block descriptions only offer **Fill empty** and **Redo all**. Until an API key is added or a ChatGPT account is connected, the screen shows a setup notice and the jobs and AI bulk actions stay locked.
+
+- **Estimate:** each card shows a rough number of AI requests and tokens for the items left in the chosen mode.
+- **Undo Last Run:** before a job changes an item, it saves the item's current values. Undo puts them back. Starting a new run replaces the saved values.
+- **Background runs:** when Action Scheduler is available (it ships with WooCommerce), jobs run on the server as the user who started them, so the page can be closed. The screen follows their progress. Without it, jobs run while the page stays open. The `twcp_batch_background` filter turns background runs off.
+
+- **Content Automation:** short excerpts, post content, SEO titles and descriptions, featured images, categories, term SEO, and term descriptions.
+  - **Term descriptions** fill the short description WordPress shows on category, tag, and brand archives.
+  - **Full term descriptions** and **term FAQs** write to an ACF field on terms, chosen on the card. Full descriptions go to a WYSIWYG or textarea field. FAQs go to a repeater with a text question and a text, textarea, or WYSIWYG answer. These cards appear when such a field exists.
+  - **Internal links:** full content and similar posts get a list of approved links: the post's categories and tags, related posts in the same categories, and optionally top-level pages and store categories. The model can also look up other posts and terms. Any other link it writes is removed and its text kept. The **Internal Links** panel sets the sources and the maximum number of links.
 - **Media Automation:** Alt text from the vision model.
 - **Store Automation:** product descriptions, short descriptions, and cross-sells (WooCommerce only).
 - **Site Setup:** AI descriptions of the ACF page builder layouts, which help agents choose the right blocks.
@@ -53,6 +69,7 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 ### 6. Prompts & Block Conventions
 
 - The **Prompts** screen holds the instructions for every generator, grouped into site context, content, store, terms, and media. Each prompt can be reset to its default.
+- The default site context is built from the site name, tagline, main categories, and whether WooCommerce is active. It's added to every prompt, so describe the business, audience, and tone there.
 - The **Library** screen keeps the block conventions that `get_block_types` hands to agents. The conventions explain page structure, layout options, query layouts, repeaters, and text formats of the theme's ACF blocks.
 
 ## Tools
@@ -76,9 +93,9 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 
 - Use PHP 8.0 or newer. The plugin is tested with WordPress 7.1 and WooCommerce 11.2. ACF Pro is needed for the block tools and WooCommerce for the store tools.
 - Copy the contents of this repository's `plugin/` directory into `wp-content/plugins/twee-mcp/`, so `index.php` is directly inside that directory, then activate the plugin.
-- Open **AI Tools → AI Models**, choose a provider, and enter an API key or sign in with ChatGPT.
-- Open **AI Tools → Connection** for the server URL and the steps for each client.
-- If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/mcp`, `/.well-known/oauth-*`, `/register`, `/authorize`, and `/token`. The **Connection** screen has the exact expression.
+- Open **AI Tools → AI Provider**, choose a provider, and enter an API key or sign in with ChatGPT.
+- Open **AI Tools → Agent Access** for the server URL and the steps for each client.
+- If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/mcp`, `/.well-known/oauth-*`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen has the exact expression.
 
 ## Connecting AI Clients
 
@@ -138,6 +155,7 @@ The integration suite boots WordPress with `wp-phpunit/wp-phpunit` and runs agai
 - Create an empty `wordpress_test` database. The suite wipes it on every run. The connection settings are in `phpunit.xml` and `tests/config.php`.
 - WordPress core is loaded from four levels above `tests/`, for example `D:\Work\` for `D:\Work\wp-content\plugins\twee-mcp\tests\`.
 - WooCommerce tests run when WooCommerce is found next to this repository in `wp-content/plugins/woocommerce/`, or in the folder set by the `WOOCOMMERCE_DIR` environment variable. Without it they are skipped.
+- ACF term field tests run when ACF Pro is found in `wp-content/plugins/advanced-custom-fields-pro/`, or in the folder set by `ACF_DIR`.
 - Run the suite with `composer test`, which collects coverage with the `pcov` extension, or without coverage:
 
 ```bash

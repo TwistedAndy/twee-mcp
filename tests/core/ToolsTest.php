@@ -79,7 +79,7 @@ class ToolsTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * The setting accepts the Tools screen map and a plain list, and drops unknown names.
+	 * The setting accepts the Agent Tools screen map and a plain list, and drops unknown names.
 	 */
 	public function test_sanitize_disabled(): void
 	{
