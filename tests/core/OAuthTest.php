@@ -43,6 +43,37 @@ class OAuthTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * A built client ID decodes to its name and redirects, and a changed payload is rejected.
+	 */
+	public function test_client_id(): void
+	{
+		$callback = 'https://chatgpt.com/connector/oauth/abc123';
+		$client_id = twcp_oauth_client_id('ChatGPT', [$callback]);
+
+		$this->assertSame(['n' => 'ChatGPT', 'r' => [$callback]], twcp_oauth_client($client_id));
+
+		[, $signature] = explode('.', $client_id);
+		$forged = twcp_oauth_encode((string) wp_json_encode(['n' => 'ChatGPT', 'r' => ['https://chatgpt.com/other']])) . '.' . $signature;
+		$this->assertNull(twcp_oauth_client($forged));
+	}
+
+	/**
+	 * Dynamic registration issues the same client ID as the admin generator.
+	 */
+	public function test_register_issues_client_id(): void
+	{
+		$callback = 'https://chatgpt.com/connector/oauth/abc123';
+		$request = new WP_REST_Request('POST', '/register');
+		$request->set_header('content-type', 'application/json');
+		$request->set_body(wp_json_encode(['client_name' => 'ChatGPT', 'redirect_uris' => [$callback]]));
+
+		$response = twcp_oauth_register($request);
+
+		$this->assertSame(201, $response->get_status());
+		$this->assertSame(twcp_oauth_client_id('ChatGPT', [$callback]), $response->get_data()['client_id']);
+	}
+
+	/**
 	 * Issued tokens resolve to their session until revoked.
 	 */
 	public function test_sessions(): void

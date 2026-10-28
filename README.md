@@ -94,15 +94,16 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 - Use PHP 8.0 or newer. The plugin is tested with WordPress 7.1 and WooCommerce 11.2. ACF Pro is needed for the block tools and WooCommerce for the store tools.
 - Download `twee-mcp-{version}.zip` from the [latest release](https://github.com/TwistedAndy/twee-mcp/releases/latest) and upload it in **Plugins → Add New → Upload Plugin**, then activate the plugin. To install from the repository instead, copy the contents of its `plugin/` directory into `wp-content/plugins/twee-mcp/`, so `index.php` is directly inside that directory.
 - New releases appear under **Dashboard → Updates** like any other plugin update. The `Update URI` header sends the update check to the GitHub releases, which are checked at most every 12 hours.
-- Open **AI Tools → AI Provider**, choose a provider, and enter an API key or sign in with ChatGPT.
+- Open **AI Tools → AI Provider**, choose a provider, and enter an API key or sign in with ChatGPT. Keys come from the [OpenAI](https://platform.openai.com/api-keys), [Anthropic](https://platform.claude.com/settings/keys), or [OpenRouter](https://openrouter.ai/settings/keys) API keys page; the screen links each provider's page and getting started guide.
 - Open **AI Tools → Agent Access** for the server URL and the steps for each client.
 - If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/mcp`, `/.well-known/oauth-*`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen has the exact expression.
+- The `/.well-known/oauth-*` addresses must reach WordPress. Some nginx configurations answer every `/.well-known/` path themselves; the **Agent Access** screen has a `location` block that passes them through.
 
 ## Connecting AI Clients
 
 ### Claude (Web & Desktop App)
 
-- Open **Settings → Connectors**, then **Add connector → Add custom connector**.
+- Open **Customize → Connectors** from the Claude sidebar, then **Add → Add custom connector**.
 - Paste the server URL, for example `https://example.com/wp-json/straps/v1/mcp`.
 - Sign in to WordPress on the authorization screen and click **Allow**.
 
@@ -117,8 +118,11 @@ Then run `/mcp` inside Claude Code and choose to authenticate.
 ### ChatGPT
 
 - Open **Plugins** from the ChatGPT sidebar, then **Add → Add custom MCP server**.
-- Paste the server URL and keep **OAuth** as the authentication method. ChatGPT discovers the OAuth endpoints and registers itself.
-- Confirm the trust warning, click **Create as a plugin**, then sign in to WordPress and click **Allow**.
+- Paste the server URL, keep **OAuth** as the authentication method, and set **Advanced OAuth settings → Registration method** to **User-Defined OAuth Client**.
+- Paste the **Callback URL** that ChatGPT shows into **Create Client ID** on the **Agent Access** screen, and paste the client ID back into ChatGPT. The screen lists the endpoints, scope, and PKCE settings for the rest of the form.
+- Confirm the trust warning, click **Create as a plugin** and then **Connect**, sign in to WordPress, and click **Allow**.
+
+ChatGPT only registers itself after it discovers the OAuth settings at `/.well-known/`, so the client ID stands in for that step on servers that block those addresses.
 
 The `search` and `fetch` tools follow the ChatGPT connector format.
 

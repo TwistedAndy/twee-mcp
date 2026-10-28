@@ -187,6 +187,22 @@ defined('ABSPATH') or exit;
 					Show
 				</button>
 			</div>
+			<?php foreach ($providers as $pk => $pinfo) {
+				if (empty($pinfo['keys_url'])) {
+					continue;
+				} ?>
+				<div class="text text_muted" style="margin-top: 4px;<?php echo $model_settings['provider'] === $pk ? '' : ' display: none;'; ?>" data-provider-panel="<?php echo esc_attr($pk); ?>">
+					<?php
+					printf(
+						/* translators: 1: provider name, 2: API keys page link, 3: getting started guide link */
+						esc_html__('Create the key on the %1$s %2$s page. New to the API? Read the %3$s.', 'twee-mcp'),
+						esc_html($pinfo['name']),
+						'<a href="' . esc_url($pinfo['keys_url']) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('API keys', 'twee-mcp') . '</a>',
+						'<a href="' . esc_url($pinfo['guide_url']) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('getting started guide', 'twee-mcp') . '</a>'
+					);
+					?>
+				</div>
+			<?php } ?>
 		</div>
 
 		<div class="buttons" style="align-items: center;">

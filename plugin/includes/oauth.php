@@ -347,11 +347,8 @@ function twcp_oauth_register(WP_REST_Request $request): WP_REST_Response
 		$name = 'MCP Client';
 	}
 
-	$payload = twcp_oauth_encode((string) wp_json_encode(['n' => $name, 'r' => $uris]));
-	$client_id = $payload . '.' . twcp_oauth_sign('client:' . $payload);
-
 	return twcp_oauth_response([
-		'client_id'                  => $client_id,
+		'client_id'                  => twcp_oauth_client_id($name, $uris),
 		'client_id_issued_at'        => time(),
 		'client_name'                => $name,
 		'redirect_uris'              => $uris,
@@ -359,6 +356,22 @@ function twcp_oauth_register(WP_REST_Request $request): WP_REST_Response
 		'response_types'             => ['code'],
 		'token_endpoint_auth_method' => 'none',
 	], 201);
+}
+
+
+/**
+ * Build a signed, stateless client ID for a client name and its redirect URIs
+ *
+ * @param string $name
+ * @param array  $uris
+ *
+ * @return string
+ */
+function twcp_oauth_client_id(string $name, array $uris): string
+{
+	$payload = twcp_oauth_encode((string) wp_json_encode(['n' => $name, 'r' => $uris]));
+
+	return $payload . '.' . twcp_oauth_sign('client:' . $payload);
 }
 
 

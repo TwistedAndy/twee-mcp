@@ -372,6 +372,30 @@ function twcp_admin_ajax_chatgpt_disconnect(): void
 
 
 /**
+ * AJAX: Create an OAuth client ID for a connector callback
+ */
+add_action('wp_ajax_twcp_client_id', 'twcp_admin_ajax_client_id');
+
+/**
+ * Sign a client ID for the pasted callback address, for clients that cannot register on their own.
+ *
+ * @return void Sends a JSON response.
+ */
+function twcp_admin_ajax_client_id(): void
+{
+	twcp_admin_ajax();
+
+	$callback = isset($_POST['callback']) ? trim(wp_unslash((string) $_POST['callback'])) : '';
+
+	if (!twcp_oauth_redirect_valid($callback)) {
+		wp_send_json_error(['message' => __('Paste the Callback URL from ChatGPT. It must be an HTTPS address on an allowed redirect host.', 'twee-mcp')]);
+	}
+
+	wp_send_json_success(['client_id' => twcp_oauth_client_id('ChatGPT', [$callback])]);
+}
+
+
+/**
  * AJAX: Test model connectivity
  */
 add_action('wp_ajax_twcp_test_model', 'twcp_admin_ajax_test');

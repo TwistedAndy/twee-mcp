@@ -204,4 +204,93 @@ class AdminTest extends TWCP_TestCase {
 		delete_option('twcp_model_provider');
 		delete_option('twcp_model_api_key');
 	}
+
+
+	/**
+	 * Each API key provider links its key page and guide, and only the selected one is shown.
+	 */
+	public function test_key_links_follow_provider(): void
+	{
+		update_option('twcp_model_provider', 'anthropic');
+
+		$html = twcp_template('model', twcp_admin_data('model'));
+
+		foreach (['openai', 'openrouter', 'anthropic'] as $provider) {
+			$info = twcp_model_providers()[$provider];
+			$this->assertStringContainsString('href="' . $info['keys_url'] . '"', $html, $provider);
+			$this->assertStringContainsString('href="' . $info['guide_url'] . '"', $html, $provider);
+		}
+
+		$this->assertMatchesRegularExpression('/style="margin-top: 4px;" data-provider-panel="anthropic"/', $html);
+		$this->assertMatchesRegularExpression('/style="margin-top: 4px; display: none;" data-provider-panel="openai"/', $html);
+
+		delete_option('twcp_model_provider');
+	}
+
+
+	/* -------------------------------------------------------------------------
+	 * Agent Access
+	 * ------------------------------------------------------------------------- */
+
+	/**
+	 * The ChatGPT steps use a user-defined client and offer the client ID generator.
+	 */
+	public function test_connection_offers_client_id(): void
+	{
+		$html = twcp_template('connection', twcp_admin_data('connection'));
+
+		$this->assertStringContainsString('User-Defined OAuth Client', $html);
+		$this->assertStringContainsString('id="twcp_client_callback"', $html);
+		$this->assertStringContainsString('id="twcp_client_create"', $html);
+		$this->assertStringNotContainsString('Dynamic Client Registration', $html);
+	}
+
+	/**
+	 * The generator signs a client ID for an allowed callback and refuses other addresses.
+	 */
+	public function test_client_id_ajax(): void
+	{
+		$callback = 'https://chatgpt.com/connector/oauth/abc123';
+
+		$reply = $this->ajax('twcp_admin_ajax_client_id', ['callback' => '  ' . $callback . ' ']);
+		$this->assertTrue($reply['success']);
+		$this->assertSame(['n' => 'ChatGPT', 'r' => [$callback]], twcp_oauth_client($reply['data']['client_id']));
+
+		foreach (['', 'https://evil.example.com/cb', 'http://chatgpt.com/cb'] as $address) {
+			$this->assertFalse($this->ajax('twcp_admin_ajax_client_id', ['callback' => $address])['success'], $address);
+		}
+
+		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
+		$this->assertFalse($this->ajax('twcp_admin_ajax_client_id', ['callback' => $callback])['success'], 'Administrators only');
+	}
+
+	/**
+	 * Run an admin AJAX handler with a valid nonce and return its decoded JSON reply
+	 *
+	 * @param callable $handler
+	 * @param array    $post
+	 *
+	 * @return array
+	 */
+	private function ajax(callable $handler, array $post): array
+	{
+		$_POST = $_REQUEST = $post + ['nonce' => wp_create_nonce('twcp_admin_nonce')];
+
+		add_filter('wp_doing_ajax', '__return_true');
+		add_filter('wp_die_ajax_handler', fn() => function() {
+			throw new RuntimeException('wp_die');
+		});
+
+		ob_start();
+		try {
+			$handler();
+		} catch (RuntimeException $e) {
+			// wp_send_json() ends the request through wp_die()
+		}
+		$output = (string) ob_get_clean();
+
+		$_POST = $_REQUEST = [];
+
+		return (array) json_decode($output, true);
+	}
 }

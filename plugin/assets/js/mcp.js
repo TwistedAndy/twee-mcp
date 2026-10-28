@@ -96,18 +96,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 1. Copy Server URL with visual feedback
-	$('#twcp_copy_url_btn').on('click', function(e) {
-		e.preventDefault();
-		const input = document.getElementById('twcp_url_input');
-		if (!input) {
-			return;
-		}
-
-		input.select();
-		copyText(input.value, $(this), input);
-	});
-
+	// 1. Copy the Server URL, client ID or example prompt named by data-target, with visual feedback
 	$('.twcp_copy_prompt').on('click', function(e) {
 		e.preventDefault();
 		const input = document.getElementById(this.dataset.target);
@@ -116,6 +105,36 @@ jQuery(function($) {
 		}
 
 		copyText(input.value, $(this), input);
+	});
+
+	// 1b. Client ID for a ChatGPT connector that cannot register itself
+	function clientStatus(text, success) {
+		$('#twcp_client_status').text(text || '').css('color', success ? '#1e7e34' : '#d63638');
+	}
+
+	$('#twcp_client_create').on('click', function() {
+		const callback = $.trim($('#twcp_client_callback').val());
+		if (!callback) {
+			clientStatus('Paste the Callback URL from ChatGPT first.', false);
+			return;
+		}
+
+		const $btn = $(this).prop('disabled', true);
+		$('#twcp_client_result').hide();
+		clientStatus('', true);
+
+		sendAjax('twcp_client_id', {callback: callback}, function(res) {
+			$btn.prop('disabled', false);
+			if (res.success && res.data && res.data.client_id) {
+				$('#twcp_client_id').val(res.data.client_id);
+				$('#twcp_client_result').css('display', 'flex');
+			} else {
+				clientStatus((res.data && res.data.message) || 'Could not create a client ID.', false);
+			}
+		}, function() {
+			$btn.prop('disabled', false);
+			clientStatus('Server communication error.', false);
+		});
 	});
 
 	// 2. Show / Hide API Key

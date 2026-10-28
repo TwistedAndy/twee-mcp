@@ -65,7 +65,7 @@ defined('ABSPATH') or exit;
 		<label class="label" for="twcp_url_input"><?php echo esc_html__('Server URL', 'twee-mcp'); ?></label>
 		<div class="control">
 			<input type="text" id="twcp_url_input" readonly class="code" value="<?php echo esc_attr($server_url); ?>" onclick="this.select();" />
-			<button type="button" id="twcp_copy_url_btn" class="button button_primary">
+			<button type="button" class="button button_primary twcp_copy_prompt" data-target="twcp_url_input">
 				<?php echo esc_html__('Copy URL', 'twee-mcp'); ?>
 			</button>
 		</div>
@@ -80,12 +80,12 @@ defined('ABSPATH') or exit;
 	<div class="group">
 		<h3 class="title"><?php echo esc_html__('Claude (Web & Desktop App)', 'twee-mcp'); ?></h3>
 		<ol class="list">
-			<li><?php echo esc_html__('Open your profile menu, then go to ', 'twee-mcp'); ?><strong><?php echo esc_html__('Settings → Connectors', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('On the ', 'twee-mcp'); ?><strong><?php echo esc_html__('Yours', 'twee-mcp'); ?></strong><?php echo esc_html__(' tab, choose ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add connector → Add custom connector', 'twee-mcp'); ?></strong>.</li>
+			<li><?php echo esc_html__('Open ', 'twee-mcp'); ?><strong><?php echo esc_html__('Customize → Connectors', 'twee-mcp'); ?></strong><?php echo esc_html__(' from the Claude sidebar.', 'twee-mcp'); ?></li>
+			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add → Add custom connector', 'twee-mcp'); ?></strong>.</li>
 			<li><?php echo esc_html__('Enter a name (e.g. ', 'twee-mcp'); ?>
 				<em><?php echo esc_html__('Store Management', 'twee-mcp'); ?></em><?php echo esc_html__(') and paste the Server URL: ', 'twee-mcp'); ?>
 				<code><?php echo esc_html($server_url); ?></code></li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Continue', 'twee-mcp'); ?></strong><?php echo esc_html__('. Claude discovers the OAuth settings and registers its client automatically; do not add an OAuth Client ID manually.', 'twee-mcp'); ?></li>
+			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Continue', 'twee-mcp'); ?></strong><?php echo esc_html__('. Claude registers its client automatically; do not add an OAuth Client ID manually.', 'twee-mcp'); ?></li>
 			<li><?php echo esc_html__('When the WordPress authorization screen opens, sign in and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Allow', 'twee-mcp'); ?></strong><?php echo esc_html__('. Claude should return to the connector with a Connected status.', 'twee-mcp'); ?></li>
 		</ol>
 		<p class="text text_muted"><?php echo esc_html__('After plugin tools change, open the connector menu and choose Refresh tools list. If Claude shows Reconnect, reconnect and complete the WordPress authorization again.', 'twee-mcp'); ?></p>
@@ -101,13 +101,37 @@ defined('ABSPATH') or exit;
 	<div class="group">
 		<h3 class="title"><?php echo esc_html__('ChatGPT Plugins (Web & Desktop App)', 'twee-mcp'); ?></h3>
 		<ol class="list">
-			<li><?php echo esc_html__('Open ', 'twee-mcp'); ?><strong><?php echo esc_html__('Plugins', 'twee-mcp'); ?></strong><?php echo esc_html__(' from the ChatGPT sidebar.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add → Add custom MCP server', 'twee-mcp'); ?></strong>.</li>
+			<li><?php echo esc_html__('Open ', 'twee-mcp'); ?><strong><?php echo esc_html__('Plugins', 'twee-mcp'); ?></strong><?php echo esc_html__(' from the ChatGPT sidebar and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add → Add custom MCP server', 'twee-mcp'); ?></strong>.</li>
 			<li><?php echo esc_html__('Enter a name and optional description, keep ', 'twee-mcp'); ?><strong><?php echo esc_html__('Server URL', 'twee-mcp'); ?></strong><?php echo esc_html__(' selected, and paste: ', 'twee-mcp'); ?><code><?php echo esc_html($server_url); ?></code></li>
-			<li><?php echo esc_html__('Keep ', 'twee-mcp'); ?><strong><?php echo esc_html__('OAuth', 'twee-mcp'); ?></strong><?php echo esc_html__(' as the authentication method. No manual client ID is needed because ChatGPT discovers the OAuth endpoints and registers automatically.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('Confirm the trust warning and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Create as a plugin', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('When the WordPress authorization screen opens, sign in and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Allow', 'twee-mcp'); ?></strong>.</li>
+			<li><?php echo esc_html__('Keep ', 'twee-mcp'); ?><strong><?php echo esc_html__('OAuth', 'twee-mcp'); ?></strong><?php echo esc_html__(' as the authentication method, open ', 'twee-mcp'); ?><strong><?php echo esc_html__('Advanced OAuth settings', 'twee-mcp'); ?></strong><?php echo esc_html__(', and set ', 'twee-mcp'); ?><strong><?php echo esc_html__('Registration method', 'twee-mcp'); ?></strong><?php echo esc_html__(' to ', 'twee-mcp'); ?><strong><?php echo esc_html__('User-Defined OAuth Client', 'twee-mcp'); ?></strong>.</li>
+			<li><?php echo esc_html__('Copy the ', 'twee-mcp'); ?><strong><?php echo esc_html__('Callback URL', 'twee-mcp'); ?></strong><?php echo esc_html__(' that ChatGPT shows, paste it here, and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Create Client ID', 'twee-mcp'); ?></strong>:
+				<div class="field" style="margin: 8px 0 0;">
+					<div class="control">
+						<input type="text" id="twcp_client_callback" class="code" placeholder="https://chatgpt.com/connector/oauth/..." autocomplete="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore />
+						<button type="button" id="twcp_client_create" class="button"><?php echo esc_html__('Create Client ID', 'twee-mcp'); ?></button>
+					</div>
+					<div class="control" id="twcp_client_result" style="margin-top: 8px; display: none;">
+						<input type="text" id="twcp_client_id" class="code" readonly onclick="this.select();" />
+						<button type="button" class="button button_primary twcp_copy_prompt" data-target="twcp_client_id"><?php echo esc_html__('Copy', 'twee-mcp'); ?></button>
+					</div>
+					<span id="twcp_client_status" class="status_text"></span>
+				</div>
+			</li>
+			<li><?php echo esc_html__('Paste the client ID into ', 'twee-mcp'); ?><strong><?php echo esc_html__('OAuth client ID', 'twee-mcp'); ?></strong><?php echo esc_html__(', leave the client secret empty, and fill in the rest of the advanced settings:', 'twee-mcp'); ?>
+				<ul style="list-style: disc; margin: 6px 0 6px 20px;">
+					<li><strong><?php echo esc_html__('Token endpoint auth method', 'twee-mcp'); ?></strong>: <code>none</code></li>
+					<li><strong><?php echo esc_html__('Base scopes', 'twee-mcp'); ?></strong>: <code>straps:manage</code></li>
+					<li><strong><?php echo esc_html__('Auth URL', 'twee-mcp'); ?></strong>: <code><?php echo esc_html(home_url('/authorize')); ?></code></li>
+					<li><strong><?php echo esc_html__('Token URL', 'twee-mcp'); ?></strong>: <code><?php echo esc_html(home_url('/token')); ?></code></li>
+					<li><strong><?php echo esc_html__('Authorization server base', 'twee-mcp'); ?></strong>: <code><?php echo esc_html(home_url()); ?></code></li>
+					<li><strong><?php echo esc_html__('Resource', 'twee-mcp'); ?></strong>: <code><?php echo esc_html($server_url); ?></code></li>
+					<li><strong><?php echo esc_html__('Server supports PKCE (S256)', 'twee-mcp'); ?></strong>: <?php echo esc_html__('on', 'twee-mcp'); ?></li>
+				</ul>
+			</li>
+			<li><?php echo esc_html__('Tick ', 'twee-mcp'); ?><strong><?php echo esc_html__('I understand and want to continue', 'twee-mcp'); ?></strong><?php echo esc_html__(' and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Create as a plugin', 'twee-mcp'); ?></strong>.</li>
+			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Connect', 'twee-mcp'); ?></strong><?php echo esc_html__(' in the dialog that follows. When the WordPress authorization screen opens, sign in and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Allow', 'twee-mcp'); ?></strong>.</li>
 		</ol>
+		<p class="text text_muted"><?php echo esc_html__('ChatGPT only registers itself after it discovers the OAuth settings, which fails when the web server blocks /.well-known/ addresses. The client ID stands in for that step. It works only with the Callback URL it was created for; if ChatGPT shows a different Callback URL later, create a new one.', 'twee-mcp'); ?></p>
 	</div>
 
 	<div class="group" style="border-top: 1px solid #e2e4e7; padding-top: 18px; margin-top: 18px;">
@@ -144,6 +168,12 @@ defined('ABSPATH') or exit;
 		<p class="text text_muted">
 			<?php echo esc_html__('If authentication fails or the client asks you to reconnect, confirm that the MCP server is enabled and the Cloudflare skip rule above is saved, then reconnect and approve access in WordPress again.', 'twee-mcp'); ?>
 		</p>
+		<p class="text">
+			<?php echo esc_html__('Open ', 'twee-mcp'); ?><a href="<?php echo esc_url(home_url('/.well-known/oauth-authorization-server')); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(home_url('/.well-known/oauth-authorization-server')); ?></a><?php echo esc_html__('. It should show JSON. If nginx answers with its own 404 page instead, the request never reaches WordPress. Add this block to the server block of the site, before other location rules, and reload nginx:', 'twee-mcp'); ?>
+		</p>
+		<pre class="pre"><code>location ^~ /.well-known/oauth- {
+	try_files $uri /index.php?$args;
+}</code></pre>
 	</div>
 </div>
 
