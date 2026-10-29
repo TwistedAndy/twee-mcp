@@ -12,93 +12,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for the Media Library
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_media_tools(): array
-{
-	return [
-		'get_images'              => [
-			'description' => 'Browse and search media library images. Returns original dimensions (width, height, orientation, filesize), file extension (svg, png, jpg, webp), mime_type, is_vector flag, Alt text, and URLs. Pass an id, or details=true, for intermediate sizes and the HTML tag. Use type="svg" to find SVG icon masks or type="raster" for photos.',
-			'callable'    => 'twcp_media_images',
-			'parameters'  => [
-				'search'    => ['type' => 'string', 'description' => 'Keyword to search in title, filename, or alt text.'],
-				'type'      => ['type' => 'string', 'description' => 'Filter by image type: "svg" (vector icons) or "raster" (photos: jpg, png, webp).'],
-				'mime_type' => ['type' => 'string', 'description' => 'Specific MIME type filter (e.g. "image/svg+xml", "image/jpeg").'],
-				'size'      => ['type' => 'string', 'description' => 'Image size for HTML tag (default "full").'],
-				'details'   => ['type' => 'boolean', 'description' => 'Include intermediate sizes and the HTML tag in lists (default false).'],
-				'limit'     => ['type' => 'integer', 'description' => 'Max images to return (default 20, max 50).'],
-				'offset'    => ['type' => 'integer', 'description' => 'Offset for pagination.'],
-				'id'        => ['type' => 'integer', 'description' => 'Specific attachment ID to fetch full metadata and available sizes.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'preview_images'          => [
-			'description' => 'Look at small previews of Media Library images to check that they match the content: pass attachment_ids, or post_id for the featured image, product gallery, and images inserted in the content. Previews are scaled down, so they cost far fewer tokens than full images.',
-			'callable'    => 'twcp_media_preview',
-			'private'     => true,
-			'parameters'  => [
-				'attachment_ids' => ['type' => 'array', 'maxItems' => 10, 'items' => ['type' => 'integer', 'minimum' => 1]],
-				'post_id'        => ['type' => 'integer', 'description' => 'Post, page, or product whose images to preview.'],
-				'size'           => ['type' => 'string', 'enum' => ['small', 'medium'], 'description' => '"small" is 256 px (default), "medium" is 512 px for fine details.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'edit_media'              => [
-			'description' => 'Update an image attachment title, Alt text, caption, or description. Omitted fields are preserved.',
-			'callable'    => 'twcp_media_edit',
-			'required'    => ['attachment_id'],
-			'parameters'  => [
-				'attachment_id' => ['type' => 'integer', 'minimum' => 1],
-				'title'         => ['type' => 'string', 'description' => 'Media Library title.'],
-				'alt'           => [
-					'type'        => 'string',
-					'description' => 'Image Alt text saved to the WordPress attachment ALT field for accessibility and image SEO.'
-				],
-				'caption'       => ['type' => 'string', 'description' => 'Media Library caption.'],
-				'description'   => ['type' => 'string', 'description' => 'Media Library attachment description.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'build_gallery_shortcode' => [
-			'description' => 'Build a native WordPress [gallery] shortcode from ordered existing image attachment IDs. Returns text to insert into post content or an ACF rich text field; does not edit anything. Product galleries use edit_product.gallery_image_ids.',
-			'callable'    => 'twcp_media_gallery',
-			'required'    => ['attachment_ids'],
-			'parameters'  => [
-				'attachment_ids' => ['type' => 'array', 'minItems' => 1, 'maxItems' => 50, 'items' => ['type' => 'integer', 'minimum' => 1]],
-				'columns'        => ['type' => 'integer', 'minimum' => 1, 'maximum' => 9],
-				'size'           => ['type' => 'string'],
-				'link'           => ['type' => 'string', 'enum' => ['file', 'none', 'attachment']],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'assign_media_image'      => [
-			'description' => 'Assign an existing WordPress Media Library attachment to a WooCommerce product (featured or gallery), post/page (featured thumbnail or content), taxonomy term (category thumbnail), or ACF flexible content block.',
-			'callable'    => 'twcp_image_assign',
-			'required'    => ['attachment_id', 'type', 'id'],
-			'parameters'  => [
-				'attachment_id' => ['type' => 'integer', 'description' => 'WordPress media attachment ID.'],
-				'type'          => ['type' => 'string', 'description' => 'Target entity type: "product", "post", "term", "block".'],
-				'id'            => ['type' => 'integer', 'description' => 'Target entity ID (product ID, post ID, or term ID).'],
-				'assign_as'     => [
-					'type'        => 'string',
-					'description' => 'Assignment role: for product: "featured", "gallery", "both"; for post: "featured", "content". Default "featured".',
-				],
-				'taxonomy'      => ['type' => 'string', 'description' => 'Taxonomy slug if type is "term" (default "product_cat").'],
-				'block_index'   => ['type' => 'integer', 'description' => '0-based index of the ACF block if type is "block".'],
-				'field_name'    => [
-					'type'        => 'string',
-					'description' => 'ACF block subfield name if type is "block" (e.g. "image", "background", "icon"). Default "image".',
-				],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-	];
-}
-
-
-/**
  * Update editable metadata on a Media Library image.
  *
  * @param array $args Attachment ID and changed fields.
@@ -873,4 +786,242 @@ function twcp_media_check_tool(array $args): array
 		'updated' => $result['updated'],
 		'details' => $result['details'],
 	];
+}
+
+
+/**
+ * Download remote image from URL and import into WordPress Media Library
+ *
+ * @param string|array $url_or_args
+ * @param array        $meta
+ *
+ * @return array
+ */
+function twcp_media_import($url_or_args, array $meta = []): array
+{
+	if (is_array($url_or_args)) {
+		$meta = $url_or_args;
+		$url = !empty($meta['url']) ? (string) $meta['url'] : '';
+	} else {
+		$url = (string) $url_or_args;
+	}
+
+	$url = trim($url);
+	if (empty($url) or !wp_http_validate_url($url)) {
+		return ['error' => 'A valid remote image URL is required.'];
+	}
+	if (!current_user_can('upload_files') or (!empty($meta['post_id']) and !current_user_can('edit_post', absint($meta['post_id'])))) {
+		return ['error' => 'You cannot import media for this post.'];
+	}
+
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	require_once ABSPATH . 'wp-admin/includes/image.php';
+	require_once ABSPATH . 'wp-admin/includes/media.php';
+
+	$tmp = download_url($url, 45);
+
+	if (is_wp_error($tmp)) {
+		return ['error' => 'Failed to download remote image: ' . $tmp->get_error_message()];
+	}
+
+	$clean_url = strtok($url, '?');
+	$type = wp_get_image_mime($tmp);
+	$extensions = [
+		'image/jpeg' => 'jpg',
+		'image/png'  => 'png',
+		'image/webp' => 'webp',
+		'image/gif'  => 'gif',
+		'image/avif' => 'avif',
+	];
+	$ext = $extensions[$type] ?? '';
+	if (!$ext) {
+		unlink($tmp);
+
+		return ['error' => 'The downloaded file is not a supported raster image.'];
+	}
+
+	$filename_base = !empty($meta['filename']) ? sanitize_title($meta['filename']) : '';
+	if (empty($filename_base) and !empty($meta['title'])) {
+		$filename_base = sanitize_title($meta['title']);
+	}
+	if (empty($filename_base)) {
+		$filename_base = sanitize_title(pathinfo($clean_url, PATHINFO_FILENAME));
+	}
+	if (empty($filename_base)) {
+		$filename_base = 'image-' . wp_generate_password(6, false);
+	}
+
+	$filename = $filename_base . '.' . $ext;
+	$file_array = [
+		'name'     => $filename,
+		'tmp_name' => $tmp,
+	];
+
+	$parent_id = !empty($meta['post_id']) ? absint($meta['post_id']) : 0;
+	$title = !empty($meta['title']) ? sanitize_text_field($meta['title']) : ucwords(str_replace('-', ' ', $filename_base));
+	$alt = !empty($meta['alt']) ? sanitize_text_field($meta['alt']) : $title;
+	$caption = !empty($meta['caption']) ? wp_kses_post($meta['caption']) : '';
+	$description = !empty($meta['description']) ? wp_kses_post($meta['description']) : '';
+
+	$post_data = [
+		'post_title'   => $title,
+		'post_excerpt' => $caption,
+		'post_content' => $description,
+		'post_status'  => 'inherit',
+	];
+
+	$attachment_id = media_handle_sideload($file_array, $parent_id, $title, $post_data);
+
+	if (file_exists($tmp)) {
+		@unlink($tmp);
+	}
+
+	if (is_wp_error($attachment_id)) {
+		return ['error' => 'Failed to insert attachment into WordPress Media Library: ' . $attachment_id->get_error_message()];
+	}
+
+	update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt);
+
+	foreach (['provider', 'source_url', 'author', 'author_url', 'license'] as $field) {
+		if (empty($meta[$field])) {
+			continue;
+		}
+
+		$value = str_ends_with($field, '_url') ? esc_url_raw($meta[$field]) : sanitize_text_field($meta[$field]);
+		update_post_meta($attachment_id, '_twcp_image_' . $field, $value);
+	}
+	update_post_meta($attachment_id, '_twcp_image_original_url', esc_url_raw($url));
+
+	$attached_file = get_attached_file($attachment_id);
+	$attach_meta = wp_get_attachment_metadata($attachment_id);
+	$attachment_post = get_post($attachment_id);
+
+	$result = [
+		'success'       => true,
+		'attachment_id' => $attachment_id,
+		'url'           => wp_get_attachment_url($attachment_id),
+		'title'         => $title,
+		'alt'           => $alt,
+		'caption'       => $caption,
+		'width'         => $attach_meta['width'] ?? null,
+		'height'        => $attach_meta['height'] ?? null,
+		'filesize'      => ($attached_file && file_exists($attached_file)) ? filesize($attached_file) : null,
+		'mime_type'     => $attachment_post ? $attachment_post->post_mime_type : $type,
+		'sizes'         => !empty($attach_meta['sizes']) ? array_keys($attach_meta['sizes']) : [],
+		'edit_url'      => admin_url('post.php?post=' . $attachment_id . '&action=edit'),
+	];
+
+	if (!empty($meta['assign_to']) && is_array($meta['assign_to'])) {
+		$assign_result = twcp_media_assign($attachment_id, $meta['assign_to']);
+		$result['assigned_to'] = $assign_result;
+	}
+
+	return $result;
+}
+
+
+/**
+ * Assign a media attachment to a WordPress entity
+ *
+ * @param int|array $attachment_id_or_args
+ * @param array     $target
+ *
+ * @return array
+ */
+function twcp_media_assign($attachment_id_or_args, array $target = []): array
+{
+	if (is_array($attachment_id_or_args)) {
+		$target = $attachment_id_or_args;
+		$attachment_id = !empty($target['attachment_id']) ? absint($target['attachment_id']) : 0;
+	} else {
+		$attachment_id = absint($attachment_id_or_args);
+	}
+
+	if (!$attachment_id or !wp_attachment_is_image($attachment_id)) {
+		return ['error' => "Attachment ID {$attachment_id} is invalid or not an image."];
+	}
+
+	$type = !empty($target['type']) ? sanitize_key($target['type']) : (!empty($target['target_type']) ? sanitize_key($target['target_type']) : '');
+	$target_id = !empty($target['id']) ? absint($target['id']) : (!empty($target['target_id']) ? absint($target['target_id']) : 0);
+	$assign_as = !empty($target['assign_as']) ? sanitize_key($target['assign_as']) : 'featured';
+
+	if (!$type) {
+		return ['error' => 'Missing target type (product, post, term, block).'];
+	}
+
+	$capability = in_array($type, ['term', 'category'], true) ? 'edit_term' : 'edit_post';
+	if (!current_user_can('upload_files') or !current_user_can($capability, $target_id)) {
+		return ['error' => 'You cannot assign media to this content.'];
+	}
+
+	switch ($type) {
+		case 'post':
+		case 'page':
+			if (!$target_id) {
+				return ['error' => 'Missing post ID.'];
+			}
+
+			$post = get_post($target_id);
+			if (!$post) {
+				return ['error' => "Post #{$target_id} not found."];
+			}
+
+			if ($assign_as === 'content') {
+				$img_html = wp_get_attachment_image($attachment_id, 'large');
+				wp_update_post([
+					'ID'           => $target_id,
+					'post_content' => $post->post_content . "\n\n" . $img_html,
+				]);
+
+				return [
+					'success'       => true,
+					'type'          => 'post',
+					'post_id'       => $target_id,
+					'assign_as'     => 'content',
+					'attachment_id' => $attachment_id,
+					'message'       => sprintf("Appended image #%d into content of post '%s' (#%d).", $attachment_id, $post->post_title, $target_id),
+				];
+			} else {
+				set_post_thumbnail($target_id, $attachment_id);
+
+				return [
+					'success'       => true,
+					'type'          => 'post',
+					'post_id'       => $target_id,
+					'assign_as'     => 'featured',
+					'attachment_id' => $attachment_id,
+					'message'       => sprintf("Set featured image #%d for post '%s' (#%d).", $attachment_id, $post->post_title, $target_id),
+				];
+			}
+
+		case 'term':
+		case 'category':
+			if (!$target_id) {
+				return ['error' => 'Missing term ID.'];
+			}
+
+			$taxonomy = !empty($target['taxonomy']) ? sanitize_key($target['taxonomy']) : 'product_cat';
+			$term = get_term($target_id, $taxonomy);
+			if (!$term or is_wp_error($term)) {
+				return ['error' => "Taxonomy term #{$target_id} in '{$taxonomy}' not found."];
+			}
+
+			update_term_meta($target_id, 'thumbnail_id', $attachment_id);
+			update_term_meta($target_id, 'image', $attachment_id);
+
+			return [
+				'success'       => true,
+				'type'          => 'term',
+				'term_id'       => $target_id,
+				'taxonomy'      => $taxonomy,
+				'term_name'     => $term->name,
+				'attachment_id' => $attachment_id,
+				'message'       => sprintf("Set thumbnail image #%d for term '%s' (#%d).", $attachment_id, $term->name, $target_id),
+			];
+
+		default:
+			// Modules assign to their own targets, such as products and blocks
+			return apply_filters('twcp_media_assign', null, $type, $attachment_id, $target_id, $assign_as, $target)
+				?? ['error' => "Unsupported target type '{$type}'."];
+	}
 }

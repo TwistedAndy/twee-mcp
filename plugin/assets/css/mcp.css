@@ -341,12 +341,12 @@
 .mcp_box .post_links {
   margin-bottom: 14px;
 }
-.mcp_box .post_links .checks {
+.mcp_box .checks {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 20px;
 }
-.mcp_box .post_links .checks label {
+.mcp_box .checks label {
   display: inline-flex;
   align-items: center;
   gap: 6px;

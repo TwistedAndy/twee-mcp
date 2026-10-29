@@ -13,7 +13,7 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 - Each tool carries `readOnlyHint` and `destructiveHint` annotations, so clients can ask before writing or deleting.
 - Results are compact JSON to keep token usage low. Image previews are returned as small MCP image blocks.
 - Tool groups switch off by themselves when the plugin they need is inactive, for example the WooCommerce groups.
-- Single tools can be disabled on the **Agent Tools** screen, and the whole server can be turned off on the **Agent Access** screen.
+- Modules, such as WooCommerce or Activity Log, and single tools can be switched off on the **Agent Tools** screen, and the whole server can be turned off on the **Agent Access** screen.
 
 ### 2. OAuth 2.1 Authorization
 
@@ -29,7 +29,7 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 
 - Connecting requires the `edit_posts` capability (`TWCP_CAPABILITY`).
 - Every tool call is checked against the capabilities of the connected user. Publishing needs the post type's `publish_posts` capability. Comments need `moderate_comments`, menus `edit_theme_options`, orders `edit_shop_orders`, and coupons `edit_shop_coupons`.
-- Some tools have their own capability on top, for example `get_sales_summary` with `view_woocommerce_reports` and `generate_block_descriptions` with `manage_options`.
+- Some tools have their own capability on top, for example `get_sales_summary` with `view_woocommerce_reports`, and `generate_block_descriptions` and the Activity Log tools with `manage_options`.
 
 ### 4. AI Provider
 
@@ -79,15 +79,40 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 | Content & Posts | `get_posts`, `get_schema`, `create_post`, `edit_post`, `create_similar_post`, `trash_post` |
 | Taxonomies | `get_terms`, `create_term`, `edit_term`, `assign_terms` |
 | Comments | `get_comments`, `moderate_comment`, `reply_comment` |
-| Media Library | `get_images`, `preview_images`, `edit_media`, `assign_media_image`, `build_gallery_shortcode` |
-| Stock Images | `search_stock_images`, `import_media_image`, `check_media_alt_text` |
-| ACF Blocks | `get_block_types`, `get_custom_fields`, `get_blocks`, `create_block`, `edit_block`, `remove_block`, `generate_block_descriptions` |
-| Site & Menus | `get_site_info`, `get_menus`, `add_menu_item`, `remove_menu_item` |
+| Media Library | `get_images`, `preview_images`, `edit_media`, `import_media_image`, `assign_media_image`, `check_media_alt_text`, `build_gallery_shortcode` |
+| Stock Images | `search_stock_images` |
+| ACF Blocks | `get_block_types`, `get_custom_fields`, `get_blocks`, `create_block`, `edit_block`, `remove_block`, `generate_block_descriptions` (only when ACF Pro is active) |
+| Site & Menus | `get_site_info`, `get_users`, `get_menus`, `add_menu_item`, `remove_menu_item` |
 | WooCommerce Products | `get_products`, `create_product`, `edit_product`, `get_product_variations`, `save_product_variation`, `select_related_products`, `generate_product_description`, `generate_product_short_description` |
 | WooCommerce Orders & Coupons | `get_orders`, `update_order`, `get_sales_summary`, `get_coupons`, `save_coupon` |
+| Activity Log | `get_activity_summary`, `get_brand_activity`, `get_user_activity`, `get_item_history`, `get_activity_events`, `get_login_activity`, `get_activity_event_types` (only when [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) is active) |
 | Discovery & Search | `search`, `fetch` (compatible with ChatGPT connectors) |
 
 `trash_post` moves content to the Trash and never deletes it permanently. `remove_block` and `remove_menu_item` are marked as destructive.
+
+The Activity Log tools read the events WP Activity Log records, shop managers by default:
+
+- `get_activity_summary` lists, per user, the items published, those published for the first time (`published_new`), the price updates (saves that changed a product's prices), the active days, sessions, and time. Users who published most come first. For each post type, such as products and materials, it counts the items opened, edited, created, published, trashed, repriced, and given other terms, and the saves. It also counts term changes, media uploads, and logins. `tracked_minutes` is the measured editing time (see Activity Tracking below). Active time adds the gaps between logged actions up to 15 minutes, so work outside WordPress is not counted. It is a lower bound, best for comparing people. `span_hours`, from the first to the last action of each day, is the upper bound. Logins of one account working at the same time show up as `parallel_sessions`, a sign of a shared account.
+- `get_brand_activity` groups the items people worked on by any taxonomy, such as `product_brand`, `product_cat`, or `pa_collection`, with the users behind each group. It uses the items' current terms. Items of a type without that taxonomy are matched by the name of their top-level term, so materials in a collection named after a brand count for that brand.
+- `get_user_activity` shows one person's days, login sessions, and the items they worked on with their brand or other terms.
+- `get_item_history` shows who opened, changed, or published one product, material, or page, with the old and new values of each change.
+- `get_activity_events` lists events newest first, filtered by user, role, item, event ID, or action, with plain-text messages and details.
+- `get_login_activity` reports logins, failed logins, IP addresses, devices, and sessions signed in now, plus failed logins with unknown usernames.
+- `get_activity_event_types` lists the event types the plugin records, whether each is enabled, and how often each was logged.
+
+The brand, user, and item reports add `tracked_minutes` too.
+
+### Activity Tracking
+
+On the Agent Tools screen, Activity Tracking logs what WP Activity Log does not record, for the roles you choose, as WP Activity Log events, so it keeps them, applies its retention, and shows them in its log. It is off until you pick a role, and needs WP Activity Log.
+
+- **Editing time.** Every wp-admin screen counts the seconds its tab is in front and was used in the last two minutes. It logs them as WP Activity Log event 99102 when the tab is hidden or closed, and every ten minutes on long visits, with the item or screen. The reports add these seconds up as `tracked_minutes`. Only the tab in front counts, but two devices used at once both do. Work outside wp-admin is not counted.
+- **Term changes.** Changes of brands, tags, material collections, and other terms of an item are logged as WP Activity Log event 99100, with the terms before and after. Categories, attributes, and prices are left to WP Activity Log, which logs them already.
+- **Custom prices.** Changes of the meta fields named under Price Fields, such as price tables a theme keeps in meta, are logged as event 99101 with the numbers before and after. They count as price updates, like WooCommerce price changes.
+
+Let the people you track know about it.
+
+`get_users` in Site & Menus finds users by name, email, login, or role. It needs the `list_users` capability. It and the Activity Log tools that report on people are never used by the plugin's own model lookups, because they return personal data.
 
 ## Installation
 
@@ -144,7 +169,8 @@ The repository keeps the plugin apart from its tests, so the `plugin/` directory
 twee-mcp/
 ├── plugin/            The WordPress plugin
 │   ├── assets/        SCSS, compiled CSS, and JavaScript
-│   ├── includes/      Server, OAuth, models, batch jobs, admin, and tools/
+│   ├── includes/      Server, OAuth, models, batch jobs, admin, and the tool registry
+│   ├── modules/       Tools and integrations, one folder per module
 │   ├── parts/         Admin screen templates
 │   └── index.php      Plugin header and loader
 ├── bin/release.php    Builds the release ZIP and publishes GitHub releases
@@ -152,6 +178,70 @@ twee-mcp/
 ├── composer.json
 └── phpunit.xml
 ```
+
+### Adding Tools
+
+A module adds a group of tools with the `twcp_tools` filter in its `module.php`. Filters append their groups, and the entries of one `group` are merged, so a filter never replaces tools another filter added. The filter priority sets where the group appears on the Agent Tools screen. The `hint` is sent to AI clients once for the group, unless a tool sets its own:
+
+```php
+add_filter('twcp_tools', function(array $groups): array {
+	$groups[] = [
+		'group'  => 'reviews',
+		'label'  => __('Reviews', 'twee-mcp'),
+		'module' => 'reviews',  // Without its module or plugin, the group is left out and shown as unavailable
+		'hint'   => 'Read reviews with get_reviews.',
+		'tools'  => [
+			'get_reviews' => [
+				'description' => 'Read product reviews with their rating and author.',
+				'callable'    => 'my_reviews_query',
+				'parameters'  => ['product_id' => ['type' => 'integer', 'description' => 'Only reviews of this product.']],
+				'annotations' => ['readOnlyHint' => true],
+			],
+		],
+	];
+
+	return $groups;
+}, 85);
+```
+
+A tool can also set `capability`, which the user needs on top of `edit_posts`, `private` to keep it out of the plugin's own model lookups, and `required` for its required parameters.
+
+### Modules
+
+Tools and integrations live in `plugin/modules/`, one folder each: `wp` (the base WordPress tools the other modules build on), `activity` (WP Activity Log), `blocks` (ACF Pro), `images` (stock photo providers), and `woo` (WooCommerce). The plugin loads the `module.php` of every folder, so a module other than `wp` can be added or removed without changing the rest of the plugin. `module.php` loads the other files of its module, registers the module, and adds its tools. Admin templates of a module go in its `parts/` folder.
+
+Modules other than `wp` can be switched off under Modules on the Agent Tools screen, or with the `twcp_disabled_modules` option, a list of module folders. A module that is switched off is not loaded, so its tools, settings, screens, and jobs are gone. The screen names each module from the `Module` and `Description` lines in the header of its `module.php`, which it reads without loading the module.
+
+```
+modules/reviews/
+├── module.php     Loads reviews.php, registers the module, and adds its tools
+├── reviews.php    The tool callables and the module's hooks
+└── parts/         Admin templates
+```
+
+A module registers itself with the `twcp_modules` filter, naming the plugin it needs and whether that plugin is running:
+
+```php
+/**
+ * Module: Reviews
+ * Description: Product reviews and their ratings.
+ */
+
+require_once __DIR__ . '/reviews.php';
+
+add_filter('twcp_modules', function(array $modules): array {
+	$modules['reviews'] = ['plugin' => 'WooCommerce', 'active' => class_exists('WooCommerce')];
+
+	return $modules;
+});
+```
+
+Tool groups with that `module` are available while it is active. The core and the `wp` module check a module with `twcp_module_active()` and never call its functions directly. Modules add the rest with hooks:
+
+- `twcp_admin_tabs` and `twcp_admin_data` - Admin tab parts and the data of their templates.
+- `twcp_batch_types`, `twcp_batch_overview`, and `twcp_batch_actions` - Batch jobs, overview items, and bulk actions.
+- `twcp_prompt_groups`, `twcp_prompt_registry`, and the `twcp_prompt_group` action - Prompt groups, prompts, and extra settings shown in a group.
+- `twcp_media_assign`, `twcp_post_blocks`, and `twcp_post_featured_image` - Image targets of `assign_media_image`, page builder blocks of posts and terms, and featured images found outside the Media Library.
 
 ### Tests
 

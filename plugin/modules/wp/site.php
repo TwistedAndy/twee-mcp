@@ -11,58 +11,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for site settings and menus
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_site_tools(): array
-{
-	return [
-		'get_site_info'    => [
-			'description' => 'Get general site settings: name, tagline, URLs, language, timezone, date format, permalink structure, front page and blog page, active theme, active plugins, and store currency.',
-			'callable'    => 'twcp_site_info',
-			'parameters'  => [],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'get_menus'        => [
-			'description' => 'List navigation menus with their theme locations and ordered items (title, URL, linked object, parent item).',
-			'callable'    => 'twcp_site_menus',
-			'parameters'  => [
-				'menu_id' => ['type' => 'integer', 'description' => 'Optional single menu ID.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'add_menu_item'    => [
-			'description' => 'Add a link to a navigation menu: a post, page, or product (type "post_type"), a category or other term (type "taxonomy"), or a custom URL (type "custom").',
-			'callable'    => 'twcp_site_menu_add',
-			'capability'  => 'edit_theme_options',
-			'required'    => ['menu_id', 'type'],
-			'parameters'  => [
-				'menu_id'   => ['type' => 'integer', 'minimum' => 1],
-				'type'      => ['type' => 'string', 'enum' => ['post_type', 'taxonomy', 'custom']],
-				'object_id' => ['type' => 'integer', 'description' => 'Post or term ID for post_type and taxonomy items.'],
-				'title'     => ['type' => 'string', 'description' => 'Label; defaults to the linked object title. Required for custom links.'],
-				'url'       => ['type' => 'string', 'description' => 'Custom link URL.'],
-				'parent_id' => ['type' => 'integer', 'description' => 'Parent menu item ID for a submenu entry.'],
-				'position'  => ['type' => 'integer', 'description' => 'Menu order position (default last).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'remove_menu_item' => [
-			'description' => 'Remove an item from a navigation menu. The linked post or term is not affected.',
-			'callable'    => 'twcp_site_menu_remove',
-			'capability'  => 'edit_theme_options',
-			'required'    => ['item_id'],
-			'parameters'  => [
-				'item_id' => ['type' => 'integer', 'minimum' => 1],
-			],
-			'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
-		],
-	];
-}
-
-
-/**
  * Action/Tool: General site settings
  *
  * @return array
@@ -99,7 +47,7 @@ function twcp_site_info(): array
 		'active_plugins'      => $plugins,
 	];
 
-	if (twcp_product_active()) {
+	if (class_exists('WooCommerce')) {
 		$info['store'] = [
 			'currency'      => get_woocommerce_currency(),
 			'shop_page'     => (int) wc_get_page_id('shop'),
@@ -110,6 +58,65 @@ function twcp_site_info(): array
 	}
 
 	return $info;
+}
+
+
+/**
+ * Action/Tool: Find users
+ *
+ * @param array $args
+ *
+ * @return array
+ */
+function twcp_site_users(array $args): array
+{
+	$role = sanitize_key($args['role'] ?? '');
+	if ($role !== '' and !wp_roles()->is_role($role)) {
+		return ['error' => 'Unknown role. Available roles: ' . implode(', ', array_keys(wp_roles()->get_names()))];
+	}
+
+	$query = [
+		'number'  => max(1, min(100, (int) ($args['limit'] ?? 20))),
+		'offset'  => max(0, (int) ($args['offset'] ?? 0)),
+		'orderby' => 'display_name',
+		'role'    => $role,
+	];
+
+	if (!empty($args['id'])) {
+		$query['include'] = [absint($args['id'])];
+	}
+
+	// Names live in user meta, which the user search does not cover, so both sets of matches are combined
+	$search = trim((string) ($args['search'] ?? ''));
+	if ($search !== '') {
+		$ids = get_users(['fields' => 'ID', 'role' => $role, 'search' => '*' . $search . '*', 'search_columns' => ['user_login', 'user_email', 'user_nicename', 'display_name']]);
+		$ids = array_merge($ids, get_users(['fields' => 'ID', 'role' => $role, 'meta_query' => [
+			'relation' => 'OR',
+			['key' => 'first_name', 'value' => $search, 'compare' => 'LIKE'],
+			['key' => 'last_name', 'value' => $search, 'compare' => 'LIKE'],
+		]]));
+		$query['include'] = array_values(array_intersect($query['include'] ?? $ids, $ids)) ? : [0];
+	}
+
+	$result = new WP_User_Query($query + ['count_total' => true]);
+	$users = [];
+
+	foreach ($result->get_results() as $user) {
+		$active = (int) get_user_meta($user->ID, 'wc_last_active', true);
+		$users[] = [
+			'id'          => $user->ID,
+			'login'       => $user->user_login,
+			'name'        => $user->display_name,
+			'first_name'  => $user->first_name,
+			'last_name'   => $user->last_name,
+			'email'       => $user->user_email,
+			'roles'       => array_values($user->roles),
+			'registered'  => wp_date('Y-m-d', strtotime($user->user_registered . ' UTC')),
+			'last_active' => $active ? wp_date('Y-m-d', $active) : null,
+		];
+	}
+
+	return ['total' => $result->get_total(), 'users' => $users];
 }
 
 

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Admin tabs, legacy page slugs, and prompt settings tests
+ * Admin tabs, legacy page slugs, module switches, and prompt settings tests
  */
 class AdminTest extends TWCP_TestCase {
 
@@ -75,14 +75,32 @@ class AdminTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * Prompt data is grouped, and saved text is marked as customized.
+	 * Every module but wp can be switched off; the setting keeps only module folders.
+	 */
+	public function test_modules_can_be_switched_off(): void
+	{
+		$this->assertSame(['activity', 'blocks', 'images', 'woo'], array_keys(twcp_modules_found()));
+		$this->assertSame('WooCommerce', twcp_modules_found()['woo']['name']);
+		$this->assertSame(['woo'], twcp_admin_sanitize_modules(['woo' => '0', 'blocks' => '1', 'wp' => '0', 'nope' => '0']));
+		$this->assertSame(['images'], twcp_admin_sanitize_modules(['images', 'wp']));
+
+		update_option('twcp_disabled_modules', ['woo']);
+		$this->assertStringContainsString('3 of 4 Modules Enabled', twcp_template('modules', twcp_admin_data('modules')));
+		delete_option('twcp_disabled_modules');
+	}
+
+
+	/**
+	 * Prompt data is grouped, saved text is marked as customized, and the store group shows the product copy rules
+	 * of the WooCommerce module.
 	 */
 	public function test_prompts_data_is_grouped(): void
 	{
 		update_option('twcp_system_prompt_post_excerpt', 'Write one sentence.');
 
 		$data = twcp_admin_data('prompts');
-		$this->assertArrayHasKey('product_settings', $data);
+		$this->assertSame(['context', 'content', 'store', 'terms', 'media'], array_keys($data['groups']));
+		$this->assertStringContainsString('twcp_product_settings[max_links]', twcp_template('prompts', $data));
 
 		foreach (twcp_prompt_registry() as $option => $prompt) {
 			$this->assertArrayHasKey($prompt['group'], $data['groups'], $option);
@@ -122,7 +140,7 @@ class AdminTest extends TWCP_TestCase {
 	 */
 	public function test_block_conventions_drop_default(): void
 	{
-		twcp_admin_init();
+		twcp_block_admin_init();
 		$lf = str_replace("\r\n", "\n", twcp_block_conventions_default());
 
 		$this->assertSame('', sanitize_option('twcp_block_conventions', str_replace("\n", "\r\n", $lf)));
@@ -157,7 +175,7 @@ class AdminTest extends TWCP_TestCase {
 	 */
 	public function test_product_rules_drop_default(): void
 	{
-		twcp_admin_init();
+		twcp_product_admin_init();
 		$default = twcp_product_settings_default();
 
 		update_option('twcp_product_settings', ['max_links' => '0', 'custom_rules' => ' ' . $default['custom_rules'] . "\n"]);
@@ -175,7 +193,7 @@ class AdminTest extends TWCP_TestCase {
 	 */
 	public function test_block_descriptions_keep_unlisted_layouts(): void
 	{
-		twcp_admin_init();
+		twcp_block_admin_init();
 		update_option('twcp_block_descriptions', ['hero' => 'A large banner.', 'faq' => 'Questions and answers.']);
 
 		update_option('twcp_block_descriptions', ['faq' => 'Common questions.', 'gallery' => '']);

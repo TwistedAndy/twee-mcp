@@ -221,7 +221,7 @@ $groups = [
 	'store'   => [
 		'label'   => __('WooCommerce Store', 'twee-mcp'),
 		'plugin'  => 'WooCommerce',
-		'active'  => twcp_product_active(),
+		'active'  => twcp_module_active('woo'),
 		'prompts' => [
 			[
 				'id'          => 'product',

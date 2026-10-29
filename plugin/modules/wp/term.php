@@ -9,74 +9,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for taxonomy terms
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_term_tools(): array
-{
-	return [
-		'get_terms'    => [
-			'description' => 'Get existing taxonomy terms (categories, tags, product categories) with search, post counts, and links.',
-			'callable'    => 'twcp_term_query',
-			'parameters'  => [
-				'taxonomy'   => ['type' => 'string', 'description' => 'Taxonomy name (e.g. "category", "product_cat"). Defaults to all.'],
-				'search'     => ['type' => 'string', 'description' => 'Keyword search in term names.'],
-				'parent'     => ['type' => 'integer', 'description' => 'Parent term ID.'],
-				'limit'      => ['type' => 'integer', 'description' => 'Number of terms (default 50).'],
-				'offset'     => ['type' => 'integer', 'description' => 'Offset for pagination.'],
-				'hide_empty' => ['type' => 'boolean', 'description' => 'Hide empty terms (default false).'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'create_term'  => [
-			'description' => 'Create a new taxonomy term (e.g. category or product category), optionally with SEO metadata.',
-			'callable'    => 'twcp_term_create',
-			'required'    => ['taxonomy', 'name'],
-			'parameters'  => [
-				'taxonomy'        => ['type' => 'string', 'description' => 'Taxonomy name.'],
-				'name'            => ['type' => 'string', 'description' => 'Term name.'],
-				'slug'            => ['type' => 'string', 'description' => 'Optional slug.'],
-				'description'     => ['type' => 'string', 'description' => 'Optional description.'],
-				'parent'          => ['type' => 'integer', 'description' => 'Parent term ID.'],
-				'seo_title'       => ['type' => 'string', 'description' => 'SEO title saved for both Rank Math and Yoast SEO.'],
-				'seo_description' => ['type' => 'string', 'description' => 'SEO meta description saved for both Rank Math and Yoast SEO.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'edit_term'    => [
-			'description' => 'Edit an existing taxonomy term name, slug, description, parent, or SEO metadata.',
-			'callable'    => 'twcp_term_edit',
-			'required'    => ['term_id', 'taxonomy'],
-			'parameters'  => [
-				'term_id'         => ['type' => 'integer', 'description' => 'Term ID to edit.'],
-				'taxonomy'        => ['type' => 'string', 'description' => 'Taxonomy of the term.'],
-				'name'            => ['type' => 'string', 'description' => 'New term name.'],
-				'slug'            => ['type' => 'string', 'description' => 'New slug.'],
-				'description'     => ['type' => 'string', 'description' => 'New description.'],
-				'parent'          => ['type' => 'integer', 'description' => 'New parent term ID.'],
-				'seo_title'       => ['type' => 'string', 'description' => 'SEO title saved for both Rank Math and Yoast SEO.'],
-				'seo_description' => ['type' => 'string', 'description' => 'SEO meta description saved for both Rank Math and Yoast SEO.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'assign_terms' => [
-			'description' => 'Assign existing categories, tags, brands, or other taxonomy terms to an existing post, page, product, or registered custom post type. Replace, append, or remove IDs; replace with [] clears that taxonomy.',
-			'callable'    => 'twcp_term_assign',
-			'required'    => ['post_id', 'taxonomy', 'term_ids'],
-			'parameters'  => [
-				'post_id'  => ['type' => 'integer', 'minimum' => 1],
-				'taxonomy' => ['type' => 'string'],
-				'term_ids' => ['type' => 'array', 'items' => ['type' => 'integer', 'minimum' => 1]],
-				'mode'     => ['type' => 'string', 'enum' => ['replace', 'append', 'remove']],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-	];
-}
-
-
-/**
  * Read taxonomy terms
  *
  * @param array $args
@@ -136,8 +68,7 @@ function twcp_term_query(array $args): array
 function twcp_term_format(WP_Term $term, string $taxonomy): array
 {
 	$thumb_id = get_term_meta($term->term_id, 'thumbnail_id', true);
-	$blocks_field = twcp_block_field_name();
-	$blocks = get_term_meta($term->term_id, $blocks_field, true);
+	$blocks = twcp_post_blocks($term->term_id, 'term');
 
 	return [
 		'id'          => $term->term_id,
@@ -157,7 +88,7 @@ function twcp_term_format(WP_Term $term, string $taxonomy): array
 			'title'       => get_term_meta($term->term_id, 'rank_math_title', true) ? : '',
 			'description' => get_term_meta($term->term_id, 'rank_math_description', true) ? : '',
 		],
-		'blocks'      => twcp_block_format_list($blocks),
+		'blocks'      => $blocks ? twcp_block_format_list($blocks) : [],  // Only the blocks module finds blocks
 	];
 }
 
@@ -470,8 +401,7 @@ function twcp_term_generate_seo(int $term_id, string $taxonomy, bool $force = fa
 	$tax_label = $tax_object ? $tax_object->labels->singular_name : $taxonomy;
 
 	$desc = wp_strip_all_tags($term->description);
-	$blocks_field = twcp_block_field_name();
-	$blocks = get_term_meta($term_id, $blocks_field, true);
+	$blocks = twcp_post_blocks($term_id, 'term');
 	$blocks_text = twcp_post_blocks_text($blocks);
 
 	$summary = '';
@@ -603,7 +533,7 @@ function twcp_term_generate_description(int $term_id, string $taxonomy, bool $fo
 	if ($seo !== '') {
 		$prompt .= "SEO Meta Description: {$seo}\n";
 	}
-	$blocks_text = twcp_post_blocks_text(get_term_meta($term_id, twcp_block_field_name(), true));
+	$blocks_text = twcp_post_blocks_text(twcp_post_blocks($term_id, 'term'));
 	if ($blocks_text) {
 		$prompt .= "Page Builder Content:\n" . substr($blocks_text, 0, 800) . "\n";
 	}

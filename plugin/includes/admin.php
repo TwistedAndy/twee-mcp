@@ -5,12 +5,13 @@
  * Top-level "AI Tools" menu (last item of the admin menu) with one submenu page per tab:
  * - Automation   (batch jobs for content and shop managers, internal link settings)
  * - Prompts      (system prompts by area, copy-ready agent prompts)
- * - Library      (ACF blocks and stock image providers)
+ * - Library      (filled by modules: ACF blocks, stock image providers)
  * - AI Provider  (text & vision models, image size, API key, connection test)
  * - Agent Access (server toggle, endpoint, setup guides, OAuth sessions)
  * - Agent Tools  (MCP tool switches)
  *
- * Every tab renders template parts from parts/{part}.php that receive only the data they need.
+ * Every tab renders template parts from parts/{part}.php that receive only the data they need. Modules add their
+ * parts with the twcp_admin_tabs filter and their data with the twcp_admin_data filter.
  * Automation is open to editors and shop managers; the other tabs need manage_options.
  *
  * @package Twee_MCP
@@ -20,35 +21,44 @@ defined('ABSPATH') or exit;
 
 
 /**
- * Admin tabs
+ * Admin tabs. Modules add their template parts with the twcp_admin_tabs filter; a tab no module adds parts to,
+ * such as the Library, is left out.
  *
  * @return array Tab => [ label, capability, template parts ]
  */
 function twcp_admin_tabs(): array
 {
-	return [
+	$tabs = (array) apply_filters('twcp_admin_tabs', [
 		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'parts' => ['automation']],
 		'prompts'    => ['label' => __('Prompts', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['prompts', 'examples']],
-		'library'    => ['label' => __('Library', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['blocks', 'images']],
+		'library'    => ['label' => __('Library', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => []],
 		'model'      => ['label' => __('AI Provider', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['model']],
 		'connection' => ['label' => __('Agent Access', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['connection']],
-		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['tools']],
-	];
+		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['modules', 'tools']],
+	]);
+
+	foreach ($tabs as $tab => $info) {
+		if (empty($info['parts'])) {
+			unset($tabs[$tab]);
+		}
+	}
+
+	return $tabs;
 }
 
 
 /**
- * Page slugs of removed tabs, kept so bookmarks open the tab that took them over
+ * Page slugs of removed tabs, kept so bookmarks open the tab that took them over while it is there
  *
  * @return array Slug => tab
  */
 function twcp_admin_legacy(): array
 {
-	return [
+	return array_intersect([
 		'tw-mcp-blocks'   => 'library',
 		'tw-mcp-images'   => 'library',
 		'tw-mcp-examples' => 'prompts',
-	];
+	], array_keys(twcp_admin_tabs()));
 }
 
 
@@ -113,7 +123,7 @@ function twcp_admin_init(): void
 	register_setting('twcp_model_group', 'twcp_vision_model', $text);
 	register_setting('twcp_model_group', 'twcp_vision_size', ['type' => 'integer', 'sanitize_callback' => 'absint', 'default' => 768]);
 
-	// Prompts, and the product copy rules saved with them
+	// Prompts, and the settings modules save with them
 	foreach (array_keys(twcp_prompt_registry()) as $option) {
 		register_setting('twcp_prompts_group', $option, [
 			'type'              => 'string',
@@ -122,24 +132,9 @@ function twcp_admin_init(): void
 		]);
 	}
 
-	// MCP tools switched off on the Agent Tools screen
+	// Modules and MCP tools switched off on the Agent Tools screen
+	register_setting('twcp_modules_group', 'twcp_disabled_modules', ['type' => 'array', 'sanitize_callback' => 'twcp_admin_sanitize_modules', 'default' => []]);
 	register_setting('twcp_tools_group', 'twcp_disabled_tools', ['type' => 'array', 'sanitize_callback' => 'twcp_tools_sanitize_disabled', 'default' => []]);
-
-	register_setting('twcp_prompts_group', 'twcp_product_settings', [
-		'type'              => 'array',
-		'sanitize_callback' => function($input) {
-			$input = is_array($input) ? $input : [];
-			$clean = [];
-			$clean['max_links'] = isset($input['max_links']) ? min(15, max(0, (int) $input['max_links'])) : 6;
-			$rules = sanitize_textarea_field((string) ($input['custom_rules'] ?? ''));
-
-			// Guidelines equal to the built-in text are stored empty, so a newer default still applies
-			$clean['custom_rules'] = $rules === twcp_product_settings_default()['custom_rules'] ? '' : $rules;
-
-			return $clean;
-		},
-		'default'           => [],
-	]);
 
 	// Internal links of generated post content, saved from the Content Automation section by anyone who runs its jobs
 	register_setting('twcp_content_group', 'twcp_post_links', [
@@ -156,52 +151,6 @@ function twcp_admin_init(): void
 	]);
 	add_filter('option_page_capability_twcp_content_group', fn() => 'edit_others_posts');
 
-	// Blocks
-	register_setting('twcp_blocks_group', 'twcp_blocks_field', ['type' => 'string', 'sanitize_callback' => 'sanitize_key', 'default' => 'blocks']);
-	register_setting('twcp_blocks_group', 'twcp_block_previews_folder', [
-		'type'              => 'string',
-		'sanitize_callback' => 'sanitize_text_field',
-		'default'           => 'assets/preview'
-	]);
-	register_setting('twcp_blocks_group', 'twcp_block_conventions', [
-		'type'              => 'string',
-		// Conventions equal to the built-in text are stored empty, so a newer default still applies
-		'sanitize_callback' => function($input): string {
-			$text = sanitize_textarea_field((string) $input);
-			$default = sanitize_textarea_field(twcp_block_conventions_default());
-
-			return str_replace("\r\n", "\n", $text) === str_replace("\r\n", "\n", $default) ? '' : $text;
-		},
-		'default'           => '',
-	]);
-	register_setting('twcp_blocks_group', 'twcp_block_descriptions', [
-		'type'              => 'array',
-		// The Library lists the layouts of the current field only, so the descriptions it does not list are kept
-		'sanitize_callback' => function($input) {
-			$clean = (array) get_option('twcp_block_descriptions', []);
-			foreach ((array) $input as $layout => $description) {
-				$clean[sanitize_key($layout)] = sanitize_textarea_field($description);
-			}
-
-			return $clean;
-		},
-		'default'           => [],
-	]);
-
-	// Stock images
-	register_setting('twcp_images_group', 'twcp_stock_api_keys', [
-		'type'              => 'array',
-		'sanitize_callback' => function($input) {
-			$input = is_array($input) ? $input : [];
-			$clean = [];
-			foreach (['unsplash', 'pexels', 'pixabay', 'giphy'] as $provider) {
-				$clean[$provider] = !empty($input[$provider]) ? sanitize_text_field($input[$provider]) : '';
-			}
-
-			return $clean;
-		},
-		'default'           => [],
-	]);
 }
 
 
@@ -439,118 +388,31 @@ function twcp_admin_ajax_context(): void
 
 
 /**
- * AJAX: Generate block descriptions from the previews folder
- */
-add_action('wp_ajax_twcp_generate_block_descriptions', 'twcp_admin_ajax_blocks');
-
-/**
- * Generate missing page-builder block descriptions.
+ * Sanitize the disabled modules setting. The Agent Tools screen posts folder => 1|0 (1 = enabled), code may store a
+ * plain list of folders.
  *
- * @return void Sends a JSON response.
+ * @param mixed $input
+ *
+ * @return string[]
  */
-function twcp_admin_ajax_blocks(): void
+function twcp_admin_sanitize_modules($input): array
 {
-	twcp_admin_ajax();
+	$found = twcp_modules_found();
+	$disabled = [];
 
-	if (function_exists('set_time_limit')) {
-		@set_time_limit(300);
-	}
-
-	$folder = isset($_POST['folder']) ? sanitize_text_field($_POST['folder']) : null;
-	$layout = isset($_POST['layout']) ? sanitize_key($_POST['layout']) : null;
-
-	if ($folder !== null and trim($folder) !== '') {
-		update_option('twcp_block_previews_folder', trim($folder));
-	}
-
-	if (!empty($layout)) {
-		$desc = twcp_block_describe_single($layout, $folder);
-		if ($desc === null) {
-			wp_send_json_error(['message' => sprintf(__('Layout %s not found.', 'twee-mcp'), $layout)]);
+	foreach ((array) $input as $key => $value) {
+		$folder = is_int($key) ? (string) $value : (string) $key;
+		if (isset($found[$folder]) and (is_int($key) or !$value)) {
+			$disabled[] = $folder;
 		}
-
-		wp_send_json_success([
-			'layout'       => $layout,
-			'description'  => $desc,
-			'descriptions' => twcp_block_descriptions(),
-			'message'      => sprintf(__('Generated description for %s.', 'twee-mcp'), $layout),
-		]);
 	}
 
-	$count = twcp_block_generate_descriptions($folder, !empty($_POST['overwrite']));
-
-	wp_send_json_success([
-		'generated'    => $count,
-		'descriptions' => twcp_block_descriptions(),
-		'message'      => sprintf(__('Successfully generated %d block descriptions from previews.', 'twee-mcp'), $count),
-	]);
+	return array_values(array_unique($disabled));
 }
 
 
 /**
- * AJAX: Search stock images
- */
-add_action('wp_ajax_twcp_search_stock_images', 'twcp_admin_ajax_search');
-
-/**
- * Search configured stock-image providers from WordPress admin.
- *
- * @return void Sends a JSON response.
- */
-function twcp_admin_ajax_search(): void
-{
-	twcp_admin_ajax();
-
-	wp_send_json_success(twcp_image_search(isset($_POST['query']) ? sanitize_text_field($_POST['query']) : '', [
-		'provider'    => isset($_POST['provider']) ? sanitize_key($_POST['provider']) : 'all',
-		'orientation' => isset($_POST['orientation']) ? sanitize_key($_POST['orientation']) : '',
-		'per_page'    => isset($_POST['per_page']) ? min(60, max(1, (int) $_POST['per_page'])) : 12,
-		'page'        => isset($_POST['page']) ? max(1, (int) $_POST['page']) : 1,
-	]));
-}
-
-
-/**
- * AJAX: Import a remote image into the media library
- */
-add_action('wp_ajax_twcp_import_stock_image', 'twcp_admin_ajax_import');
-
-/**
- * Import a selected stock image into the Media Library.
- *
- * @return void Sends a JSON response.
- */
-function twcp_admin_ajax_import(): void
-{
-	twcp_admin_ajax('upload_files');
-
-	$image = isset($_POST['image']) && is_array($_POST['image']) ? wp_unslash($_POST['image']) : [];
-
-	$url = !empty($image['download_url']) ? esc_url_raw($image['download_url']) : (!empty($image['url']) ? esc_url_raw($image['url']) : (isset($_POST['url']) ? esc_url_raw($_POST['url']) : ''));
-
-	$meta = [
-		'title'      => !empty($image['title']) ? sanitize_text_field($image['title']) : (isset($_POST['title']) ? sanitize_text_field($_POST['title']) : ''),
-		'provider'   => !empty($image['provider']) ? sanitize_key($image['provider']) : (isset($_POST['provider']) ? sanitize_key($_POST['provider']) : ''),
-		'author'     => !empty($image['author']) ? sanitize_text_field($image['author']) : (!empty($image['author_name']) ? sanitize_text_field($image['author_name']) : ''),
-		'author_url' => !empty($image['author_url']) ? esc_url_raw($image['author_url']) : '',
-		'source_url' => !empty($image['source_url']) ? esc_url_raw($image['source_url']) : '',
-		'license'    => !empty($image['license']) ? sanitize_text_field($image['license']) : '',
-		'caption'    => !empty($image['caption']) ? sanitize_textarea_field($image['caption']) : '',
-		'alt'        => !empty($image['alt']) ? sanitize_text_field($image['alt']) : '',
-	];
-
-	$result = twcp_image_import($url, $meta);
-
-	if (!empty($result['error'])) {
-		wp_send_json_error(['message' => $result['error']]);
-	}
-
-	wp_send_json_success($result);
-}
-
-
-/**
- * Data needed by a template part
+ * Data needed by a template part. Modules add the data of their parts with the twcp_admin_data filter.
  *
  * @param string $part
  *
@@ -558,35 +420,48 @@ function twcp_admin_ajax_import(): void
  */
 function twcp_admin_data(string $part): array
 {
+	$data = [];
+
 	switch ($part) {
 		case 'model':
-			return [
+			$data = [
 				'model_settings' => twcp_model_settings(),
 				'providers'      => twcp_model_providers(),
 				'chatgpt'        => twcp_chatgpt_status(),
 			];
+			break;
 
 		case 'automation':
-			return [
+			$data = [
 				'overview'         => twcp_batch_overview(),
 				'sections'         => twcp_batch_sections(),
 				'batch_cards'      => twcp_batch_cards(),
 				'rank_math_active' => class_exists('RankMath'),
 				'yoast_active'     => defined('WPSEO_VERSION'),
-				'woo_active'       => twcp_product_active(),
+				'woo_active'       => class_exists('WooCommerce'),
 				'can_manage'       => current_user_can('manage_options'),
 				'model_missing'    => twcp_model_missing(),
 				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('model')),
 				'post_links'       => array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', [])),
 			];
+			break;
+
+		case 'modules':
+			$data = [
+				'modules'          => twcp_modules_found(),
+				'loaded'           => twcp_modules(),
+				'disabled_modules' => (array) get_option('twcp_disabled_modules', []),
+			];
+			break;
 
 		case 'tools':
-			return [
+			$data = [
 				'tools'            => twcp_tools_registry(),
 				'tool_groups'      => twcp_tools_groups(),
 				'disabled_tools'   => twcp_tools_disabled(),
 				'enabled_count'    => count(twcp_tools_enabled()),
 			];
+			break;
 
 		case 'prompts':
 			$prompts = [];
@@ -600,45 +475,23 @@ function twcp_admin_data(string $part): array
 					] + $prompt;
 			}
 
-			return [
-				'groups'           => twcp_prompt_groups(),
-				'prompts'          => $prompts,
-				'product_settings' => twcp_product_settings(),
+			$data = [
+				'groups'  => twcp_prompt_groups(),
+				'prompts' => $prompts,
 			];
-
-		case 'blocks':
-			$field = twcp_block_field_name();
-
-			return [
-				'available_blocks_fields' => twcp_block_available_fields(),
-				'current_blocks_field'    => $field,
-				'previews_folder'         => twcp_block_previews_folder(),
-				'previews_dir'            => twcp_block_previews_dir(),
-				'available_previews'      => twcp_block_previews(),
-				'dynamic_layouts'         => twcp_block_get_layouts($field),
-				'default_descriptions'    => twcp_block_default_descriptions(),
-				'saved_descriptions'      => (array) get_option('twcp_block_descriptions', []),
-				'conventions'             => twcp_block_conventions(),
-				'conventions_default'     => twcp_block_conventions_default(),
-				'saved_conventions'       => (string) get_option('twcp_block_conventions', ''),
-			];
-
-		case 'images':
-			return [
-				'keys'           => twcp_image_keys(),
-				'instant_active' => defined('INSTANT_IMAGES_VERSION') || class_exists('Instant_Images'),
-			];
+			break;
 
 		case 'connection':
-			return [
+			$data = [
 				'is_enabled' => twcp_is_enabled(),
 				'server_url' => twcp_mcp_url(),
 				'hosts'      => twcp_oauth_hosts(),
 				'sessions'   => twcp_oauth_sessions(get_current_user_id()),
 			];
+			break;
 	}
 
-	return [];
+	return (array) apply_filters('twcp_admin_data', $data, $part);
 }
 
 

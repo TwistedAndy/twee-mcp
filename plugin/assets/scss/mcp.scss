@@ -400,17 +400,17 @@
 
 	.post_links {
 		margin-bottom: 14px;
+	}
 
-		.checks {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 8px 20px;
+	.checks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 20px;
 
-			label {
-				display: inline-flex;
-				align-items: center;
-				gap: 6px;
-			}
+		label {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
 		}
 	}
 

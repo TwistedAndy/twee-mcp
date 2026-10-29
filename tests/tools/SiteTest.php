@@ -20,6 +20,37 @@ class SiteTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * Users are found by name, email, or login and filtered by role; the list is private and needs list_users.
+	 */
+	public function test_get_users(): void
+	{
+		$walter = self::factory()->user->create(['role' => 'editor', 'user_login' => 'wgomez', 'user_email' => 'walter@cassoni.test', 'first_name' => 'Walter', 'last_name' => 'Gómez']);
+		update_user_meta($walter, 'wc_last_active', strtotime('2026-09-07 UTC'));
+		$karina = self::factory()->user->create(['role' => 'author', 'first_name' => 'Karina']);
+		$ids = function(array $args): array {
+			return array_column($this->call('get_users', $args)['users'], 'id');
+		};
+
+		$found = $this->call('get_users', ['search' => 'Gómez']);
+		$this->assertSame(1, $found['total']);
+		$this->assertSame([$walter, 'walter@cassoni.test', ['editor'], '2026-09-07'], [$found['users'][0]['id'], $found['users'][0]['email'], $found['users'][0]['roles'], $found['users'][0]['last_active']]);
+
+		$this->assertSame([$walter], $ids(['search' => 'cassoni.test']));
+		$this->assertSame([$walter], $ids(['search' => 'wgom']));
+		$this->assertSame([$karina], $ids(['search' => 'Karina']));
+		$this->assertSame([], $ids(['search' => 'Karina', 'role' => 'editor']));
+		$this->assertContains($walter, $ids(['role' => 'editor']));
+		$this->assertNotContains($karina, $ids(['role' => 'editor']));
+		$this->assertSame([$karina], $ids(['id' => $karina]));
+
+		$this->assertStringContainsString('Available roles', $this->call('get_users', ['role' => 'chef'])['error']);
+		$this->assertStringContainsString('unavailable', $this->call('get_users', [], true)['error']);
+
+		wp_set_current_user($karina);
+		$this->assertStringContainsString('cannot use', $this->call('get_users')['error']);
+	}
+
+	/**
 	 * Menu items link posts, terms, and custom URLs, with submenus.
 	 */
 	public function test_menu_items(): void

@@ -36,7 +36,7 @@ defined('ABSPATH') or exit;
 			</thead>
 			<?php foreach ($tool_groups as $group => $info) {
 				$group_tools = array_filter($tools, fn(array $tool) => $tool['group'] === $group);
-				$available = $info['active'] ?? true;
+				$available = $info['active'];
 				if (!$group_tools) {
 					continue;
 				}

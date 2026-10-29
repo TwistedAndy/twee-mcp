@@ -676,7 +676,7 @@ class BatchTest extends TWCP_TestCase {
 		$context = twcp_general_context_default();
 		$this->assertStringContainsString('Test Garden Shop', $context);
 
-		$sources = implode("\n", array_map('file_get_contents', glob(dirname(__DIR__, 2) . '/plugin/{includes,includes/tools,parts}/*.php', GLOB_BRACE)));
+		$sources = implode("\n", array_map('file_get_contents', glob(dirname(__DIR__, 2) . '/plugin/{includes,modules/*,modules/*/parts,parts}/*.php', GLOB_BRACE)));
 		$this->assertStringNotContainsString('Ele Straps', $sources);
 		$this->assertStringNotContainsString('StrapsCo', $sources);
 	}

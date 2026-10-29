@@ -40,6 +40,22 @@ class ToolsTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * Tools get the group they are added in and its hint unless they have their own, and a hint is sent once.
+	 */
+	public function test_tools_share_their_group(): void
+	{
+		$registry = twcp_tools_registry();
+		$this->assertSame('comments', $registry['get_comments']['group']);
+		$this->assertSame(twcp_tools_groups()['comments']['hint'], $registry['moderate_comment']['hint']);
+		$this->assertStringStartsWith('Inspect ACF custom fields', $registry['get_custom_fields']['hint']);
+
+		$instructions = twcp_tools_instructions();
+		$this->assertSame(1, substr_count($instructions, 'Use get_terms, create_term'), 'A group hint is sent once');
+		$this->assertStringContainsString('Discover post types', $instructions);
+		$this->assertSame('WooCommerce', twcp_tools_groups()['products']['plugin']);
+	}
+
+	/**
 	 * WooCommerce groups are inactive without WooCommerce and their tools are hidden.
 	 */
 	public function test_woocommerce_tools_disabled_without_woocommerce(): void
@@ -59,6 +75,27 @@ class ToolsTest extends TWCP_TestCase {
 
 		$result = $this->call('get_products');
 		$this->assertStringContainsString('requires WooCommerce', $result['error']);
+	}
+
+	/**
+	 * Groups of a module are available while its plugin runs; groups of the core always are.
+	 */
+	public function test_tools_follow_their_module(): void
+	{
+		$this->assertSame(defined('ACF_PRO'), twcp_tools_groups()['blocks']['active']);
+		$this->assertSame('ACF Pro', twcp_tools_groups()['blocks']['plugin']);
+		$this->assertTrue(twcp_tools_groups()['content']['active']);
+		$this->assertSame(['activity', 'blocks', 'images', 'woo', 'wp'], array_keys(twcp_modules()));
+
+		add_filter('twcp_modules', function(array $modules): array {
+			$modules['blocks']['active'] = false;
+
+			return $modules;
+		}, 20);
+		$this->assertFalse(twcp_module_active('blocks'));
+		$this->assertSame('ACF Pro', twcp_tools_missing('get_block_types'));
+		$this->assertArrayNotHasKey('get_blocks', twcp_tools_enabled());
+		$this->assertStringNotContainsString('get_block_types', twcp_tools_instructions());
 	}
 
 	/**

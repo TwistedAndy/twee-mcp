@@ -9,113 +9,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for WooCommerce products
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_product_tools(): array
-{
-	$product_params = twcp_product_parameters();
-
-	return [
-		'get_products'                       => [
-			'description' => 'Read WooCommerce products with prices, SKU, stock, attributes, term links, featured image, and gallery IDs. Filter by category/taxonomy, text, SKU, stock status, low stock, or ID.',
-			'callable'    => 'twcp_product_query',
-			'parameters'  => [
-				'id'           => ['type' => 'integer', 'description' => 'Single product ID.'],
-				'sku'          => ['type' => 'string', 'description' => 'Filter by product SKU.'],
-				'stock_status' => ['type' => 'string', 'enum' => ['instock', 'outofstock', 'onbackorder']],
-				'stock_below'  => ['type' => 'integer', 'description' => 'Only stock-managed products with fewer units than this.'],
-				'search'      => ['type' => 'string', 'description' => 'Keyword search.'],
-				'post_status' => ['type' => 'string', 'description' => 'Status: "publish", "draft", etc. (default "publish").'],
-				'taxonomy'    => ['type' => 'string', 'description' => 'Filter taxonomy.'],
-				'term_id'     => ['type' => 'integer', 'description' => 'Filter term ID.'],
-				'limit'       => ['type' => 'integer', 'description' => 'Number of products (default 20, max 50).'],
-				'offset'      => ['type' => 'integer', 'description' => 'Pagination offset.'],
-				'order_by'    => ['type' => 'string', 'description' => 'Sort field.'],
-				'order'       => ['type' => 'string', 'description' => '"ASC" or "DESC".'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'create_product'                     => [
-			'description' => 'Create a WooCommerce product using its CRUD API, with prices, SKU, stock, attributes, categories, images, and SEO metadata. Defaults to draft.',
-			'callable'    => 'twcp_product_create',
-			'required'    => ['name'],
-			'parameters'  => $product_params,
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'edit_product'                       => [
-			'description' => 'Edit an existing WooCommerce product or variation. Supports prices, stock, attributes, images, gallery IDs, SEO title, and SEO meta description. Omitted fields are preserved.',
-			'callable'    => 'twcp_product_edit',
-			'required'    => ['product_id'],
-			'parameters'  => ['product_id' => ['type' => 'integer', 'minimum' => 1]] + $product_params,
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'generate_product_description'       => [
-			'description' => 'Generate comprehensive HTML product description with technical specifications, materials, and internal links for a WooCommerce product.',
-			'callable'    => 'twcp_product_desc_tool',
-			'required'    => ['product_id'],
-			'parameters'  => [
-				'product_id' => ['type' => 'integer', 'description' => 'WooCommerce product ID.'],
-				'regenerate' => ['type' => 'boolean', 'description' => 'Force regeneration even if description already exists (default false).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'generate_product_short_description' => [
-			'description' => 'Generate concise, high-CTR short product description (excerpt) within 130-155 characters for a WooCommerce product and update SEO meta tags.',
-			'callable'    => 'twcp_product_short_tool',
-			'required'    => ['product_id'],
-			'parameters'  => [
-				'product_id' => ['type' => 'integer', 'description' => 'WooCommerce product ID.'],
-				'regenerate' => ['type' => 'boolean', 'description' => 'Force regeneration even if short description already exists (default false).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'get_product_variations'             => [
-			'description' => 'List the variations of a variable WooCommerce product with their attributes, SKU, prices, stock, and image.',
-			'callable'    => 'twcp_product_variations',
-			'required'    => ['product_id'],
-			'parameters'  => [
-				'product_id' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Variable product ID.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'save_product_variation'             => [
-			'description' => 'Create a variation of a variable WooCommerce product, or edit one by variation_id. Attributes map variation attribute names to option values, e.g. {"Color": "Black"}. Omitted fields are preserved.',
-			'callable'    => 'twcp_product_variation_save',
-			'required'    => ['product_id'],
-			'parameters'  => [
-				'product_id'     => ['type' => 'integer', 'minimum' => 1, 'description' => 'Parent variable product ID.'],
-				'variation_id'   => ['type' => 'integer', 'description' => 'Existing variation ID to edit.'],
-				'attributes'     => ['type' => 'object', 'description' => 'Attribute name => option value; required for new variations.'],
-				'status'         => ['type' => 'string', 'enum' => ['publish', 'private']],
-				'sku'            => ['type' => 'string'],
-				'regular_price'  => ['type' => 'string'],
-				'sale_price'     => ['type' => 'string'],
-				'manage_stock'   => ['type' => 'boolean'],
-				'stock_quantity' => ['type' => 'integer'],
-				'stock_status'   => ['type' => 'string', 'enum' => ['instock', 'outofstock', 'onbackorder']],
-				'weight'         => ['type' => 'string'],
-				'description'    => ['type' => 'string'],
-				'image_id'       => ['type' => 'integer'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'select_related_products'            => [
-			'description' => 'Select complementary, alternative, or cross-sell products for a given WooCommerce product from the same category or brand using AI merchandising analysis.',
-			'callable'    => 'twcp_product_select_related',
-			'required'    => ['product_id'],
-			'parameters'  => [
-				'product_id' => ['type' => 'integer', 'description' => 'WooCommerce product ID.'],
-				'limit'      => ['type' => 'integer', 'description' => 'Max number of related products to select (default 4, max 10).'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-	];
-}
-
-
-/**
  * Check if WooCommerce is active
  *
  * @return bool
@@ -1066,3 +959,334 @@ function twcp_product_select_related(array $args): array
 		'selected_products' => $selected_products,
 	];
 }
+
+
+/**
+ * Product copy and cross-sell jobs on the Automation screen
+ */
+add_filter('twcp_batch_types', function(array $types): array {
+	if (!twcp_product_active()) {
+		return $types;
+	}
+
+	// Published products, those without the text unless overriding
+	$products = function(string $empty): callable {
+		return function(bool $override) use ($empty): array {
+			$args = ['post_type' => 'product', 'post_status' => 'publish'];
+			if (!$override) {
+				$args[$empty] = true;
+			}
+
+			return $args;
+		};
+	};
+
+	$types['products_short'] = [
+		'slice'      => 5,
+		'run'        => 'twcp_product_batch_short',
+		'capability' => 'edit_others_products',
+		'text'       => 'short product description (130 to 155 characters)',
+		'cost'       => [1, 2500],
+		'fields'     => ['post:post_excerpt'],
+		'args'       => $products('twcp_empty_excerpt'),
+		'current'    => function(int $id): string {
+			return trim(wp_strip_all_tags((string) get_post_field('post_excerpt', $id)));
+		},
+		'restored'   => 'wc_delete_product_transients',
+		'card'       => [
+			'section'     => 'store',
+			'title'       => __('Short Product Descriptions', 'twee-mcp'),
+			'description' => __('Writes 130 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
+			'btn_text'    => __('Generate Short Descriptions', 'twee-mcp'),
+			'unit'        => __('Products', 'twee-mcp'),
+		],
+	];
+
+	$types['products'] = [
+		'slice'      => 3,
+		'run'        => 'twcp_product_batch_full',
+		'capability' => 'edit_others_products',
+		'text'       => 'full product description',
+		'cost'       => [2, 9000],
+		'fields'     => ['post:post_content'],
+		'args'       => $products('twcp_empty_content'),
+		'current'    => function(int $id): string {
+			return mb_substr(trim(wp_strip_all_tags((string) get_post_field('post_content', $id))), 0, 1200);
+		},
+		'restored'   => 'wc_delete_product_transients',
+		'card'       => [
+			'section'     => 'store',
+			'title'       => __('Full Product Descriptions', 'twee-mcp'),
+			'description' => __('Writes HTML descriptions with specifications and internal links.', 'twee-mcp'),
+			'btn_text'    => __('Generate Full Descriptions', 'twee-mcp'),
+			'unit'        => __('Products', 'twee-mcp'),
+		],
+	];
+
+	$types['cross_sells'] = [
+		'slice'      => 3,
+		'run'        => 'twcp_product_batch_cross_sells',
+		'capability' => 'edit_others_products',
+		'cost'       => [1, 3000],
+		'fields'     => ['meta:_crosssell_ids'],
+		'args'       => function(bool $override): array {
+			$args = ['post_type' => 'product', 'post_status' => 'publish'];
+			if (!$override) {
+				$args['meta_query'] = [
+					'relation' => 'OR',
+					['key' => '_crosssell_ids', 'compare' => 'NOT EXISTS'],
+					['key' => '_crosssell_ids', 'value' => ['', 'a:0:{}'], 'compare' => 'IN'],
+				];
+			}
+
+			return $args;
+		},
+		'restored'   => 'wc_delete_product_transients',
+		'card'       => [
+			'section'     => 'store',
+			'title'       => __('Cross-sells', 'twee-mcp'),
+			'description' => __('Links up to 4 complementary products from the same category or brand to products without cross-sells.', 'twee-mcp'),
+			'btn_text'    => __('Link Cross-sells', 'twee-mcp'),
+			'unit'        => __('Products', 'twee-mcp'),
+		],
+	];
+
+	return $types;
+});
+
+
+/**
+ * Stock and copy gaps in the overview of the Automation screen
+ */
+add_filter('twcp_batch_overview', function(array $items): array {
+	if (twcp_product_active() and current_user_can('edit_others_products')) {
+		$stock = function(array $meta): int {
+			return (int) (new WP_Query(['post_type' => 'product', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => 1, 'meta_query' => $meta]))->found_posts;
+		};
+		$low = (int) get_option('woocommerce_notify_low_stock_amount', 2);
+
+		$items[] = [__('Products out of stock', 'twee-mcp'), $stock([['key' => '_stock_status', 'value' => 'outofstock']]), admin_url('edit.php?post_type=product&stock_status=outofstock')];
+		$items[] = [sprintf(__('Products with %d or fewer in stock', 'twee-mcp'), $low), $stock([['key' => '_manage_stock', 'value' => 'yes'], ['key' => '_stock', 'value' => $low, 'compare' => '<=', 'type' => 'NUMERIC'], ['key' => '_stock_status', 'value' => 'instock']]), admin_url('edit.php?post_type=product&stock_status=instock')];
+		$items[] = [__('Products without short descriptions', 'twee-mcp'), twcp_batch_total('products_short'), ''];
+	}
+	if (twcp_product_active() and current_user_can('edit_shop_orders')) {
+		$hpos = class_exists('Automattic\WooCommerce\Utilities\OrderUtil') && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+		$items[] = [__('Orders processing or on hold', 'twee-mcp'), (int) wc_orders_count('processing') + (int) wc_orders_count('on-hold'), admin_url($hpos ? 'admin.php?page=wc-orders&status=wc-processing' : 'edit.php?post_type=shop_order&post_status=wc-processing')];
+	}
+
+
+	return $items;
+});
+
+
+/**
+ * Product copy bulk actions on the Products screen
+ */
+add_filter('twcp_batch_actions', function(array $screens): array {
+	if (!twcp_product_active()) {
+		return $screens;
+	}
+
+	$screens['edit-product']['twcp_short'] = [
+		__('Generate Short Product Descriptions', 'twee-mcp'),
+		function(int $id) {
+			return twcp_product_short($id, false);
+		},
+		'products_short',
+	];
+	$screens['edit-product']['twcp_short_regen'] = [
+		__('Regenerate Short Product Descriptions', 'twee-mcp'),
+		function(int $id) {
+			return twcp_product_short($id, true);
+		},
+	];
+	$screens['edit-product']['twcp_full'] = [
+		__('Generate Full Product Descriptions', 'twee-mcp'),
+		function(int $id) {
+			return twcp_product_full($id, false);
+		},
+		'products',
+	];
+	$screens['edit-product']['twcp_full_regen'] = [
+		__('Regenerate Full Product Descriptions', 'twee-mcp'),
+		function(int $id) {
+			return twcp_product_full($id, true);
+		},
+	];
+
+	return $screens;
+});
+
+
+/**
+ * Process a single product for full description generation with log output
+ */
+function twcp_product_batch_full(int $id, bool $override = false): array
+{
+	return twcp_batch_run_item($id, 'full description', 'twcp_product_full', $override);
+}
+
+
+/**
+ * Process a single product for short description generation with log output
+ */
+function twcp_product_batch_short(int $id, bool $override = false): array
+{
+	return twcp_batch_run_item($id, 'short description', 'twcp_product_short', $override);
+}
+
+
+/**
+ * Process a single product for AI-selected cross-sells
+ */
+function twcp_product_batch_cross_sells(int $id, bool $override = false): array
+{
+	$product = wc_get_product($id);
+	if (!$product) {
+		return ['success' => false, 'message' => sprintf(__('Product #%d not found.', 'twee-mcp'), $id)];
+	}
+	if (!$override and $product->get_cross_sell_ids()) {
+		return ['success' => true, 'message' => sprintf(__('Kept the existing cross-sells of "%s".', 'twee-mcp'), $product->get_name())];
+	}
+
+	$related = twcp_product_select_related(['product_id' => $id, 'limit' => 4]);
+	if (empty($related['selected_ids'])) {
+		return ['success' => false, 'message' => sprintf(__('No cross-sell candidates for "%s" (ID: %d).', 'twee-mcp'), $product->get_name(), $id)];
+	}
+
+	$product->set_cross_sell_ids($related['selected_ids']);
+	$product->save();
+
+	return ['success' => true, 'message' => sprintf(__('Linked cross-sells for "%s": %s', 'twee-mcp'), $product->get_name(), mb_strimwidth(implode(', ', array_column($related['selected_products'], 'title')), 0, 80, '...'))];
+}
+
+
+/**
+ * Store prompts on the Prompts screen, after those of posts and pages
+ */
+add_filter('twcp_prompt_groups', function(array $groups): array {
+	$store = [
+		'store'   => [
+			'label'       => __('WooCommerce Store', 'twee-mcp'),
+			'description' => __('Product copy and the store rules appended to full product descriptions.', 'twee-mcp'),
+			'plugin'      => 'WooCommerce',
+			'active'      => twcp_product_active(),
+		],
+	];
+	$position = (int) array_search('content', array_keys($groups), true) + 1;
+
+	return array_slice($groups, 0, $position, true) + $store + array_slice($groups, $position, null, true);
+});
+
+add_filter('twcp_prompt_registry', function(array $prompts): array {
+	return $prompts + [
+		'twcp_system_prompt_product'       => [
+			'group'       => 'store',
+			'label'       => __('Full Product Description', 'twee-mcp'),
+			'description' => __('HTML product descriptions with specifications, materials, fitment, and internal links.', 'twee-mcp'),
+			'default'     => 'twcp_prompt_full_default',
+			'used_by'     => ['generate_product_description', __('Batch: Product descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
+			'rows'        => 6,
+		],
+		'twcp_system_prompt_product_short' => [
+			'group'       => 'store',
+			'label'       => __('Short Product Description', 'twee-mcp'),
+			'description' => __('Product excerpts of 130 to 155 characters that double as meta descriptions.', 'twee-mcp'),
+			'default'     => 'twcp_prompt_short_default',
+			'used_by'     => ['generate_product_short_description', __('Batch: Short descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
+			'rows'        => 5,
+		],
+	];
+});
+
+
+/**
+ * Product copy rules in the store group of the Prompts screen
+ */
+add_action('twcp_prompt_group', function(string $group) {
+	if ($group === 'store') {
+		echo twcp_template('product_rules', ['product_settings' => twcp_product_settings()]);
+	}
+});
+
+
+/**
+ * Register the product copy rules, saved with the prompts
+ */
+add_action('admin_init', 'twcp_product_admin_init');
+
+/**
+ * Register the settings of the product copy rules
+ *
+ * @return void
+ */
+function twcp_product_admin_init(): void
+{
+	register_setting('twcp_prompts_group', 'twcp_product_settings', [
+		'type'              => 'array',
+		'sanitize_callback' => function($input) {
+			$input = is_array($input) ? $input : [];
+			$clean = [];
+			$clean['max_links'] = isset($input['max_links']) ? min(15, max(0, (int) $input['max_links'])) : 6;
+			$rules = sanitize_textarea_field((string) ($input['custom_rules'] ?? ''));
+
+			// Guidelines equal to the built-in text are stored empty, so a newer default still applies
+			$clean['custom_rules'] = $rules === twcp_product_settings_default()['custom_rules'] ? '' : $rules;
+
+			return $clean;
+		},
+		'default'           => [],
+	]);
+}
+
+
+/**
+ * Assign media images to products as their featured or gallery images
+ */
+add_filter('twcp_media_assign', function($result, string $type, int $attachment_id, int $target_id, string $assign_as, array $target) {
+	if ($type !== 'product') {
+		return $result;
+	}
+
+		if (!$target_id) {
+			return ['error' => 'Missing product ID.'];
+		}
+
+		if (!twcp_module_active('woo')) {
+			return ['error' => 'WooCommerce is not active.'];
+		}
+
+		$product = wc_get_product($target_id);
+		if (!$product) {
+			return ['error' => 'Product not found.'];
+		}
+		if (!in_array($assign_as, ['featured', 'gallery', 'both'], true)) {
+			return ['error' => 'Unknown product image role.'];
+		}
+
+		$args = ['product_id' => $target_id];
+		if ($assign_as !== 'gallery') {
+			$args['image_id'] = $attachment_id;
+		}
+		if ($assign_as !== 'featured') {
+			$args['gallery_image_ids'] = array_values(array_unique([
+				...$product->get_gallery_image_ids(),
+				$attachment_id,
+			]));
+		}
+
+		$result = twcp_product_edit($args);
+		if (isset($result['error'])) {
+			return $result;
+		}
+
+		return [
+			'success'       => true,
+			'type'          => 'product',
+			'product_id'    => $target_id,
+			'product_name'  => $product->get_name(),
+			'assign_as'     => $assign_as,
+			'attachment_id' => $attachment_id,
+			'message'       => 'Product image assigned.',
+		];
+}, 10, 6);

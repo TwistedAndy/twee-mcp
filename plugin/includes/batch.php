@@ -7,14 +7,9 @@
  * - Real-time activity log showing processed items, titles, and generated results
  * - WordPress list-table bulk actions for posts, products, terms, and media
  *
- * Supported batch types:
- * - alts           Image ALT tags (vision model)
- * - blocks         ACF block descriptions (vision model)
- * - post_excerpt   Post short excerpts
- * - post_content   Post full content
- * - seo            Post & page SEO titles / meta descriptions
- * - products       WooCommerce full product descriptions
- * - products_short WooCommerce short product descriptions
+ * Batch types of the core: post excerpts, content, SEO tags, featured images and categories, term SEO tags,
+ * descriptions, full descriptions and FAQs, and image Alt text. Modules add their own jobs with the
+ * twcp_batch_types filter, such as product copy and cross-sells, or ACF block descriptions.
  *
  * @package Twee_MCP
  */
@@ -55,7 +50,12 @@ function twcp_batch_taxonomies(): array
  * and their scope is a taxonomy instead of a post type. Jobs with "text" write that text,
  * so they can refine it or rewrite only poor values. Jobs with "acf" write to an ACF term field chosen on the card.
  *
- * @return array Type => [ slice size, per-item callback, capability, terms, acf, text ]
+ * Modules add jobs with the twcp_batch_types filter. A job of a module also brings its card on the Automation
+ * screen (section, title, description, btn_text, unit), its cost [ model requests, tokens ], the fields it may
+ * change for Undo, and callables: "args" with the WP_Query arguments of its items, or "query" and "total" for
+ * items that are not posts, "current" with the text it would replace, and "restored" run after Undo.
+ *
+ * @return array Type => [ slice size, per-item callback, capability, terms, acf, text, ... ]
  */
 function twcp_batch_types(): array
 {
@@ -68,7 +68,6 @@ function twcp_batch_types(): array
 		'term_seo'        => ['slice' => 5, 'run' => 'twcp_batch_run_term_seo', 'capability' => 'edit_others_posts', 'terms' => true, 'text' => 'archive SEO title and description'],
 		'term_description' => ['slice' => 5, 'run' => 'twcp_batch_run_term_description', 'capability' => 'edit_others_posts', 'terms' => true, 'text' => 'archive description (1 to 3 sentences)'],
 		'alts'            => ['slice' => 5, 'run' => 'twcp_batch_run_alt', 'capability' => 'upload_files', 'text' => 'image Alt text (10 to 30 words)'],
-		'blocks'          => ['slice' => 2, 'run' => 'twcp_batch_run_block', 'capability' => 'manage_options'],
 	];
 
 	if (twcp_term_acf_fields('content')) {
@@ -78,18 +77,13 @@ function twcp_batch_types(): array
 		$types['term_faq'] = ['slice' => 3, 'run' => 'twcp_batch_run_term_faq', 'capability' => 'edit_others_posts', 'terms' => true, 'acf' => 'faq', 'text' => 'archive FAQ'];
 	}
 
-	if (twcp_product_active()) {
-		$types['products_short'] = ['slice' => 5, 'run' => 'twcp_batch_run_short', 'capability' => 'edit_others_products', 'text' => 'short product description (130 to 155 characters)'];
-		$types['products'] = ['slice' => 3, 'run' => 'twcp_batch_run_product', 'capability' => 'edit_others_products', 'text' => 'full product description'];
-		$types['cross_sells'] = ['slice' => 3, 'run' => 'twcp_batch_run_cross_sells', 'capability' => 'edit_others_products'];
-	}
-
-	return $types;
+	return (array) apply_filters('twcp_batch_types', $types);
 }
 
 
 /**
- * Rough cost of one item per batch job, for the estimate on the Automation screen
+ * Rough cost of one item per batch job of the core, for the estimate on the Automation screen. Jobs of modules
+ * bring their own.
  *
  * System prompts, page context, and replies make up most of the tokens; images and lookups add to them.
  *
@@ -108,10 +102,6 @@ function twcp_batch_costs(): array
 		'term_content'    => [1, 5000],
 		'term_faq'        => [1, 4000],
 		'alts'            => [1, 2000],
-		'products_short'  => [1, 2500],
-		'products'        => [2, 9000],
-		'cross_sells'     => [1, 3000],
-		'blocks'          => [1, 4000],
 	];
 }
 
@@ -191,13 +181,11 @@ function twcp_batch_current(string $type, int $id): string
 			return mb_substr(trim(wp_strip_all_tags(is_array($value) ? implode("\n", array_map(fn($row) => implode(' ', (array) $row), $value)) : (string) $value)), 0, 1200);
 		case 'alts':
 			return trim((string) get_post_meta($id, '_wp_attachment_image_alt', true));
-		case 'products_short':
-			return trim(wp_strip_all_tags((string) get_post_field('post_excerpt', $id)));
-		case 'products':
-			return mb_substr(trim(wp_strip_all_tags((string) get_post_field('post_content', $id))), 0, 1200);
 	}
 
-	return '';
+	$job = twcp_batch_types()[$type] ?? [];
+
+	return isset($job['current']) ? (string) call_user_func($job['current'], $id) : '';
 }
 
 
@@ -251,10 +239,8 @@ function twcp_batch_fields(string $type, int $id): array
 {
 	switch ($type) {
 		case 'post_excerpt':
-		case 'products_short':
 			return ['post:post_excerpt'];
 		case 'post_content':
-		case 'products':
 			return ['post:post_content'];
 		case 'seo':
 			return ['meta:rank_math_title', 'meta:rank_math_description', 'meta:_yoast_wpseo_title', 'meta:_yoast_wpseo_metadesc', 'post:post_excerpt'];
@@ -262,8 +248,6 @@ function twcp_batch_fields(string $type, int $id): array
 			return ['meta:_thumbnail_id'];
 		case 'categories':
 			return ['terms:' . (get_post_type($id) === 'product' ? 'product_cat' : 'category')];
-		case 'cross_sells':
-			return ['meta:_crosssell_ids'];
 		case 'alts':
 			return ['meta:_wp_attachment_image_alt'];
 		case 'term_seo':
@@ -277,7 +261,7 @@ function twcp_batch_fields(string $type, int $id): array
 			return ['acf:' . (twcp_batch_field($type)['key'] ?? '')];
 	}
 
-	return [];
+	return (array) (twcp_batch_types()[$type]['fields'] ?? []);
 }
 
 
@@ -359,8 +343,10 @@ function twcp_batch_restore_item(string $type, int $id, array $snapshot): void
 	if ($post) {
 		wp_update_post(wp_slash(['ID' => $id] + $post));
 	}
-	if ($type === 'cross_sells' or str_starts_with($type, 'products')) {
-		function_exists('wc_delete_product_transients') and wc_delete_product_transients($id);
+
+	$job = twcp_batch_types()[$type] ?? [];
+	if (isset($job['restored'])) {
+		call_user_func($job['restored'], $id);
 	}
 }
 
@@ -485,24 +471,6 @@ function twcp_batch_run_seo(int $id, bool $override = false): array
 
 
 /**
- * Process a single product for full description generation with log output
- */
-function twcp_batch_run_product(int $id, bool $override = false): array
-{
-	return twcp_batch_run_item($id, 'full description', 'twcp_product_full', $override);
-}
-
-
-/**
- * Process a single product for short description generation with log output
- */
-function twcp_batch_run_short(int $id, bool $override = false): array
-{
-	return twcp_batch_run_item($id, 'short description', 'twcp_product_short', $override);
-}
-
-
-/**
  * Process a single post for a featured image from the Media Library or stock providers
  */
 function twcp_batch_run_featured(int $id, bool $override = false): array
@@ -592,50 +560,6 @@ function twcp_batch_run_term_faq(int $id, bool $override = false): array
 	}
 
 	return ['success' => false, 'message' => sprintf(__('Failed to write an FAQ for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
-}
-
-
-/**
- * Process a single page builder layout for its description
- *
- * @param int  $index    Position of the layout in twcp_block_get_layouts()
- * @param bool $override Unused, the query already picks the layouts to describe
- */
-function twcp_batch_run_block(int $index, bool $override = false): array
-{
-	$layout = twcp_block_get_layouts()[$index] ?? null;
-	if (!$layout) {
-		return ['success' => false, 'message' => sprintf(__('Layout #%d is not available.', 'twee-mcp'), $index)];
-	}
-
-	$description = (string) twcp_block_describe_single($layout['name'], twcp_block_previews_folder());
-
-	return ['success' => true, 'message' => sprintf(__('Described "%s": "%s"', 'twee-mcp'), $layout['label'] ?? $layout['name'], mb_strimwidth($description, 0, 60, '...'))];
-}
-
-
-/**
- * Process a single product for AI-selected cross-sells
- */
-function twcp_batch_run_cross_sells(int $id, bool $override = false): array
-{
-	$product = wc_get_product($id);
-	if (!$product) {
-		return ['success' => false, 'message' => sprintf(__('Product #%d not found.', 'twee-mcp'), $id)];
-	}
-	if (!$override and $product->get_cross_sell_ids()) {
-		return ['success' => true, 'message' => sprintf(__('Kept the existing cross-sells of "%s".', 'twee-mcp'), $product->get_name())];
-	}
-
-	$related = twcp_product_select_related(['product_id' => $id, 'limit' => 4]);
-	if (empty($related['selected_ids'])) {
-		return ['success' => false, 'message' => sprintf(__('No cross-sell candidates for "%s" (ID: %d).', 'twee-mcp'), $product->get_name(), $id)];
-	}
-
-	$product->set_cross_sell_ids($related['selected_ids']);
-	$product->save();
-
-	return ['success' => true, 'message' => sprintf(__('Linked cross-sells for "%s": %s', 'twee-mcp'), $product->get_name(), mb_strimwidth(implode(', ', array_column($related['selected_products'], 'title')), 0, 80, '...'))];
 }
 
 
@@ -733,7 +657,7 @@ function twcp_batch_args(string $type, bool $override = false, string $post_type
 
 		case 'categories':
 			// Posts and products the assignment can classify, still in the default category unless overriding
-			$types = array_values(array_intersect($post_types, twcp_product_active() ? ['post', 'product'] : ['post']));
+			$types = array_values(array_intersect($post_types, taxonomy_exists('product_cat') ? ['post', 'product'] : ['post']));
 			if (!$types) {
 				return [];
 			}
@@ -750,38 +674,11 @@ function twcp_batch_args(string $type, bool $override = false, string $post_type
 
 			return $args;
 
-		case 'cross_sells':
-			if (!twcp_product_active()) {
-				return [];
-			}
-			$args = ['post_type' => 'product', 'post_status' => 'publish'];
-			if (!$override) {
-				$args['meta_query'] = [
-					'relation' => 'OR',
-					['key' => '_crosssell_ids', 'compare' => 'NOT EXISTS'],
-					['key' => '_crosssell_ids', 'value' => ['', 'a:0:{}'], 'compare' => 'IN'],
-				];
-			}
-
-			return $args;
-
-		case 'products_short':
-		case 'products':
-			if (!twcp_product_active()) {
-				return [];
-			}
-			$args = [
-				'post_type'   => 'product',
-				'post_status' => 'publish',
-			];
-			if (!$override) {
-				$args[$type === 'products_short' ? 'twcp_empty_excerpt' : 'twcp_empty_content'] = true;
-			}
-
-			return $args;
 	}
 
-	return [];
+	$job = twcp_batch_types()[$type] ?? [];
+
+	return isset($job['args']) ? (array) call_user_func($job['args'], $override, $post_type) : [];
 }
 
 
@@ -842,14 +739,11 @@ function twcp_batch_term_args(bool $override, string $taxonomy = 'all', string $
  */
 function twcp_batch_query(string $type, int $offset, int $limit, bool $override = false, string $post_type = 'all'): array
 {
-	// Layouts have no IDs, so their position in the layout list stands in for one
-	if ($type === 'blocks') {
-		$saved = twcp_block_saved_descriptions();
-		$layouts = array_filter(twcp_block_get_layouts(), fn(array $layout) => $override or empty($saved[$layout['name']]));
-
-		return array_slice(array_keys($layouts), $offset, max(0, $limit));
+	$job = twcp_batch_types()[$type] ?? [];
+	if (isset($job['query'])) {
+		return (array) call_user_func($job['query'], $offset, max(0, $limit), $override);
 	}
-	if (!empty(twcp_batch_types()[$type]['terms'])) {
+	if (!empty($job['terms'])) {
 		$args = twcp_batch_term_args($override, $post_type, $type);
 
 		return ($args and $limit > 0) ? array_map('intval', get_terms($args + ['fields' => 'ids', 'number' => $limit, 'offset' => $offset, 'orderby' => 'term_id'])) : [];
@@ -885,10 +779,11 @@ function twcp_batch_query(string $type, int $offset, int $limit, bool $override 
  */
 function twcp_batch_total(string $type, bool $override = false, string $post_type = 'all'): int
 {
-	if ($type === 'blocks') {
-		return $override ? count(twcp_block_get_layouts()) : twcp_block_count_missing();
+	$job = twcp_batch_types()[$type] ?? [];
+	if (isset($job['total'])) {
+		return (int) call_user_func($job['total'], $override);
 	}
-	if (!empty(twcp_batch_types()[$type]['terms'])) {
+	if (!empty($job['terms'])) {
 		$args = twcp_batch_term_args($override, $post_type, $type);
 		if (!$args) {
 			return 0;
@@ -1502,35 +1397,14 @@ function twcp_batch_cards(): array
 			'btn_text'       => __('Generate Alt Text', 'twee-mcp'),
 			'unit'           => __('Images', 'twee-mcp'),
 		],
-		'products_short'  => [
-			'section'        => 'store',
-			'title'          => __('Short Product Descriptions', 'twee-mcp'),
-			'description'    => __('Writes 130 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
-			'btn_text'       => __('Generate Short Descriptions', 'twee-mcp'),
-			'unit'           => __('Products', 'twee-mcp'),
-		],
-		'products'        => [
-			'section'        => 'store',
-			'title'          => __('Full Product Descriptions', 'twee-mcp'),
-			'description'    => __('Writes HTML descriptions with specifications and internal links.', 'twee-mcp'),
-			'btn_text'       => __('Generate Full Descriptions', 'twee-mcp'),
-			'unit'           => __('Products', 'twee-mcp'),
-		],
-		'cross_sells'     => [
-			'section'        => 'store',
-			'title'          => __('Cross-sells', 'twee-mcp'),
-			'description'    => __('Links up to 4 complementary products from the same category or brand to products without cross-sells.', 'twee-mcp'),
-			'btn_text'       => __('Link Cross-sells', 'twee-mcp'),
-			'unit'           => __('Products', 'twee-mcp'),
-		],
-		'blocks'          => [
-			'section'        => 'site',
-			'title'          => __('ACF Block Descriptions', 'twee-mcp'),
-			'description'    => __('Describes page builder layouts from their fields and preview screenshots.', 'twee-mcp'),
-			'btn_text'       => __('Generate Block Descriptions', 'twee-mcp'),
-			'unit'           => __('Layouts', 'twee-mcp'),
-		],
 	];
+
+	// Jobs of modules bring their own card
+	foreach (twcp_batch_types() as $type => $job) {
+		if (isset($job['card'])) {
+			$configs[$type] = $job['card'];
+		}
+	}
 
 	$sections = array_fill_keys(array_keys(twcp_batch_sections()), []);
 	$allowed = twcp_batch_allowed();
@@ -1556,7 +1430,7 @@ function twcp_batch_cards(): array
 				'badge'     => $badge,
 				'has_pause' => true,
 				'modes'     => $type === 'featured_images' ? [] : twcp_batch_modes($type),
-				'cost'      => $costs[$type] ?? [1, 2000],
+				'cost'      => $job['cost'] ?? $costs[$type] ?? [1, 2000],
 				'slice'     => $job['slice'],
 				'fields'    => $fields,
 			];
@@ -1567,7 +1441,8 @@ function twcp_batch_cards(): array
 
 
 /**
- * Items that need attention, for the overview on the Automation screen
+ * Items that need attention, for the overview on the Automation screen. Modules add theirs with the
+ * twcp_batch_overview filter.
  *
  * @return array[] [ label, count, url ]
  */
@@ -1585,25 +1460,13 @@ function twcp_batch_overview(): array
 	if (current_user_can('upload_files')) {
 		$items[] = [__('Images without Alt text', 'twee-mcp'), twcp_media_alt_count(), admin_url('upload.php?mode=list&orderby=twcp_alt&order=asc')];
 	}
-	if (twcp_product_active() and current_user_can('edit_others_products')) {
-		$stock = fn(array $meta) => (int) (new WP_Query(['post_type' => 'product', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => 1, 'meta_query' => $meta]))->found_posts;
-		$low = (int) get_option('woocommerce_notify_low_stock_amount', 2);
 
-		$items[] = [__('Products out of stock', 'twee-mcp'), $stock([['key' => '_stock_status', 'value' => 'outofstock']]), admin_url('edit.php?post_type=product&stock_status=outofstock')];
-		$items[] = [sprintf(__('Products with %d or fewer in stock', 'twee-mcp'), $low), $stock([['key' => '_manage_stock', 'value' => 'yes'], ['key' => '_stock', 'value' => $low, 'compare' => '<=', 'type' => 'NUMERIC'], ['key' => '_stock_status', 'value' => 'instock']]), admin_url('edit.php?post_type=product&stock_status=instock')];
-		$items[] = [__('Products without short descriptions', 'twee-mcp'), twcp_batch_total('products_short'), ''];
-	}
-	if (twcp_product_active() and current_user_can('edit_shop_orders')) {
-		$hpos = class_exists('Automattic\WooCommerce\Utilities\OrderUtil') && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
-		$items[] = [__('Orders processing or on hold', 'twee-mcp'), (int) wc_orders_count('processing') + (int) wc_orders_count('on-hold'), admin_url($hpos ? 'admin.php?page=wc-orders&status=wc-processing' : 'edit.php?post_type=shop_order&post_status=wc-processing')];
-	}
-
-	return $items;
+	return (array) apply_filters('twcp_batch_overview', $items);
 }
 
 
 /**
- * WordPress list-table bulk actions per screen
+ * WordPress list-table bulk actions per screen. Modules add theirs with the twcp_batch_actions filter.
  *
  * @return array Screen ID => [ action => [ label, callback, batch type of the fields a generate action skips when they are set ] ]
  */
@@ -1674,32 +1537,10 @@ function twcp_batch_actions(): array
 		];
 
 		// Assign Categories (for Posts and Products)
-		if ($post_type === 'post' or ($post_type === 'product' and twcp_product_active())) {
+		if ($post_type === 'post' or ($post_type === 'product' and taxonomy_exists('product_cat'))) {
 			$screens[$screen_id]['twcp_categories'] = [
 				__('Assign Categories', 'twee-mcp'),
 				'twcp_post_assign_categories',
-			];
-		}
-
-		// WooCommerce Products
-		if ($post_type === 'product' and twcp_product_active()) {
-			$screens['edit-product']['twcp_short'] = [
-				__('Generate Short Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_short($id, false),
-				'products_short',
-			];
-			$screens['edit-product']['twcp_short_regen'] = [
-				__('Regenerate Short Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_short($id, true)
-			];
-			$screens['edit-product']['twcp_full'] = [
-				__('Generate Full Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_full($id, false),
-				'products',
-			];
-			$screens['edit-product']['twcp_full_regen'] = [
-				__('Regenerate Full Product Descriptions', 'twee-mcp'),
-				fn(int $id) => twcp_product_full($id, true)
 			];
 		}
 	}
@@ -1711,7 +1552,7 @@ function twcp_batch_actions(): array
 		$screens['edit-' . $taxonomy]['twcp_description_regen'] = [__('Regenerate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, true)];
 	}
 
-	return $screens;
+	return (array) apply_filters('twcp_batch_actions', $screens);
 }
 
 

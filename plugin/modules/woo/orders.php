@@ -12,108 +12,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for WooCommerce orders and coupons
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_order_tools(): array
-{
-	return [
-		'get_orders'        => [
-			'description' => 'Read WooCommerce orders with status, totals, customer, line items, and payment method. Provide "id" to get one order with its notes. Filter by status, customer, or date range.',
-			'callable'    => 'twcp_order_query',
-			'capability'  => 'edit_shop_orders',
-			'private'     => true,
-			'parameters'  => [
-				'id'          => ['type' => 'integer', 'description' => 'Single order ID.'],
-				'status'      => ['type' => 'string', 'description' => 'Order status without the "wc-" prefix, e.g. "processing", "on-hold", "completed".'],
-				'customer_id' => ['type' => 'integer', 'description' => 'Customer user ID.'],
-				'date_from'   => ['type' => 'string', 'description' => 'Created on or after, YYYY-MM-DD.'],
-				'date_to'     => ['type' => 'string', 'description' => 'Created on or before, YYYY-MM-DD.'],
-				'limit'       => ['type' => 'integer', 'description' => 'Number of orders (default 20, max 50).'],
-				'offset'      => ['type' => 'integer', 'description' => 'Pagination offset.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'update_order'      => [
-			'description' => 'Change a WooCommerce order status and/or add an order note. Customer notes are emailed to the customer; private notes are visible to staff only.',
-			'callable'    => 'twcp_order_update',
-			'capability'  => 'edit_shop_orders',
-			'required'    => ['order_id'],
-			'parameters'  => [
-				'order_id'      => ['type' => 'integer', 'minimum' => 1],
-				'status'        => ['type' => 'string', 'description' => 'New status without the "wc-" prefix.'],
-				'note'          => ['type' => 'string', 'description' => 'Order note text.'],
-				'customer_note' => ['type' => 'boolean', 'description' => 'Send the note to the customer (default false).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'get_sales_summary' => [
-			'description' => 'Summarize WooCommerce sales for a date range: paid order count, gross and net revenue, refunds, average order value, items sold, and best-selling products.',
-			'callable'    => 'twcp_order_summary',
-			'capability'  => 'view_woocommerce_reports',
-			'private'     => true,
-			'parameters'  => [
-				'date_from' => ['type' => 'string', 'description' => 'Start date YYYY-MM-DD (default 30 days ago).'],
-				'date_to'   => ['type' => 'string', 'description' => 'End date YYYY-MM-DD (default today).'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'get_coupons'       => [
-			'description' => 'List WooCommerce coupons with discount type, amount, usage, limits, expiry, and product restrictions.',
-			'callable'    => 'twcp_coupon_query',
-			'capability'  => 'edit_shop_coupons',
-			'parameters'  => [
-				'search' => ['type' => 'string', 'description' => 'Search in coupon codes.'],
-				'limit'  => ['type' => 'integer', 'description' => 'Number of coupons (default 20, max 50).'],
-				'offset' => ['type' => 'integer', 'description' => 'Pagination offset.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'save_coupon'       => [
-			'description' => 'Create a WooCommerce coupon, or edit one by coupon_id. Omitted fields are preserved when editing.',
-			'callable'    => 'twcp_coupon_save',
-			'capability'  => 'edit_shop_coupons',
-			'parameters'  => [
-				'coupon_id'            => ['type' => 'integer', 'description' => 'Existing coupon ID to edit.'],
-				'code'                 => ['type' => 'string', 'description' => 'Coupon code; required for new coupons.'],
-				'discount_type'        => ['type' => 'string', 'enum' => ['percent', 'fixed_cart', 'fixed_product']],
-				'amount'               => ['type' => 'string', 'description' => 'Discount amount, e.g. "15".'],
-				'description'          => ['type' => 'string'],
-				'date_expires'         => ['type' => 'string', 'description' => 'Expiry date YYYY-MM-DD; empty string removes it.'],
-				'usage_limit'          => ['type' => 'integer', 'minimum' => 0],
-				'usage_limit_per_user' => ['type' => 'integer', 'minimum' => 0],
-				'individual_use'       => ['type' => 'boolean'],
-				'free_shipping'        => ['type' => 'boolean'],
-				'minimum_amount'       => ['type' => 'string'],
-				'maximum_amount'       => ['type' => 'string'],
-				'product_ids'          => ['type' => 'array', 'items' => ['type' => 'integer']],
-				'excluded_product_ids' => ['type' => 'array', 'items' => ['type' => 'integer']],
-				'product_categories'   => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'Product category IDs.'],
-				'status'               => ['type' => 'string', 'enum' => ['publish', 'draft']],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-	];
-}
-
-
-/**
- * Validate a YYYY-MM-DD date
- *
- * @param mixed $date
- *
- * @return string|null Normalized date or null
- */
-function twcp_order_date($date): ?string
-{
-	$parsed = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $date, wp_timezone());
-
-	return ($parsed and $parsed->format('Y-m-d') === $date) ? $date : null;
-}
-
-
-/**
  * Format an order for MCP responses
  *
  * @param WC_Order $order
@@ -205,8 +103,8 @@ function twcp_order_query(array $args): array
 		$query['customer_id'] = absint($args['customer_id']);
 	}
 
-	$from = isset($args['date_from']) ? twcp_order_date($args['date_from']) : null;
-	$to = isset($args['date_to']) ? twcp_order_date($args['date_to']) : null;
+	$from = isset($args['date_from']) ? twcp_tools_date($args['date_from']) : null;
+	$to = isset($args['date_to']) ? twcp_tools_date($args['date_to']) : null;
 	if ((isset($args['date_from']) and !$from) or (isset($args['date_to']) and !$to)) {
 		return ['error' => 'Dates must use YYYY-MM-DD format.'];
 	}
@@ -277,8 +175,8 @@ function twcp_order_summary(array $args): array
 		return ['error' => 'WooCommerce is not active'];
 	}
 
-	$to = isset($args['date_to']) ? twcp_order_date($args['date_to']) : wp_date('Y-m-d');
-	$from = isset($args['date_from']) ? twcp_order_date($args['date_from']) : wp_date('Y-m-d', strtotime('-30 days'));
+	$to = isset($args['date_to']) ? twcp_tools_date($args['date_to']) : wp_date('Y-m-d');
+	$from = isset($args['date_from']) ? twcp_tools_date($args['date_from']) : wp_date('Y-m-d', strtotime('-30 days'));
 	if (!$from or !$to or $from > $to) {
 		return ['error' => 'Provide a valid YYYY-MM-DD date range.'];
 	}
@@ -428,7 +326,7 @@ function twcp_coupon_save(array $args): array
 	}
 
 	if (isset($args['date_expires'])) {
-		if ($args['date_expires'] !== '' and !twcp_order_date($args['date_expires'])) {
+		if ($args['date_expires'] !== '' and !twcp_tools_date($args['date_expires'])) {
 			return ['error' => 'date_expires must use YYYY-MM-DD format.'];
 		}
 		$coupon->set_date_expires($args['date_expires'] !== '' ? $args['date_expires'] : null);

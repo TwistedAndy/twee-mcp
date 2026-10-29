@@ -15,101 +15,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for posts, pages, and custom post types
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_post_tools(): array
-{
-	$post_fields = [
-		'title'           => ['type' => 'string', 'description' => 'Post title.'],
-		'content'         => ['type' => 'string', 'description' => 'HTML body; supports native [gallery] shortcodes.'],
-		'excerpt'         => ['type' => 'string'],
-		'seo_title'       => ['type' => 'string', 'description' => 'SEO title saved for both Rank Math and Yoast SEO.'],
-		'seo_description' => ['type' => 'string', 'description' => 'SEO meta description saved for both Rank Math and Yoast SEO.'],
-		'post_status'         => [
-			'type'        => 'string',
-			'enum'        => ['draft', 'pending', 'publish', 'private', 'future'],
-			'description' => 'New posts default to publish.',
-		],
-		'date'            => ['type' => 'string', 'description' => 'Local publication date in YYYY-MM-DD HH:MM:SS format; required for future status.'],
-		'slug'            => ['type' => 'string'],
-		'parent'          => ['type' => 'integer', 'minimum' => 0],
-		'thumbnail_id'    => ['type' => 'integer', 'minimum' => 0, 'description' => 'Image attachment ID; 0 removes it.'],
-		'taxonomies'          => [
-			'type'        => 'object',
-			'description' => 'Map of registered taxonomy names to arrays of existing term IDs. Empty arrays clear assignments.',
-		],
-		'append_terms'    => ['type' => 'boolean', 'description' => 'Append term IDs instead of replacing them (default false).'],
-		'meta'            => ['type' => 'object', 'description' => 'Editable custom metadata. Protected internals require dedicated tools.'],
-	];
-
-	return [
-		'get_posts'           => [
-			'description' => 'Query posts, pages, WooCommerce products, or custom post types. Provide "id" to get a single post with full content.',
-			'callable'    => 'twcp_post_query',
-			'parameters'  => [
-				'id'          => ['type' => 'integer', 'description' => 'Single post ID.'],
-				'post_type'   => ['type' => 'string', 'description' => 'Post type: "post", "page", "product", etc. (default "any").'],
-				'search'      => ['type' => 'string', 'description' => 'Keyword search.'],
-				'post_status' => ['type' => 'string', 'description' => 'Status: "publish", "draft", etc. (default "publish").'],
-				'taxonomy'    => ['type' => 'string', 'description' => 'Filter taxonomy.'],
-				'term_id'     => ['type' => 'integer', 'description' => 'Filter term ID.'],
-				'limit'       => ['type' => 'integer', 'description' => 'Number of posts (default 20, max 50).'],
-				'offset'      => ['type' => 'integer', 'description' => 'Pagination offset.'],
-				'order_by'    => ['type' => 'string', 'description' => 'Sort field.'],
-				'order'       => ['type' => 'string', 'description' => '"ASC" or "DESC".'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'create_post'         => [
-			'description' => 'Create a post, page, or registered custom post type with title, content, thumbnail, taxonomies, SEO metadata, and custom meta. Prefer create_product for WooCommerce.',
-			'callable'    => 'twcp_post_create',
-			'required'    => ['title'],
-			'parameters'  => [
-					'post_type' => [
-						'type'        => 'string',
-						'description' => 'Registered post type; use create_product for WooCommerce products.',
-					],
-				] + $post_fields,
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'edit_post'           => [
-			'description' => 'Edit an existing post, page, product, or custom post type, including SEO title and meta description.',
-			'callable'    => 'twcp_post_edit',
-			'required'    => ['id'],
-			'parameters'  => ['id' => ['type' => 'integer', 'minimum' => 1]] + $post_fields,
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'trash_post'          => [
-			'description' => 'Move an existing post, page, product, or custom post to WordPress Trash. Does not permanently delete content.',
-			'callable'    => 'twcp_post_trash',
-			'required'    => ['id'],
-			'parameters'  => ['id' => ['type' => 'integer', 'minimum' => 1]],
-			'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
-		],
-		'create_similar_post' => [
-			'description' => 'Duplicate an existing post, page, product, or custom post type and create a new similar post on an adjacent topic in the same category. Rewrites title, excerpt, and full content, selects a relevant featured image, and generates SEO meta tags. Creates as draft.',
-			'callable'    => 'twcp_post_similar_tool',
-			'required'    => ['post_id'],
-			'parameters'  => [
-				'post_id' => ['type' => 'integer', 'description' => 'Source post ID to duplicate and base the similar post on.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'get_schema'          => [
-			'description' => 'List registered post types and taxonomies with labels, descriptions, and capabilities.',
-			'callable'    => 'twcp_post_schema',
-			'parameters'  => [
-				'type' => ['type' => 'string', 'description' => '"all", "post_types", or "taxonomies".'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-	];
-}
-
-
-/**
  * Format rich post / product details for MCP responses
  *
  * @param WP_Post $post
@@ -211,7 +116,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 	}
 
 	// 5. WooCommerce Product details (if post_type is product or WooCommerce is active)
-	if (in_array($post->post_type, ['product', 'product_variation'], true) and twcp_product_active()) {
+	if (in_array($post->post_type, ['product', 'product_variation'], true) and class_exists('WooCommerce')) {
 		$product = wc_get_product($post_id);
 		if ($product) {
 			$attributes = array_map(static fn($attribute) => $attribute instanceof WC_Product_Attribute ? $attribute->get_data() : $attribute, $product->get_attributes());
@@ -585,6 +490,20 @@ function twcp_post_trash(array $args): array
 
 
 /**
+ * Page builder blocks of a post or term, added by the blocks module
+ *
+ * @param int    $id
+ * @param string $meta_type "post" or "term"
+ *
+ * @return array
+ */
+function twcp_post_blocks(int $id, string $meta_type = 'post'): array
+{
+	return (array) apply_filters('twcp_post_blocks', [], $id, $meta_type);
+}
+
+
+/**
  * Recursively extract text from ACF Page Builder blocks array
  *
  * @param mixed $blocks
@@ -660,8 +579,7 @@ function twcp_post_context($post): ?array
 		return null;
 	}
 
-	$blocks_field = twcp_block_field_name();
-	$blocks = get_post_meta($post->ID, $blocks_field, true);
+	$blocks = twcp_post_blocks($post->ID);
 
 	return [
 		'post'        => $post,
@@ -1010,7 +928,7 @@ function twcp_post_links(int $post_id, ?string $html = null)
 			}
 		}
 
-		if (in_array('products', $sources, true) and twcp_product_active()) {
+		if (in_array('products', $sources, true) and class_exists('WooCommerce')) {
 			$categories = get_terms(['taxonomy' => 'product_cat', 'number' => 5, 'orderby' => 'count', 'order' => 'DESC', 'exclude' => [(int) get_option('default_product_cat')]]);
 			foreach (is_wp_error($categories) ? [] : $categories as $term) {
 				$link = get_term_link($term);
@@ -1184,36 +1102,13 @@ function twcp_post_assign_image(int $post_id, ?string $search_query = null): boo
 		return true;
 	}
 
-	// 2. Search connected stock image providers
-	$stock_res = twcp_image_search($clean_title, ['per_page' => 5]);
-	if (empty($stock_res['results']) and str_word_count($clean_title) > 3) {
-		$words = explode(' ', $clean_title);
-		$short_query = implode(' ', array_slice($words, 0, 3));
-		$stock_res = twcp_image_search($short_query, ['per_page' => 5]);
-	}
+	// 2. An image found by a module, such as a stock photo of the images module
+	$img_id = (int) apply_filters('twcp_post_featured_image', 0, $clean_title, $post);
+	if ($img_id) {
+		set_post_thumbnail($post_id, $img_id);
+		twcp_media_generate_alt($img_id, false);
 
-	if (!empty($stock_res['results'])) {
-		$item = $stock_res['results'][0];
-		$url = !empty($item['download_url']) ? $item['download_url'] : (!empty($item['url']) ? $item['url'] : '');
-		if ($url) {
-			$import = twcp_image_import($url, [
-				'title'      => !empty($item['title']) ? $item['title'] : $post->post_title,
-				'alt'        => !empty($item['alt']) ? $item['alt'] : $post->post_title,
-				'provider'   => !empty($item['provider']) ? $item['provider'] : '',
-				'author'     => !empty($item['author']) ? $item['author'] : ($item['author_name'] ?? ''),
-				'author_url' => !empty($item['author_url']) ? $item['author_url'] : '',
-				'source_url' => !empty($item['source_url']) ? $item['source_url'] : '',
-				'license'    => !empty($item['license']) ? $item['license'] : '',
-				'post_id'    => $post_id,
-			]);
-
-			if (!empty($import['attachment_id'])) {
-				set_post_thumbnail($post_id, (int) $import['attachment_id']);
-				twcp_media_generate_alt((int) $import['attachment_id'], false);
-
-				return true;
-			}
-		}
+		return true;
 	}
 
 	return false;
@@ -1271,7 +1166,7 @@ function twcp_post_assign_categories(int $post_id): bool
 	}
 
 	$content_sample = substr(wp_strip_all_tags($post->post_content), 0, 1500);
-	$blocks = get_post_meta($post_id, twcp_block_field_name(), true);
+	$blocks = twcp_post_blocks($post_id);
 	$blocks_text = substr(twcp_post_blocks_text($blocks), 0, 1000);
 
 	$prompt = "Assign the most accurate categories to this {$post->post_type} from the available list.\n\n";
@@ -1377,8 +1272,7 @@ function twcp_post_create_similar(int $source_id)
 	$source_excerpt = trim($source->post_excerpt);
 	$source_content = trim(wp_strip_all_tags($source->post_content));
 
-	$blocks_field = twcp_block_field_name();
-	$blocks = get_post_meta($source_id, $blocks_field, true);
+	$blocks = twcp_post_blocks($source_id);
 	$blocks_text = twcp_post_blocks_text($blocks);
 
 	// Collect taxonomies and assigned terms
@@ -1478,7 +1372,7 @@ function twcp_post_create_similar(int $source_id)
 	}
 
 	// 8. WooCommerce Product specifics
-	if ($post_type === 'product' and twcp_product_active()) {
+	if ($post_type === 'product' and class_exists('WooCommerce')) {
 		$price = get_post_meta($source_id, '_price', true);
 		$reg_price = get_post_meta($source_id, '_regular_price', true);
 		if ($reg_price !== '') {

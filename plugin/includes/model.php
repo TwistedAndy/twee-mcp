@@ -1128,13 +1128,13 @@ function twcp_prompt(string $option, callable $default): string
 
 
 /**
- * Areas the Prompts screen groups system prompts by
+ * Areas the Prompts screen groups system prompts by. Modules add theirs with the twcp_prompt_groups filter.
  *
  * @return array Group => [ label, description, plugin, active ]
  */
 function twcp_prompt_groups(): array
 {
-	return [
+	return (array) apply_filters('twcp_prompt_groups', [
 		'context' => [
 			'label'       => __('Shared Context', 'twee-mcp'),
 			'description' => __('Added to the start of every system prompt below, so describe the business once here.', 'twee-mcp'),
@@ -1142,12 +1142,6 @@ function twcp_prompt_groups(): array
 		'content' => [
 			'label'       => __('Posts & Pages', 'twee-mcp'),
 			'description' => __('Excerpts, full articles, similar posts, and SEO tags for posts, pages, and custom post types.', 'twee-mcp'),
-		],
-		'store'   => [
-			'label'       => __('WooCommerce Store', 'twee-mcp'),
-			'description' => __('Product copy and the store rules appended to full product descriptions.', 'twee-mcp'),
-			'plugin'      => 'WooCommerce',
-			'active'      => twcp_product_active(),
 		],
 		'terms'   => [
 			'label'       => __('Categories & Tags', 'twee-mcp'),
@@ -1157,18 +1151,19 @@ function twcp_prompt_groups(): array
 			'label'       => __('Images', 'twee-mcp'),
 			'description' => __('Alt text written by the vision model.', 'twee-mcp'),
 		],
-	];
+	]);
 }
 
 
 /**
- * Editable system prompts: option => [ group, label, description, default callback, used by, rows ]
+ * Editable system prompts: option => [ group, label, description, default callback, used by, rows ]. Modules add
+ * theirs with the twcp_prompt_registry filter.
  *
  * @return array
  */
 function twcp_prompt_registry(): array
 {
-	return [
+	return (array) apply_filters('twcp_prompt_registry', [
 		'twcp_general_context'             => [
 			'group'       => 'context',
 			'label'       => __('Store Profile & Website Context', 'twee-mcp'),
@@ -1207,22 +1202,6 @@ function twcp_prompt_registry(): array
 			'description' => __('SEO titles under 60 characters and meta descriptions of 130 to 155 characters, saved for Rank Math and Yoast SEO.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_seo_default',
 			'used_by'     => [__('Batch: SEO tags', 'twee-mcp'), __('Bulk actions', 'twee-mcp'), 'create_similar_post'],
-			'rows'        => 5,
-		],
-		'twcp_system_prompt_product'       => [
-			'group'       => 'store',
-			'label'       => __('Full Product Description', 'twee-mcp'),
-			'description' => __('HTML product descriptions with specifications, materials, fitment, and internal links.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_full_default',
-			'used_by'     => ['generate_product_description', __('Batch: Product descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
-			'rows'        => 6,
-		],
-		'twcp_system_prompt_product_short' => [
-			'group'       => 'store',
-			'label'       => __('Short Product Description', 'twee-mcp'),
-			'description' => __('Product excerpts of 130 to 155 characters that double as meta descriptions.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_short_default',
-			'used_by'     => ['generate_product_short_description', __('Batch: Short descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,
 		],
 		'twcp_system_prompt_term_seo'      => [
@@ -1265,7 +1244,7 @@ function twcp_prompt_registry(): array
 			'used_by'     => [__('Batch: Image Alt text', 'twee-mcp'), 'check_media_alt_text', __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,
 		],
-	];
+	]);
 }
 
 
@@ -1328,11 +1307,11 @@ function twcp_general_context_default(): string
 	$site_name = twcp_site_name();
 	$site_desc = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-	$categories = get_terms(['taxonomy' => twcp_product_active() ? 'product_cat' : 'category', 'number' => 8, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
+	$categories = get_terms(['taxonomy' => class_exists('WooCommerce') ? 'product_cat' : 'category', 'number' => 8, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
 	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
 
 	$lines = [$site_desc ? "{$site_name}: {$site_desc}." : "{$site_name} is a website at " . home_url('/') . '.'];
-	if (twcp_product_active()) {
+	if (class_exists('WooCommerce')) {
 		$lines[] = 'It sells products in an online store built on WooCommerce.';
 	}
 	if ($categories) {
@@ -1366,7 +1345,7 @@ function twcp_general_context_generate(): string
 		$facts[] = 'Home page: ' . $front['title'] . ($text ? ' - ' . mb_substr($text, 0, 1500) : '');
 	}
 
-	$store = twcp_product_active();
+	$store = class_exists('WooCommerce');
 	$categories = get_terms(['taxonomy' => $store ? 'product_cat' : 'category', 'number' => 12, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
 	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
 	if ($categories) {

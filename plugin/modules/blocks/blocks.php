@@ -14,111 +14,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for ACF page builder blocks and custom fields
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_block_tools(): array
-{
-	return [
-		'get_block_types'             => [
-			'description' => 'List ACF page builder layouts with label, description, preview URL, and the full typed field structure. Fields repeated across layouts (contents, settings, buttons) are listed once under "shared" and referenced as {"$ref": "shared.<name>"}. Every field has a "format" (plain text, HTML, ID, choice list), follow it exactly. "conventions" explains contents / settings / items, hand-picking posts and products (order=custom + items IDs), and media rules (icons = SVG masks, image/background = raster). Pass layout=<name> to get one fully resolved layout.',
-			'callable'    => 'twcp_block_catalog',
-			'parameters'  => [
-				'layout' => ['type' => 'string', 'description' => 'Optional specific layout name (e.g. "hero", "cards", "faq").'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'generate_block_descriptions' => [
-			'description' => 'Generate AI descriptions for ACF Flexible Content layout blocks using their schema and UI preview screenshots from the specified (or configured) previews folder.',
-			'callable'    => 'twcp_block_describe',
-			'capability'  => 'manage_options',
-			'parameters'  => [
-				'folder'    => [
-					'type'        => 'string',
-					'description' => 'Optional relative or absolute directory path to block preview screenshots (defaults to configured setting, e.g. "assets/preview").',
-				],
-				'overwrite' => ['type' => 'boolean', 'description' => 'Whether to regenerate and overwrite existing block descriptions (default false).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'get_custom_fields'           => [
-			'description' => 'Get ACF custom fields associated with a post or term (including custom post types and taxonomies). Returns field names, labels, types, instructions, choices, and stored values. Includes special resolution and expansion for Block Sets (reusable shared blocks from post_type=block_set).',
-			'callable'    => 'twcp_custom_fields_get',
-			'required'    => ['object_id'],
-			'parameters'  => [
-				'object_id'         => ['type' => 'integer', 'description' => 'Post ID, Page ID, Product ID, CPT ID, or Term ID.'],
-				'object_type'       => [
-					'type'        => 'string',
-					'enum'        => ['post', 'term'],
-					'description' => 'Object type: "post" (posts, pages, products, block sets, CPTs) or "term" (categories, tags, custom taxonomies). Default "post".'
-				],
-				'taxonomy'          => [
-					'type'        => 'string',
-					'description' => 'Optional taxonomy name if object_type is "term" (e.g. "category", "product_cat"). Auto-detected if omitted.'
-				],
-				'expand_block_sets' => [
-					'type'        => 'boolean',
-					'description' => 'Whether to expand and resolve shared blocks inside referenced Block Sets (default true).'
-				],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'get_blocks'                  => [
-			'description' => 'Get current ACF blocks for a post or term with their 0-based index and values.',
-			'callable'    => 'twcp_block_get',
-			'required'    => ['object_id'],
-			'parameters'  => [
-				'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-				'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'create_block'                => [
-			'description' => 'Add a block to a post or term at an optional position. Data must follow the layout schema from get_block_types, with groups as nested objects, e.g. {"contents": {"title": "...", "text": "<p>...</p>", "buttons": [{"type": "default", "link": {"url": "...", "title": "..."}}]}, "settings": {"background": "light"}, "items": [{...}]}. Values are sanitized per field format; unknown fields and invalid choices are dropped and listed in "warnings", so check them.',
-			'callable'    => 'twcp_block_create',
-			'required'    => ['object_id', 'layout', 'data'],
-			'parameters'  => [
-				'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-				'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
-				'layout'      => ['type' => 'string', 'description' => 'Layout name (hero, heading, cards, etc.).'],
-				'data'        => [
-					'type'        => 'object',
-					'description' => 'Field values keyed by field name, shaped like the layout schema (nested objects for groups, arrays of rows for repeaters).',
-				],
-				'position'    => ['type' => 'integer', 'description' => 'Index position to insert (defaults to append).'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'edit_block'                  => [
-			'description' => 'Update the block at a 0-based index. Groups (contents, settings) are merged key by key, so send only what changes. Lists (items, buttons) are replaced as a whole, so send the complete list. Follow the field formats from get_block_types; dropped values are listed in "warnings".',
-			'callable'    => 'twcp_block_edit',
-			'required'    => ['object_id', 'index', 'data'],
-			'parameters'  => [
-				'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-				'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
-				'index'       => ['type' => 'integer', 'description' => '0-based index of block to update.'],
-				'data'        => ['type' => 'object', 'description' => 'Changed field values, shaped like the layout schema.'],
-				'layout'      => ['type' => 'string', 'description' => 'Optional new layout name.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'remove_block'                => [
-			'description' => 'Remove an ACF block at a specific index (or "all") from a post or term.',
-			'callable'    => 'twcp_block_remove',
-			'required'    => ['object_id', 'index'],
-			'parameters'  => [
-				'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-				'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
-				'index'       => ['type' => ['integer', 'string'], 'description' => '0-based index of block to remove, or string "all".'],
-			],
-			'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
-		],
-	];
-}
-
-
-/**
  * Get the configured ACF field name used for blocks
  *
  * @return string
@@ -1394,3 +1289,241 @@ function twcp_block_describe(array $args = []): array
 		'descriptions'    => $descriptions,
 	];
 }
+
+
+/**
+ * Block descriptions job on the Automation screen. Layouts have no IDs, so their position in the layout list
+ * stands in for one.
+ */
+add_filter('twcp_batch_types', function(array $types): array {
+	$types['blocks'] = [
+		'slice'      => 2,
+		'run'        => 'twcp_block_batch_describe',
+		'capability' => 'manage_options',
+		'cost'       => [1, 4000],
+		'query'      => function(int $offset, int $limit, bool $override): array {
+			$saved = twcp_block_saved_descriptions();
+			$layouts = [];
+			foreach (twcp_block_get_layouts() as $index => $layout) {
+				if ($override or empty($saved[$layout['name']])) {
+					$layouts[] = $index;
+				}
+			}
+
+			return array_slice($layouts, $offset, $limit);
+		},
+		'total'      => function(bool $override): int {
+			return $override ? count(twcp_block_get_layouts()) : twcp_block_count_missing();
+		},
+		'card'       => [
+			'section'     => 'site',
+			'title'       => __('ACF Block Descriptions', 'twee-mcp'),
+			'description' => __('Describes page builder layouts from their fields and preview screenshots.', 'twee-mcp'),
+			'btn_text'    => __('Generate Block Descriptions', 'twee-mcp'),
+			'unit'        => __('Layouts', 'twee-mcp'),
+		],
+	];
+
+	return $types;
+});
+
+
+/**
+ * Process a single page builder layout for its description
+ *
+ * @param int  $index    Position of the layout in twcp_block_get_layouts()
+ * @param bool $override Unused, the query already picks the layouts to describe
+ */
+function twcp_block_batch_describe(int $index, bool $override = false): array
+{
+	$layout = twcp_block_get_layouts()[$index] ?? null;
+	if (!$layout) {
+		return ['success' => false, 'message' => sprintf(__('Layout #%d is not available.', 'twee-mcp'), $index)];
+	}
+
+	$description = (string) twcp_block_describe_single($layout['name'], twcp_block_previews_folder());
+
+	return ['success' => true, 'message' => sprintf(__('Described "%s": "%s"', 'twee-mcp'), $layout['label'] ?? $layout['name'], mb_strimwidth($description, 0, 60, '...'))];
+}
+
+
+/**
+ * Register the blocks field, previews folder, conventions and descriptions of the Library
+ */
+add_action('admin_init', 'twcp_block_admin_init');
+
+/**
+ * Register the settings of the blocks field, previews folder, conventions and descriptions of the Library
+ *
+ * @return void
+ */
+function twcp_block_admin_init(): void
+{
+	register_setting('twcp_blocks_group', 'twcp_blocks_field', ['type' => 'string', 'sanitize_callback' => 'sanitize_key', 'default' => 'blocks']);
+	register_setting('twcp_blocks_group', 'twcp_block_previews_folder', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default'           => 'assets/preview'
+	]);
+	register_setting('twcp_blocks_group', 'twcp_block_conventions', [
+		'type'              => 'string',
+		// Conventions equal to the built-in text are stored empty, so a newer default still applies
+		'sanitize_callback' => function($input): string {
+			$text = sanitize_textarea_field((string) $input);
+			$default = sanitize_textarea_field(twcp_block_conventions_default());
+
+			return str_replace("\r\n", "\n", $text) === str_replace("\r\n", "\n", $default) ? '' : $text;
+		},
+		'default'           => '',
+	]);
+	register_setting('twcp_blocks_group', 'twcp_block_descriptions', [
+		'type'              => 'array',
+		// The Library lists the layouts of the current field only, so the descriptions it does not list are kept
+		'sanitize_callback' => function($input) {
+			$clean = (array) get_option('twcp_block_descriptions', []);
+			foreach ((array) $input as $layout => $description) {
+				$clean[sanitize_key($layout)] = sanitize_textarea_field($description);
+			}
+
+			return $clean;
+		},
+		'default'           => [],
+	]);
+}
+
+
+/**
+ * Show the ACF blocks in the Library
+ */
+add_filter('twcp_admin_tabs', function(array $tabs): array {
+	$tabs['library']['parts'][] = 'blocks';
+
+	return $tabs;
+});
+
+add_filter('twcp_admin_data', function(array $data, string $part): array {
+	if ($part !== 'blocks') {
+		return $data;
+	}
+
+	$field = twcp_block_field_name();
+
+	return [
+		'available_blocks_fields' => twcp_block_available_fields(),
+		'current_blocks_field'    => $field,
+		'previews_folder'         => twcp_block_previews_folder(),
+		'previews_dir'            => twcp_block_previews_dir(),
+		'available_previews'      => twcp_block_previews(),
+		'dynamic_layouts'         => twcp_block_get_layouts($field),
+		'default_descriptions'    => twcp_block_default_descriptions(),
+		'saved_descriptions'      => (array) get_option('twcp_block_descriptions', []),
+		'conventions'             => twcp_block_conventions(),
+		'conventions_default'     => twcp_block_conventions_default(),
+		'saved_conventions'       => (string) get_option('twcp_block_conventions', ''),
+	];
+}, 10, 2);
+
+
+/**
+ * AJAX: Generate block descriptions from the previews folder
+ */
+add_action('wp_ajax_twcp_generate_block_descriptions', 'twcp_block_ajax_descriptions');
+
+/**
+ * Generate missing page-builder block descriptions.
+ *
+ * @return void Sends a JSON response.
+ */
+function twcp_block_ajax_descriptions(): void
+{
+	twcp_admin_ajax();
+
+	if (function_exists('set_time_limit')) {
+		@set_time_limit(300);
+	}
+
+	$folder = isset($_POST['folder']) ? sanitize_text_field($_POST['folder']) : null;
+	$layout = isset($_POST['layout']) ? sanitize_key($_POST['layout']) : null;
+
+	if ($folder !== null and trim($folder) !== '') {
+		update_option('twcp_block_previews_folder', trim($folder));
+	}
+
+	if (!empty($layout)) {
+		$desc = twcp_block_describe_single($layout, $folder);
+		if ($desc === null) {
+			wp_send_json_error(['message' => sprintf(__('Layout %s not found.', 'twee-mcp'), $layout)]);
+		}
+
+		wp_send_json_success([
+			'layout'       => $layout,
+			'description'  => $desc,
+			'descriptions' => twcp_block_descriptions(),
+			'message'      => sprintf(__('Generated description for %s.', 'twee-mcp'), $layout),
+		]);
+	}
+
+	$count = twcp_block_generate_descriptions($folder, !empty($_POST['overwrite']));
+
+	wp_send_json_success([
+		'generated'    => $count,
+		'descriptions' => twcp_block_descriptions(),
+		'message'      => sprintf(__('Successfully generated %d block descriptions from previews.', 'twee-mcp'), $count),
+	]);
+}
+
+
+/**
+ * Assign media images to an image field of a page builder block
+ */
+add_filter('twcp_media_assign', function($result, string $type, int $attachment_id, int $target_id, string $assign_as, array $target) {
+	if ($type !== 'block') {
+		return $result;
+	}
+
+		if (!$target_id) {
+			return ['error' => 'Missing post/page ID for block assignment.'];
+		}
+		if (!isset($target['block_index'])) {
+			return ['error' => 'Missing block_index for block assignment.'];
+		}
+		if (!twcp_module_active('blocks')) {
+			return ['error' => 'ACF blocks are not available.'];
+		}
+		$field_name = !empty($target['field_name']) ? sanitize_key($target['field_name']) : 'image';
+		$block_index = (int) $target['block_index'];
+
+		$edit_res = twcp_block_edit([
+			'object_id' => $target_id,
+			'index'     => $block_index,
+			'data'      => [
+				$field_name => $attachment_id,
+			],
+		]);
+
+		if (!empty($edit_res['error'])) {
+			return ['error' => 'Failed to update ACF block: ' . $edit_res['error']];
+		}
+
+		if (!empty($edit_res['warnings'])) {
+			return ['error' => 'Block field was rejected: ' . implode('; ', $edit_res['warnings'])];
+		}
+
+		return [
+			'success'       => true,
+			'type'          => 'block',
+			'post_id'       => $target_id,
+			'block_index'   => $block_index,
+			'field_name'    => $field_name,
+			'attachment_id' => $attachment_id,
+			'message'       => sprintf("Assigned image #%d to field '%s' on block #%d of post #%d.", $attachment_id, $field_name, $block_index, $target_id),
+		];
+}, 10, 6);
+
+
+/**
+ * Page builder blocks of a post or term, from the ACF blocks field
+ */
+add_filter('twcp_post_blocks', function(array $blocks, int $id, string $meta_type): array {
+	return twcp_module_active('blocks') ? (array) get_metadata($meta_type, $id, twcp_block_field_name(), true) : $blocks;
+}, 10, 3);

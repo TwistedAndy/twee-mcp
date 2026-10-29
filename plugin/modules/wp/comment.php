@@ -11,53 +11,6 @@ defined('ABSPATH') or exit;
 
 
 /**
- * MCP tools for comments
- *
- * @return array Tool name => [ description, callable, parameters, required, annotations ]
- */
-function twcp_comment_tools(): array
-{
-	return [
-		'get_comments'     => [
-			'description' => 'Read post and page comments for moderation: pending, approved, spam, or trashed, with author, date, content, and post. Filter by post, status, or keyword.',
-			'callable'    => 'twcp_comment_query',
-			'capability'  => 'moderate_comments',
-			'parameters'  => [
-				'post_id' => ['type' => 'integer', 'description' => 'Only comments of this post.'],
-				'status'  => ['type' => 'string', 'enum' => ['all', 'hold', 'approve', 'spam', 'trash'], 'description' => 'Comment status (default "all"); "hold" lists comments awaiting moderation.'],
-				'search'  => ['type' => 'string', 'description' => 'Keyword search in comment author and content.'],
-				'limit'   => ['type' => 'integer', 'description' => 'Number of comments (default 20, max 50).'],
-				'offset'  => ['type' => 'integer', 'description' => 'Pagination offset.'],
-			],
-			'annotations' => ['readOnlyHint' => true],
-		],
-		'moderate_comment' => [
-			'description' => 'Approve, unapprove (hold), mark as spam, restore from spam, move to Trash, or restore from Trash a comment. Trash is recoverable.',
-			'callable'    => 'twcp_comment_moderate',
-			'capability'  => 'moderate_comments',
-			'required'    => ['comment_id', 'action'],
-			'parameters'  => [
-				'comment_id' => ['type' => 'integer', 'minimum' => 1],
-				'action'     => ['type' => 'string', 'enum' => ['approve', 'hold', 'spam', 'unspam', 'trash', 'untrash']],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-		'reply_comment'    => [
-			'description' => 'Publish an approved reply to a comment as the connected user. The parent comment is approved first when it is pending.',
-			'callable'    => 'twcp_comment_reply',
-			'capability'  => 'moderate_comments',
-			'required'    => ['comment_id', 'content'],
-			'parameters'  => [
-				'comment_id' => ['type' => 'integer', 'minimum' => 1],
-				'content'    => ['type' => 'string', 'description' => 'Reply text; basic HTML is allowed.'],
-			],
-			'annotations' => ['readOnlyHint' => false],
-		],
-	];
-}
-
-
-/**
  * Format a comment for MCP responses
  *
  * @param WP_Comment $comment
