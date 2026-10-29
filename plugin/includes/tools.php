@@ -5,7 +5,7 @@
  * Implements the Model Context Protocol (Streamable HTTP / JSON-RPC 2.0)
  * endpoint at /wp-json/straps/v1/mcp.
  *
- * Each module adds groups of tools with the twcp_tools filter.
+ * Each module adds groups of tools with the twcp_tools_groups filter.
  *
  * @package Twee_MCP
  */
@@ -148,25 +148,20 @@ function twcp_tools_date($date): ?string
 
 
 /**
- * Tool groups added with the twcp_tools filter, shown on the Agent Tools screen in the order of the filter
- * priorities. A group of a module whose plugin is not running has "active" set to false, so its tools are unavailable.
+ * Tool groups added with the twcp_tools_groups filter, shown on the Agent Tools screen in the order of their position.
+ * A group of a module whose plugin is not running has "active" set to false, so its tools are unavailable.
  *
- * @return array Group => [ group, label, module, hint, tools, plugin, active ]
+ * Each tool has a description, its callable, parameters, required parameters, and annotations, and may set a "hint"
+ * of its own, "private" to keep it out of model lookups, and who may run it, see twcp_tools_access().
+ *
+ * @return array Group => [ label, position, module, hint, tools, plugin, active ]
  */
 function twcp_tools_groups(): array
 {
 	static $added;
-	$added ??= (array) apply_filters('twcp_tools', []);
+	$added ??= twcp_position_sort((array) apply_filters('twcp_tools_groups', []));
 
-	// Filters append their groups, and the entries of one group are merged, so no filter replaces the tools of another
-	$groups = [];
-	foreach ($added as $info) {
-		$group = $info['group'];
-		$tools = ($groups[$group]['tools'] ?? []) + ($info['tools'] ?? []);
-		$groups[$group] = ($groups[$group] ?? []) + $info;
-		$groups[$group]['tools'] = $tools;
-	}
-
+	$groups = $added;
 	$modules = twcp_modules();
 	foreach ($groups as $group => $info) {
 		$module = $modules[$info['module'] ?? ''] ?? [];
@@ -293,8 +288,11 @@ function twcp_tools_schema(array $tool): array
 
 
 /**
- * Check whether the current user can execute a registered tool.
- * Read-only model calls and public connector methods are handled here too.
+ * Check whether the current user can run a registered tool. A tool with "public" runs for anyone, as it only returns
+ * what the user may see. A tool with "capability" needs it, and its callable checks single objects. A tool with
+ * "access" checks its arguments itself: function(array $input) returning an error message or null. The others change
+ * the post or term their arguments name, see twcp_tools_access_target(). Read-only tools need no more than a
+ * signed-in user who can edit posts.
  *
  * @param string $name      Tool name.
  * @param array  $input     Validated tool arguments.
@@ -304,77 +302,47 @@ function twcp_tools_schema(array $tool): array
  */
 function twcp_tools_access(string $name, array $input, bool $read_only = false): ?string
 {
-	if (in_array($name, ['search', 'fetch'], true)) {
-		return null; // Their readers enforce public visibility or the current user's access.
+	$tool = twcp_tools_registry()[$name] ?? [];
+	if (!empty($tool['public'])) {
+		return null;
 	}
 	if (!current_user_can(TWCP_CAPABILITY)) {
 		return 'This account cannot use content management tools.';
 	}
-
-	// A tool capability replaces the post checks below; its callable checks single objects
-	$capability = twcp_tools_registry()[$name]['capability'] ?? '';
-	if ($capability) {
-		return current_user_can($capability) ? null : 'This account cannot use the ' . $name . ' tool.';
+	if (!empty($tool['capability'])) {
+		return current_user_can($tool['capability']) ? null : 'This account cannot use the ' . $name . ' tool.';
 	}
 	if ($read_only) {
 		return null;
 	}
-	if ($name === 'create_term') {
-		$taxonomy = get_taxonomy($input['taxonomy'] ?? '');
-		if (!$taxonomy) {
-			return 'Unknown taxonomy.';
-		}
 
-		return current_user_can($taxonomy->cap->manage_terms) ? null : 'You cannot create these terms.';
-	}
+	return isset($tool['access']) ? call_user_func($tool['access'], $input) : twcp_tools_access_target($input);
+}
 
-	if ($name === 'import_media_image') {
-		if (!current_user_can('upload_files')) {
-			return 'You cannot upload media.';
-		}
-		if (!empty($input['post_id']) and !current_user_can('edit_post', absint($input['post_id']))) {
-			return 'You cannot edit the parent post.';
-		}
-		if (!empty($input['assign_to'])) {
-			return twcp_tools_access('assign_media_image', $input['assign_to']);
-		}
 
-		return null;
-	}
-
-	if (in_array($name, ['create_post', 'create_product'], true)) {
-		$post_type = $name === 'create_product' ? 'product' : ($input['post_type'] ?? 'post');
-		$type = get_post_type_object($post_type);
-
-		if (!$type or !$type->show_ui) {
-			return 'Unknown or unsupported post type.';
-		}
-		if (!current_user_can($type->cap->create_posts)) {
-			return 'You cannot create this post type.';
-		}
-
-		$status = $input['post_status'] ?? $input['status'] ?? ($name === 'create_product' ? 'draft' : 'publish');
-		if (in_array($status, ['publish', 'future', 'private'], true) and !current_user_can($type->cap->publish_posts)) {
-			return 'You cannot publish this post type.';
-		}
-
-		return null;
-	}
-
-	$id_keys = ['id', 'post_id', 'product_id', 'attachment_id', 'object_id', 'term_id', 'target_id'];
+/**
+ * Check that the current user can change the post or term the arguments of a tool name: the first of the ID
+ * arguments, a term when it is term_id or the object type says so
+ *
+ * @param array  $input
+ * @param string $capability Post capability, such as delete_post for a tool that trashes the post
+ *
+ * @return string|null Error message, or null when access is allowed
+ */
+function twcp_tools_access_target(array $input, string $capability = 'edit_post'): ?string
+{
 	$id = 0;
-	foreach ($id_keys as $key) {
+	$target = 'post';
+	foreach (['id', 'post_id', 'product_id', 'attachment_id', 'object_id', 'term_id', 'target_id'] as $key) {
 		if (isset($input[$key])) {
 			$id = absint($input[$key]);
+			$target = $key === 'term_id' ? 'term' : 'post';
 			break;
 		}
 	}
 
-	$target_type = $input['object_type'] ?? $input['type'] ?? $input['target_type'] ?? 'post';
-	if ($name === 'assign_media_image' and !current_user_can('upload_files')) {
-		return 'You cannot assign media.';
-	}
-	if ($name === 'edit_term' or in_array($target_type, ['term', 'category'], true)) {
+	$target = $input['object_type'] ?? $input['type'] ?? $input['target_type'] ?? $target;
+	if (in_array($target, ['term', 'category'], true)) {
 		return current_user_can('edit_term', $id) ? null : 'You cannot edit this term.';
 	}
 
@@ -382,14 +350,36 @@ function twcp_tools_access(string $name, array $input, bool $read_only = false):
 	if (!$post) {
 		return 'Target post, product, or attachment was not found.';
 	}
-
-	$cap = $name === 'trash_post' ? 'delete_post' : 'edit_post';
-	if (!current_user_can($cap, $id)) {
+	if (!current_user_can($capability, $id)) {
 		return 'You cannot modify this content.';
 	}
 
-	$type = get_post_type_object($post->post_type);
 	$status = $input['post_status'] ?? $input['status'] ?? '';
+	if (in_array($status, ['publish', 'future', 'private'], true) and !current_user_can(get_post_type_object($post->post_type)->cap->publish_posts)) {
+		return 'You cannot publish this post type.';
+	}
+
+	return null;
+}
+
+
+/**
+ * Check that the current user can create posts of a type, and publish them when the status asks for it
+ *
+ * @param string $post_type
+ * @param string $status
+ *
+ * @return string|null Error message, or null when access is allowed
+ */
+function twcp_tools_access_create(string $post_type, string $status): ?string
+{
+	$type = get_post_type_object($post_type);
+	if (!$type or !$type->show_ui) {
+		return 'Unknown or unsupported post type.';
+	}
+	if (!current_user_can($type->cap->create_posts)) {
+		return 'You cannot create this post type.';
+	}
 	if (in_array($status, ['publish', 'future', 'private'], true) and !current_user_can($type->cap->publish_posts)) {
 		return 'You cannot publish this post type.';
 	}

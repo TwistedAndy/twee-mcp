@@ -157,7 +157,7 @@ function twcp_tracking_assets(): void
 
 	$screen = get_current_screen();
 	$post = ($screen and $screen->base === 'post' and isset($GLOBALS['post']) and $GLOBALS['post'] instanceof WP_Post) ? $GLOBALS['post']->ID : 0;
-	wp_enqueue_script('twcp_tracking', plugins_url('tracking.js', __FILE__), [], (string) filemtime(__DIR__ . '/tracking.js'), true);
+	wp_enqueue_script('twcp_tracking', twcp_module_url(__DIR__ . '/tracking.js'), [], (string) filemtime(__DIR__ . '/tracking.js'), true);
 	wp_localize_script('twcp_tracking', 'twcpTracking', [
 		'url'    => admin_url('admin-ajax.php'),
 		'nonce'  => wp_create_nonce('twcp_tracking'),

@@ -58,7 +58,8 @@ function twcp_term_query(array $args): array
 
 
 /**
- * Format a term object with full metadata and ACF blocks
+ * Format a term object with full metadata. Modules add theirs with the twcp_term_format filter, such as page builder
+ * blocks.
  *
  * @param WP_Term $term
  * @param string  $taxonomy
@@ -68,9 +69,8 @@ function twcp_term_query(array $args): array
 function twcp_term_format(WP_Term $term, string $taxonomy): array
 {
 	$thumb_id = get_term_meta($term->term_id, 'thumbnail_id', true);
-	$blocks = twcp_post_blocks($term->term_id, 'term');
 
-	return [
+	return (array) apply_filters('twcp_term_format', [
 		'id'          => $term->term_id,
 		'name'        => $term->name,
 		'slug'        => $term->slug,
@@ -89,8 +89,7 @@ function twcp_term_format(WP_Term $term, string $taxonomy): array
 			'description'   => get_term_meta($term->term_id, 'rank_math_description', true) ? : '',
 			'focus_keyword' => twcp_focus_keywords($term->term_id, 'term'),
 		],
-		'blocks'      => $blocks ? twcp_block_format_list($blocks) : [],  // Only the blocks module finds blocks
-	];
+	], $term);
 }
 
 
@@ -219,6 +218,24 @@ function twcp_term_assign(array $args): array
 		'terms'     => array_values($final_ids),
 		'mode_used' => $mode,
 	];
+}
+
+
+/**
+ * Whether the current user can add terms to the taxonomy the create_term tool names
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_term_create_access(array $input): ?string
+{
+	$taxonomy = get_taxonomy($input['taxonomy'] ?? '');
+	if (!$taxonomy) {
+		return 'Unknown taxonomy.';
+	}
+
+	return current_user_can($taxonomy->cap->manage_terms) ? null : 'You cannot create these terms.';
 }
 
 

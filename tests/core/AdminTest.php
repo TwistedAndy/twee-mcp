@@ -80,13 +80,13 @@ class AdminTest extends TWCP_TestCase {
 	 */
 	public function test_modules_can_be_switched_off(): void
 	{
-		$this->assertSame(['activity', 'blocks', 'images', 'woo'], array_keys(twcp_modules_found()));
+		$this->assertSame(['activity', 'blocks', 'images', 'woo', 'sample'], array_keys(twcp_modules_found()));
 		$this->assertSame('WooCommerce', twcp_modules_found()['woo']['name']);
 		$this->assertSame(['woo'], twcp_admin_sanitize_modules(['woo' => '0', 'blocks' => '1', 'wp' => '0', 'nope' => '0']));
 		$this->assertSame(['images'], twcp_admin_sanitize_modules(['images', 'wp']));
 
 		update_option('twcp_disabled_modules', ['woo']);
-		$this->assertStringContainsString('3 of 4 Modules Enabled', twcp_template('modules', twcp_admin_data('modules')));
+		$this->assertStringContainsString('4 of 5 Modules Enabled', twcp_template('modules', twcp_admin_data('modules')));
 		delete_option('twcp_disabled_modules');
 	}
 

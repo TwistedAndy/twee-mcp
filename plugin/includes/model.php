@@ -1346,24 +1346,6 @@ function twcp_prompt_groups(): array
 			'description' => __('Added to the start of every system prompt, so describe the business once here. It is cached with the prompts by OpenAI and Anthropic, so a long context costs full price only on the first request of a batch.', 'twee-mcp'),
 			'position'    => 10,
 		],
-		'content' => [
-			'label'       => __('Posts & Pages', 'twee-mcp'),
-			'description' => __('Excerpts, full articles, similar posts, and SEO tags for posts, pages, and custom post types.', 'twee-mcp'),
-			'position'    => 20,
-			'section'     => 'content',
-		],
-		'terms'   => [
-			'label'       => __('Categories & Tags', 'twee-mcp'),
-			'description' => __('SEO tags for category, tag, brand, and other taxonomy archives.', 'twee-mcp'),
-			'position'    => 30,
-			'section'     => 'content',
-		],
-		'media'   => [
-			'label'       => __('Images', 'twee-mcp'),
-			'description' => __('Alt text written by the vision model.', 'twee-mcp'),
-			'position'    => 40,
-			'section'     => 'media',
-		],
 	]));
 }
 
@@ -1377,7 +1359,7 @@ function twcp_prompt_groups(): array
 function twcp_prompt_registry(): array
 {
 	return (array) apply_filters('twcp_prompt_registry', [
-		'twcp_general_context'             => [
+		'twcp_general_context' => [
 			'group'       => 'context',
 			'label'       => __('Store Profile & Website Context', 'twee-mcp'),
 			'description' => __('What the website or store does, its audience, products, and value proposition.', 'twee-mcp'),
@@ -1385,85 +1367,13 @@ function twcp_prompt_registry(): array
 			'used_by'     => [__('Every prompt', 'twee-mcp'), 'get_schema'],
 			'rows'        => 4,
 		],
-		'twcp_target_keywords'             => [
+		'twcp_target_keywords' => [
 			'group'       => 'context',
 			'label'       => __('Target Keywords', 'twee-mcp'),
 			'description' => __('Search phrases the site wants to rank for, one per line, most important first. Generated text works them in where they fit the item; leave empty to skip.', 'twee-mcp'),
 			'default'     => '__return_empty_string',
 			'used_by'     => [__('Every prompt', 'twee-mcp'), 'get_schema'],
 			'rows'        => 4,
-		],
-		'twcp_system_prompt_post_excerpt'  => [
-			'group'       => 'content',
-			'label'       => __('Post Excerpt', 'twee-mcp'),
-			'description' => __('Short 1 to 2 sentence summaries saved as the post excerpt.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_excerpt_default',
-			'used_by'     => [__('Batch: Post excerpts', 'twee-mcp'), __('Bulk actions', 'twee-mcp'), 'create_similar_post'],
-			'rows'        => 5,
-		],
-		'twcp_system_prompt_post_content'  => [
-			'group'       => 'content',
-			'label'       => __('Post Full Content', 'twee-mcp'),
-			'description' => __('Complete HTML articles with headings, lists, and tables for empty posts.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_content_default',
-			'used_by'     => [__('Batch: Post content', 'twee-mcp'), __('Bulk actions', 'twee-mcp'), 'create_similar_post'],
-			'rows'        => 6,
-		],
-		'twcp_system_prompt_post_similar'  => [
-			'group'       => 'content',
-			'label'       => __('Similar Post', 'twee-mcp'),
-			'description' => __('New posts on adjacent topics: title, excerpt, content, image keywords, and SEO tags.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_similar_default',
-			'used_by'     => ['create_similar_post', __('Bulk actions', 'twee-mcp')],
-			'rows'        => 6,
-		],
-		'twcp_system_prompt_seo'           => [
-			'group'       => 'content',
-			'label'       => __('Post & Page SEO', 'twee-mcp'),
-			'description' => __('SEO titles of 50 to 60 characters and meta descriptions of 120 to 155 characters, saved for Rank Math and Yoast SEO.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_seo_default',
-			'used_by'     => [__('Batch: SEO tags', 'twee-mcp'), __('Bulk actions', 'twee-mcp'), 'create_similar_post'],
-			'rows'        => 5,
-		],
-		'twcp_system_prompt_term_seo'      => [
-			'group'       => 'terms',
-			'label'       => __('Taxonomy Archive SEO', 'twee-mcp'),
-			'description' => __('SEO titles and meta descriptions for category, brand, and tag archives.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_term_default',
-			'used_by'     => [__('Batch: Term SEO', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
-			'rows'        => 5,
-		],
-		'twcp_system_prompt_term_description' => [
-			'group'       => 'terms',
-			'label'       => __('Taxonomy Archive Description', 'twee-mcp'),
-			'description' => __('Short introductions shown on category, tag, and brand archives.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_term_description_default',
-			'used_by'     => [__('Batch: Term descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
-			'rows'        => 5,
-		],
-		'twcp_system_prompt_term_content'  => [
-			'group'       => 'terms',
-			'label'       => __('Taxonomy Archive Full Description', 'twee-mcp'),
-			'description' => __('Longer archive descriptions with headings and a list, saved to an ACF term field.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_term_content_default',
-			'used_by'     => [__('Batch: Full term descriptions', 'twee-mcp')],
-			'rows'        => 6,
-		],
-		'twcp_system_prompt_term_faq'      => [
-			'group'       => 'terms',
-			'label'       => __('Taxonomy Archive FAQ', 'twee-mcp'),
-			'description' => __('Questions and answers for archives, saved to an ACF term repeater.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_term_faq_default',
-			'used_by'     => [__('Batch: Term FAQs', 'twee-mcp')],
-			'rows'        => 6,
-		],
-		'twcp_system_prompt_media_alt'     => [
-			'group'       => 'media',
-			'label'       => __('Image Alt Text', 'twee-mcp'),
-			'description' => __('Accessibility and image SEO guidelines for describing photos in 8 to 20 words.', 'twee-mcp'),
-			'default'     => 'twcp_prompt_alt_default',
-			'used_by'     => [__('Batch: Image Alt text', 'twee-mcp'), 'check_media_alt_text', __('Bulk actions', 'twee-mcp')],
-			'rows'        => 5,
 		],
 	]);
 }
@@ -1517,6 +1427,37 @@ function twcp_site_name(): string
 
 
 /**
+ * The categories and items that tell what the site is about, and a line on what it does. Modules change them with the
+ * twcp_site_catalog filter, such as a store whose products tell more than its posts.
+ *
+ * @return array [ taxonomy, post_type, items: plural name of the post type, about: a line on the business or empty ]
+ */
+function twcp_site_catalog(): array
+{
+	return (array) apply_filters('twcp_site_catalog', ['taxonomy' => 'category', 'post_type' => 'post', 'items' => 'posts', 'about' => '']);
+}
+
+
+/**
+ * What the site says about itself, for the profile the model writes. Modules add theirs with the twcp_site_facts
+ * filter, such as the text of the home page.
+ *
+ * @return string[]
+ */
+function twcp_site_facts(): array
+{
+	$facts = ['Name: ' . twcp_site_name()];
+
+	$tagline = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	if ($tagline) {
+		$facts[] = 'Tagline: ' . $tagline;
+	}
+
+	return (array) apply_filters('twcp_site_facts', $facts);
+}
+
+
+/**
  * Default store context based on the website name, tagline, and catalog
  *
  * Replace it in the Shared Context of the Automation screen with a real description of the business: audience, offer, tone, and words to avoid.
@@ -1528,12 +1469,13 @@ function twcp_general_context_default(): string
 	$site_name = twcp_site_name();
 	$site_desc = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-	$categories = get_terms(['taxonomy' => class_exists('WooCommerce') ? 'product_cat' : 'category', 'number' => 8, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
+	$catalog = twcp_site_catalog();
+	$categories = get_terms(['taxonomy' => $catalog['taxonomy'], 'number' => 8, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
 	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
 
 	$lines = [$site_desc ? "{$site_name}: {$site_desc}." : "{$site_name} is a website at " . home_url('/') . '.'];
-	if (class_exists('WooCommerce')) {
-		$lines[] = 'It sells products in an online store built on WooCommerce.';
+	if ($catalog['about'] !== '') {
+		$lines[] = $catalog['about'];
 	}
 	if ($categories) {
 		$lines[] = 'Main topics and categories: ' . implode(', ', $categories) . '.';
@@ -1553,30 +1495,19 @@ function twcp_general_context_default(): string
  */
 function twcp_general_context_generate(): string
 {
-	$facts = ['Name: ' . twcp_site_name()];
+	$catalog = twcp_site_catalog();
+	$facts = twcp_site_facts();
 
-	$tagline = html_entity_decode((string) get_bloginfo('description'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-	if ($tagline) {
-		$facts[] = 'Tagline: ' . $tagline;
-	}
-
-	$front = get_option('show_on_front') === 'page' ? twcp_post_context((int) get_option('page_on_front')) : null;
-	if ($front) {
-		$text = trim(preg_replace('/\s+/', ' ', $front['blocks_text'] . ' ' . $front['content']));
-		$facts[] = 'Home page: ' . $front['title'] . ($text ? ' - ' . mb_substr($text, 0, 1500) : '');
-	}
-
-	$store = class_exists('WooCommerce');
-	$categories = get_terms(['taxonomy' => $store ? 'product_cat' : 'category', 'number' => 12, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
+	$categories = get_terms(['taxonomy' => $catalog['taxonomy'], 'number' => 12, 'orderby' => 'count', 'order' => 'DESC', 'hide_empty' => true, 'fields' => 'names']);
 	$categories = is_array($categories) ? array_diff($categories, ['Uncategorized', __('Uncategorized')]) : [];
 	if ($categories) {
 		$facts[] = 'Main categories: ' . implode(', ', $categories);
 	}
 
-	$recent = get_posts(['post_type' => $store ? 'product' : 'post', 'posts_per_page' => 12, 'fields' => 'ids']);
+	$recent = get_posts(['post_type' => $catalog['post_type'], 'posts_per_page' => 12, 'fields' => 'ids']);
 	if ($recent) {
 		$titles = array_map(fn($id) => html_entity_decode(get_the_title($id), ENT_QUOTES | ENT_HTML5, 'UTF-8'), $recent);
-		$facts[] = ($store ? 'Recent products: ' : 'Recent posts: ') . implode('; ', $titles);
+		$facts[] = 'Recent ' . $catalog['items'] . ': ' . implode('; ', $titles);
 	}
 
 	$prompt = 'Create a short description of the website ' . home_url('/') . ' in 5 to 6 sentences, as general context for an AI that writes its content: what the site is, what it does or sells, and who it is for.' . "\n\n";

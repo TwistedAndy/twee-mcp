@@ -4,24 +4,15 @@
  *
  * Link settings of generated post content, shown in the Content Automation section.
  *
- * @var array $post_links [ max, sources ]
- * @var bool  $woo_active
+ * @var array $post_links   [ max, sources ]
+ * @var array $link_sources Source => label, see twcp_post_link_sources()
  *
  * @package Twee_MCP
  */
 
 defined('ABSPATH') or exit;
 
-$link_sources = [
-	'terms'    => __('The post\'s categories and tags', 'twee-mcp'),
-	'posts'    => __('Related posts in the same categories', 'twee-mcp'),
-	'pages'    => __('Top-level pages', 'twee-mcp'),
-	'products' => __('Store categories with the most products', 'twee-mcp'),
-	'lookup'   => __('Also allow links to posts and terms the model finds with its lookups', 'twee-mcp'),
-];
-if (!$woo_active) {
-	unset($link_sources['products']);
-}
+$link_sources['lookup'] = __('Also allow links to posts and terms the model finds with its lookups', 'twee-mcp');
 ?>
 
 <details class="prompt post_links">

@@ -1542,10 +1542,20 @@ add_filter('twcp_post_blocks', function(array $blocks, int $id, string $meta_typ
 
 
 /**
+ * Page builder blocks of terms in the replies of the term tools
+ */
+add_filter('twcp_term_format', function(array $data, WP_Term $term): array {
+	$data['blocks'] = twcp_block_format_list(twcp_post_blocks($term->term_id, 'term'));
+
+	return $data;
+}, 10, 2);
+
+
+/**
  * Load the block description generator on the Blocks tab
  */
 add_action('admin_enqueue_scripts', function() {
 	if (sanitize_key($_GET['page'] ?? '') === twcp_admin_slug('blocks')) {
-		wp_enqueue_script('twcp_blocks', plugins_url('blocks.js', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/blocks.js'), true);
+		wp_enqueue_script('twcp_blocks', twcp_module_url(__DIR__ . '/blocks.js'), ['twcp_mcp'], (string) filemtime(__DIR__ . '/blocks.js'), true);
 	}
 });

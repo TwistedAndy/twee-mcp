@@ -4,12 +4,10 @@
  *
  * Content and shop managers see what needs attention and the batch jobs their role can run.
  *
- * @var array  $overview         [ label, count, url ] items that need attention
+ * @var array  $overview         Item => [ label, count, url ] that needs attention
  * @var array  $sections         Section => [ label, description, position ]
  * @var array  $batch_cards      Section => batch cards
- * @var bool   $rank_math_active
- * @var bool   $yoast_active
- * @var bool   $woo_active
+ * @var array  $plugins          Names of the SEO plugins and the plugins of the modules that are running
  * @var bool   $can_manage       Whether the user can set up the AI provider
  * @var string $model_missing    Why AI generation cannot run yet, empty when it can
  * @var string $model_url
@@ -64,18 +62,18 @@ $prompts = $prompt_groups ? array_merge(...array_values(array_column($prompt_gro
 		<div class="header">
 			<h2 class="heading"><?php echo esc_html__('Needs Attention', 'twee-mcp'); ?></h2>
 			<div class="badges">
-				<?php if ($rank_math_active) { ?><span class="badge badge_success">Rank Math</span><?php } ?>
-				<?php if ($yoast_active) { ?><span class="badge badge_success">Yoast SEO</span><?php } ?>
-				<?php if ($woo_active) { ?><span class="badge badge_success">WooCommerce</span><?php } ?>
+				<?php foreach ($plugins as $plugin) { ?>
+					<span class="badge badge_success"><?php echo esc_html($plugin); ?></span>
+				<?php } ?>
 			</div>
 		</div>
 		<div class="overview">
-			<?php foreach ($overview as [$label, $count, $url]) {
-				$tag = $url ? 'a' : 'div';
+			<?php foreach ($overview as $item) {
+				$tag = $item['url'] ? 'a' : 'div';
 				?>
-				<<?php echo $tag; ?> class="overview_item <?php echo $count ? 'overview_item_active' : ''; ?>" <?php echo $url ? 'href="' . esc_url($url) . '"' : ''; ?>>
-					<span class="overview_count"><?php echo esc_html(number_format_i18n($count)); ?></span>
-					<span class="overview_label"><?php echo esc_html($label); ?></span>
+				<<?php echo $tag; ?> class="overview_item <?php echo $item['count'] ? 'overview_item_active' : ''; ?>" <?php echo $item['url'] ? 'href="' . esc_url($item['url']) . '"' : ''; ?>>
+					<span class="overview_count"><?php echo esc_html(number_format_i18n($item['count'])); ?></span>
+					<span class="overview_label"><?php echo esc_html($item['label']); ?></span>
 				</<?php echo $tag; ?>>
 			<?php } ?>
 		</div>

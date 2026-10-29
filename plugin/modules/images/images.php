@@ -320,7 +320,7 @@ function twcp_image_ajax_import(): void
 /**
  * Import a stock photo as the featured image of a post when the Media Library has none
  */
-add_filter('twcp_post_featured_image', function(int $image_id, string $query, WP_Post $post): int {
+add_filter('twcp_post_assign_image', function(int $image_id, string $query, WP_Post $post): int {
 	if ($image_id) {
 		return $image_id;
 	}
@@ -359,6 +359,6 @@ add_action('admin_enqueue_scripts', function() {
 		return;
 	}
 
-	wp_enqueue_style('twcp_images', plugins_url('images.css', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.css'));
-	wp_enqueue_script('twcp_images', plugins_url('images.js', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.js'), true);
+	wp_enqueue_style('twcp_images', twcp_module_url(__DIR__ . '/images.css'), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.css'));
+	wp_enqueue_script('twcp_images', twcp_module_url(__DIR__ . '/images.js'), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.js'), true);
 });

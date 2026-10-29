@@ -25,7 +25,7 @@ add_filter('twcp_modules', function(array $modules): array {
 /**
  * Add the WP Activity Log tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
+add_filter('twcp_tools_groups', function(array $groups): array {
 	$range = [
 		'date_from' => ['type' => 'string', 'description' => 'Start date YYYY-MM-DD (default 30 days ago).'],
 		'date_to'   => ['type' => 'string', 'description' => 'End date YYYY-MM-DD (default today).'],
@@ -33,12 +33,12 @@ add_filter('twcp_tools', function(array $groups): array {
 		'user'      => ['type' => 'string', 'description' => 'Only this user: ID, login, email, or display name. Overrides role.'],
 	];
 
-	$groups[] = [
-		'group'  => 'activity',
-		'label'  => __('Activity Log', 'twee-mcp'),
-		'module' => 'activity',
-		'hint'   => 'For staff activity from WP Activity Log, start with get_activity_summary for the items each user published, the price updates, time spent, and items edited, and get_brand_activity to group that work by brand, category, collection, or another taxonomy. Published items are the main measure of output. Once tracked_minutes is above 0, prefer it over the estimated active time. Drill into one person with get_user_activity, one product or material with get_item_history, and logins with get_login_activity. For anything else, list events with get_activity_events (action price_changed or terms_changed, for example), using get_activity_event_types to find event IDs.',
-		'tools'  => [
+	$groups['activity'] = [
+		'label'    => __('Activity Log', 'twee-mcp'),
+		'position' => 100,
+		'module'   => 'activity',
+		'hint'     => 'For staff activity from WP Activity Log, start with get_activity_summary for the items each user published, the price updates, time spent, and items edited, and get_brand_activity to group that work by brand, category, collection, or another taxonomy. Published items are the main measure of output. Once tracked_minutes is above 0, prefer it over the estimated active time. Drill into one person with get_user_activity, one product or material with get_item_history, and logins with get_login_activity. For anything else, list events with get_activity_events (action price_changed or terms_changed, for example), using get_activity_event_types to find event IDs.',
+		'tools'    => [
 			'get_activity_summary' => [
 				'description' => 'Summarize staff activity from WP Activity Log for a date range, one row per user: active days, sessions, estimated active time, and for each post type (products, materials, pages...) how many items they opened, edited, created, published, trashed and saved, plus term changes, media uploads, and logins.',
 				'callable'    => 'twcp_activity_summary',
@@ -129,4 +129,4 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 100);
+});

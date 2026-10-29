@@ -233,7 +233,7 @@ class PostTest extends TWCP_TestCase {
 	 */
 	public function test_post_links_setting(): void
 	{
-		twcp_admin_init();
+		twcp_post_admin_init();
 		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
 		$this->assertSame('edit_others_posts', apply_filters('option_page_capability_twcp_content_group', 'manage_options'));
 

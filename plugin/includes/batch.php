@@ -7,10 +7,9 @@
  * - Real-time activity log showing processed items, titles, and generated results
  * - WordPress list-table bulk actions for posts, products, terms, and media
  *
- * Batch types of the core: post excerpts, content, SEO tags, featured images and categories, term SEO tags,
- * descriptions, full descriptions and FAQs, and image Alt text. Modules add their own jobs with the
- * twcp_batch_types filter, such as product copy and cross-sells, or ACF block descriptions, and their sections of
- * the Automation screen with the twcp_batch_sections filter.
+ * The core runs the jobs; modules add them with the twcp_batch_types filter, such as the post, term, and image jobs
+ * of the wp module, product copy and cross-sells, or ACF block descriptions, and their sections of the Automation
+ * screen with the twcp_batch_sections filter.
  *
  * @package Twee_MCP
  */
@@ -47,137 +46,31 @@ function twcp_batch_taxonomies(): array
 
 
 /**
- * Batch type registry. Every job names its card on the Automation screen (title, description, button, section) and
- * "run", the function that fills one item: function(int $id, bool $override) returning whether it worked, the new
- * text, or [ success, message ]. Jobs with "terms" run over taxonomy terms instead of posts, and their scope is a
- * taxonomy instead of a post type. Jobs with "text" write that text, so they can refine it or rewrite only poor
- * values. Jobs with "acf" write to an ACF term field chosen on the card.
+ * Batch type registry, added by modules with the twcp_batch_types filter. Every job names its card on the Automation
+ * screen (title, description, button, section) and "run", the function that fills one item: function(int $id,
+ * bool $override) returning whether it worked, the new text, or [ success, message ]. Jobs with "terms" run over
+ * taxonomy terms instead of posts, and their scope is a taxonomy instead of a post type. Jobs with "text" write that
+ * text, so they can refine it or rewrite only poor values; the others can fill empty items or redo all of them, with
+ * "redo" naming that mode, or set to false for a job that only fills.
  *
- * A job of posts names the field it fills as "post:field" or "meta:key", and its post type if it has one; without
- * one, its card offers the post types, or those listed in "scopes". The plugin takes the rest from them, see
- * twcp_batch_defaults(). A job can set any of those itself: "slice", "cost" [ model requests, tokens ] of one item,
- * "capability", "unit", "fields" it may change for Undo, "args" with the WP_Query arguments of its items, or "query"
- * and "total" for items that are not posts, "current" with the text it would replace, and "restored" run after Undo.
- * A job lists the system "prompts" it runs with, whose editors its card shows. A job with "combine" sends the model
- * requests of a slice as one request, see twcp_batch_combine(). Modules add jobs with the twcp_batch_types filter.
+ * A job names the field it fills: "post:field" or "meta:key" for posts, and "term:description" or "term_meta:key" for
+ * terms. A term job with "targets", a function returning the ACF term fields it can fill (field key => [ key, name,
+ * label, taxonomies ]), fills the one chosen on its card. A job of posts can name its post type; without one, its card offers the post types,
+ * or those listed in "scopes". The plugin takes the rest from them, see twcp_batch_defaults(). A job can set any of
+ * those itself: "slice", "cost" [ model requests, tokens ] of one item, "capability", "unit", "fields" it may change for
+ * Undo, or a function of the item returning them, "args", function(bool $override, array $types) returning the
+ * WP_Query or get_terms arguments of its items in the post types or taxonomies of its scope, or "query" and "total" for
+ * items that are not posts, "current" with the text it would replace, and "restored" run after Undo. A job lists the
+ * system "prompts" it runs with, whose editors its card shows. A job with "combine" sends the model requests of a slice
+ * as one request, see twcp_batch_combine().
  *
  * @return array Type => job
  */
 function twcp_batch_types(): array
 {
-	// System prompts, page context, and replies make up most of the tokens of a cost; images and lookups add to them
-	$types = [
-		'post_excerpt'     => [
-			'title'       => __('Short Excerpts', 'twee-mcp'),
-			'description' => __('Writes 1 to 2 sentence excerpts for items without one.', 'twee-mcp'),
-			'button'      => __('Generate Excerpts', 'twee-mcp'),
-			'field'       => 'post:post_excerpt',
-			'run'         => 'twcp_post_generate_excerpt',
-			'prompts'     => ['twcp_system_prompt_post_excerpt'],
-			'text'        => 'excerpt',
-			'combine'     => true,
-			'cost'        => [1, 2500],
-		],
-		'post_content'     => [
-			'title'       => __('Full Content', 'twee-mcp'),
-			'description' => __('Writes complete HTML articles for empty posts.', 'twee-mcp'),
-			'button'      => __('Generate Content', 'twee-mcp'),
-			'field'       => 'post:post_content',
-			'run'         => 'twcp_post_generate_content',
-			'prompts'     => ['twcp_system_prompt_post_content'],
-			'text'        => 'article content',
-			'slice'       => 3,
-			'cost'        => [1, 7000],
-		],
-		'seo'              => [
-			'title'       => __('SEO Titles & Meta Descriptions', 'twee-mcp'),
-			'description' => __('Saves SEO tags for Rank Math and Yoast SEO.', 'twee-mcp'),
-			'button'      => __('Generate SEO Tags', 'twee-mcp'),
-			'run'         => 'twcp_batch_run_seo',
-			'prompts'     => ['twcp_system_prompt_seo'],
-			'combine'     => true,
-			'text'        => 'SEO title (50 to 60 characters) and meta description (120 to 155 characters)',
-			'cost'        => [1, 3000],
-		],
-		'featured_images'  => [
-			'title'       => __('Featured Images', 'twee-mcp'),
-			'description' => __('Picks a matching Media Library image, or imports a stock photo, for items without a featured image.', 'twee-mcp'),
-			'button'      => __('Assign Images', 'twee-mcp'),
-			'run'         => 'twcp_batch_run_featured',
-			'slice'       => 3,
-		],
-		'categories'       => [
-			'title'       => __('Categories', 'twee-mcp'),
-			'description' => __('Moves posts and products out of the default category into 1 to 3 matching ones.', 'twee-mcp'),
-			'button'      => __('Assign Categories', 'twee-mcp'),
-			'scopes'      => ['all', 'post', 'product'],
-			'run'         => 'twcp_batch_run_categories',
-		],
-		'term_seo'         => [
-			'title'       => __('Category & Tag SEO', 'twee-mcp'),
-			'description' => __('Saves SEO tags for category, tag, and brand archives.', 'twee-mcp'),
-			'button'      => __('Generate SEO Tags', 'twee-mcp'),
-			'terms'       => true,
-			'run'         => 'twcp_batch_run_term_seo',
-			'prompts'     => ['twcp_system_prompt_term_seo'],
-			'combine'     => true,
-			'text'        => 'archive SEO title and description',
-			'cost'        => [1, 2500],
-		],
-		'term_description' => [
-			'title'       => __('Category & Tag Descriptions', 'twee-mcp'),
-			'description' => __('Writes the short introductions shown on category, tag, and brand archives.', 'twee-mcp'),
-			'button'      => __('Generate Descriptions', 'twee-mcp'),
-			'terms'       => true,
-			'run'         => 'twcp_batch_run_term_description',
-			'prompts'     => ['twcp_system_prompt_term_description'],
-			'text'        => 'archive description (1 to 3 sentences)',
-		],
-		'alts'             => [
-			'title'       => __('Image Alt Text', 'twee-mcp'),
-			'description' => __('Describes images without Alt text using the vision model.', 'twee-mcp'),
-			'button'      => __('Generate Alt Text', 'twee-mcp'),
-			'section'     => 'media',
-			'post_type'   => 'attachment',
-			'unit'        => __('Images', 'twee-mcp'),
-			'run'         => 'twcp_media_generate_alt',
-			'prompts'     => ['twcp_system_prompt_media_alt'],
-			'capability'  => 'upload_files',
-			'text'        => 'image Alt text (8 to 20 words)',
-		],
-	];
-
-	if (twcp_term_acf_fields('content')) {
-		$types['term_content'] = [
-			'title'       => __('Full Term Descriptions', 'twee-mcp'),
-			'description' => __('Writes longer archive descriptions with headings and a list into the chosen term field.', 'twee-mcp'),
-			'button'      => __('Generate Full Descriptions', 'twee-mcp'),
-			'terms'       => true,
-			'acf'         => 'content',
-			'run'         => 'twcp_batch_run_term_content',
-			'prompts'     => ['twcp_system_prompt_term_content'],
-			'text'        => 'archive full description',
-			'slice'       => 3,
-			'cost'        => [1, 5000],
-		];
-	}
-	if (twcp_term_acf_fields('faq')) {
-		$types['term_faq'] = [
-			'title'       => __('Term FAQs', 'twee-mcp'),
-			'description' => __('Writes 4 to 6 questions and answers into the chosen term repeater.', 'twee-mcp'),
-			'button'      => __('Generate FAQs', 'twee-mcp'),
-			'terms'       => true,
-			'acf'         => 'faq',
-			'run'         => 'twcp_batch_run_term_faq',
-			'prompts'     => ['twcp_system_prompt_term_faq'],
-			'text'        => 'archive FAQ',
-			'slice'       => 3,
-			'cost'        => [1, 4000],
-		];
-	}
-
-	foreach ((array) apply_filters('twcp_batch_types', $types) as $type => $job) {
-		$types[$type] = $job + twcp_batch_defaults($job);
+	$types = [];
+	foreach ((array) apply_filters('twcp_batch_types', []) as $type => $job) {
+		$types[$type] = $job + twcp_batch_defaults($job, $type);
 	}
 
 	return $types;
@@ -185,15 +78,15 @@ function twcp_batch_types(): array
 
 
 /**
- * What a job leaves out, taken from its post type and the field it fills. Without "override", it fills the published
- * items whose field is empty; with it, all published items. A job without a post type fills the one chosen on its
- * card, or all of them.
+ * What a job leaves out, taken from its post type and the field it fills. Without "override", it fills the items
+ * whose field is empty; with it, all of them. Post jobs fill published posts.
  *
- * @param array $job
+ * @param array  $job
+ * @param string $type
  *
  * @return array [ section, slice, capability, cost, unit, fields, args, current ]
  */
-function twcp_batch_defaults(array $job): array
+function twcp_batch_defaults(array $job, string $type): array
 {
 	$defaults = ['section' => 'content', 'slice' => 5, 'capability' => 'edit_others_posts', 'cost' => [1, 2000]];
 
@@ -202,33 +95,63 @@ function twcp_batch_defaults(array $job): array
 		$defaults['capability'] = $post_type->cap->edit_others_posts;
 		$defaults['unit'] = $post_type->labels->name;
 	}
-	if (empty($job['field'])) {
+	if (empty($job['field']) and empty($job['targets'])) {
 		return $defaults;
 	}
 
-	[$kind, $key] = explode(':', $job['field'], 2);
-	$defaults['fields'] = [$job['field']];
-	$defaults['args'] = function(bool $override, string $scope = 'all') use ($post_type, $kind, $key): array {
-		$post_types = $post_type ? [$post_type->name] : ($scope !== 'all' ? [$scope] : array_keys(twcp_batch_post_types()));
-		if (!$post_types) {
-			return [];
+	// The field of a job with targets is the ACF field chosen on its card: [ kind, key, meta key ]
+	$field = function() use ($job, $type): array {
+		if (isset($job['targets'])) {
+			$target = twcp_batch_field($type);
+
+			return ['acf', $target['key'] ?? '', $target['name'] ?? ''];
+		}
+		[$kind, $key] = explode(':', $job['field'], 2);
+
+		return [$kind, $key, $key];
+	};
+
+	$defaults['fields'] = isset($job['targets']) ? function() use ($type): array {
+		return ['acf:' . (twcp_batch_field($type)['key'] ?? '')];
+	} : [$job['field']];
+
+	$defaults['args'] = function(bool $override, array $types) use ($job, $field): array {
+		global $wpdb;
+
+		$args = !empty($job['terms']) ? ['taxonomy' => $types, 'hide_empty' => false] : ['post_type' => $types, 'post_status' => 'publish'];
+		[$kind, , $name] = $field();
+		if ($override) {
+			return $args;
 		}
 
-		$args = ['post_type' => $post_types, 'post_status' => 'publish'];
-		if (!$override and $kind === 'post') {
-			$args['twcp_empty'] = $key;
-		} elseif (!$override) {
+		if ($kind === 'post') {
+			$args['twcp_empty'] = $name;
+		} elseif ($kind === 'term') {
+			// Descriptions are kept in term_taxonomy, which get_terms cannot filter by
+			$in = implode(',', array_fill(0, count($types), '%s'));
+			$args['include'] = array_map('intval', $wpdb->get_col($wpdb->prepare("SELECT term_id FROM {$wpdb->term_taxonomy} WHERE description = '' AND taxonomy IN ({$in})", ...$types))) ? : [0];
+		} else {
+			// Missing, empty, an empty list, or the row count of an empty ACF repeater
 			$args['meta_query'] = [
 				'relation' => 'OR',
-				['key' => $key, 'compare' => 'NOT EXISTS'],
-				['key' => $key, 'value' => ['', 'a:0:{}'], 'compare' => 'IN'],
+				['key' => $name, 'compare' => 'NOT EXISTS'],
+				['key' => $name, 'value' => $kind === 'acf' ? ['', 'a:0:{}', '0'] : ['', 'a:0:{}'], 'compare' => 'IN'],
 			];
 		}
 
 		return $args;
 	};
-	$defaults['current'] = function(int $id) use ($kind, $key): string {
-		$value = $kind === 'post' ? get_post_field($key, $id, 'raw') : get_post_meta($id, $key, true);
+
+	$defaults['current'] = function(int $id) use ($field): string {
+		[$kind, $key] = $field();
+		$value = twcp_batch_value($kind . ':' . $key, $id);
+
+		// Rows of an ACF repeater are lists of subfields
+		if (is_array($value)) {
+			$value = implode("\n", array_map(function($row): string {
+				return implode(' ', (array) $row);
+			}, $value));
+		}
 
 		return is_scalar($value) ? mb_substr(trim(wp_strip_all_tags((string) $value)), 0, 1200) : '';
 	};
@@ -255,10 +178,9 @@ function twcp_batch_modes(string $type): array
 		];
 	}
 
-	return [
-		'fill' => __('Fill empty', 'twee-mcp'),
-		'all'  => $type === 'categories' ? __('Reclassify all', 'twee-mcp') : __('Redo all', 'twee-mcp'),
-	];
+	$redo = twcp_batch_types()[$type]['redo'] ?? __('Redo all', 'twee-mcp');
+
+	return $redo === false ? ['fill' => __('Fill empty', 'twee-mcp')] : ['fill' => __('Fill empty', 'twee-mcp'), 'all' => $redo];
 }
 
 
@@ -288,28 +210,6 @@ function twcp_batch_mode(string $type, $mode): string
  */
 function twcp_batch_current(string $type, int $id): string
 {
-	switch ($type) {
-		case 'seo':
-			$title = get_post_meta($id, 'rank_math_title', true) ? : get_post_meta($id, '_yoast_wpseo_title', true);
-			$desc = get_post_meta($id, 'rank_math_description', true) ? : get_post_meta($id, '_yoast_wpseo_metadesc', true);
-
-			return trim(($title ? 'Title: ' . $title : '') . ($desc ? "\n" . 'Description: ' . $desc : ''));
-		case 'term_seo':
-			$title = get_term_meta($id, 'rank_math_title', true);
-			$desc = get_term_meta($id, 'rank_math_description', true);
-
-			return trim(($title ? 'Title: ' . $title : '') . ($desc ? "\n" . 'Description: ' . $desc : ''));
-		case 'term_description':
-			return trim(wp_strip_all_tags((string) get_term_field('description', $id)));
-		case 'term_content':
-		case 'term_faq':
-			$value = get_field(twcp_batch_field($type)['key'] ?? '', 'term_' . $id, false);
-
-			return mb_substr(trim(wp_strip_all_tags(is_array($value) ? implode("\n", array_map(fn($row) => implode(' ', (array) $row), $value)) : (string) $value)), 0, 1200);
-		case 'alts':
-			return trim((string) get_post_meta($id, '_wp_attachment_image_alt', true));
-	}
-
 	$job = twcp_batch_types()[$type] ?? [];
 
 	return isset($job['current']) ? (string) call_user_func($job['current'], $id) : '';
@@ -332,15 +232,13 @@ function twcp_batch_audit(string $type, array $items): ?array
 
 	$job = twcp_batch_types()[$type];
 	$label = $job['text'];
-	$terms = !empty($job['terms']);
 
 	$prompt = "Review the current {$label} of each item below and decide whether it is poor and should be rewritten.\n";
 	$prompt .= "Poor: generic or placeholder text, a filename or code, keyword stuffing, broken grammar, a different language than the site, unrelated to the item, or far from the expected length.\n";
 	$prompt .= "Acceptable: accurate, readable, and specific to the item, even if it could be polished.\n\n";
 
 	foreach ($items as $id => $text) {
-		$name = $terms ? (get_term($id)->name ?? '') : get_the_title($id);
-		$prompt .= "ID: {$id}\nItem: {$name}\nCurrent:\n{$text}\n\n";
+		$prompt .= 'ID: ' . $id . "\nItem: " . twcp_batch_name($type, $id) . "\nCurrent:\n{$text}\n\n";
 	}
 
 	$prompt .= 'Return strictly a JSON object that maps every ID to true when it needs a rewrite and false when it is acceptable, e.g. {"12": true, "15": false}. No markdown.';
@@ -417,27 +315,44 @@ function twcp_batch_combine(array $job, array $ids, bool $override): void
  */
 function twcp_batch_fields(string $type, int $id): array
 {
-	switch ($type) {
-		case 'seo':
-			return ['meta:rank_math_title', 'meta:rank_math_description', 'meta:_yoast_wpseo_title', 'meta:_yoast_wpseo_metadesc', 'post:post_excerpt'];
-		case 'featured_images':
-			return ['meta:_thumbnail_id'];
-		case 'categories':
-			return ['terms:' . (get_post_type($id) === 'product' ? 'product_cat' : 'category')];
-		case 'alts':
-			return ['meta:_wp_attachment_image_alt'];
-		case 'term_seo':
-			$term = get_term($id);
+	$fields = twcp_batch_types()[$type]['fields'] ?? [];
 
-			return ['term_meta:rank_math_title', 'term_meta:rank_math_description', 'yoast_term:' . ($term->taxonomy ?? ''), 'term:description'];
-		case 'term_description':
-			return ['term:description'];
-		case 'term_content':
-		case 'term_faq':
-			return ['acf:' . (twcp_batch_field($type)['key'] ?? '')];
+	return $fields instanceof Closure ? $fields($id) : (array) $fields;
+}
+
+
+/**
+ * Value of a field of an item, as twcp_batch_fields() names it
+ *
+ * @param string $field
+ * @param int    $id
+ *
+ * @return mixed Null when a meta key does not exist
+ */
+function twcp_batch_value(string $field, int $id)
+{
+	[$kind, $key] = explode(':', $field, 2);
+
+	switch ($kind) {
+		case 'post':
+			return (string) get_post_field($key, $id, 'raw');
+		case 'term':
+			return (string) get_term_field($key, $id, '', 'raw');
+		case 'acf':
+			return metadata_exists('term', $id, '_' . (acf_get_field($key)['name'] ?? '')) ? get_field($key, 'term_' . $id, false) : null;
+		case 'meta':
+			return metadata_exists('post', $id, $key) ? get_post_meta($id, $key, true) : null;
+		case 'term_meta':
+			return metadata_exists('term', $id, $key) ? get_term_meta($id, $key, true) : null;
+		case 'terms':
+			$terms = wp_get_object_terms($id, $key, ['fields' => 'ids']);
+
+			return is_array($terms) ? array_map('intval', $terms) : [];
+		case 'yoast_term':
+			return get_option('wpseo_taxonomy_meta', [])[$key][$id] ?? null;
 	}
 
-	return (array) (twcp_batch_types()[$type]['fields'] ?? []);
+	return null;
 }
 
 
@@ -452,26 +367,8 @@ function twcp_batch_fields(string $type, int $id): array
 function twcp_batch_snapshot(string $type, int $id): array
 {
 	$snapshot = [];
-
 	foreach (twcp_batch_fields($type, $id) as $field) {
-		[$kind, $key] = explode(':', $field, 2);
-
-		if ($kind === 'post') {
-			$snapshot[$field] = (string) get_post_field($key, $id, 'raw');
-		} elseif ($kind === 'term') {
-			$snapshot[$field] = (string) get_term_field($key, $id, '', 'raw');
-		} elseif ($kind === 'acf') {
-			$snapshot[$field] = metadata_exists('term', $id, '_' . (acf_get_field($key)['name'] ?? '')) ? get_field($key, 'term_' . $id, false) : null;
-		} elseif ($kind === 'meta') {
-			$snapshot[$field] = metadata_exists('post', $id, $key) ? get_post_meta($id, $key, true) : null;
-		} elseif ($kind === 'term_meta') {
-			$snapshot[$field] = metadata_exists('term', $id, $key) ? get_term_meta($id, $key, true) : null;
-		} elseif ($kind === 'terms') {
-			$terms = wp_get_object_terms($id, $key, ['fields' => 'ids']);
-			$snapshot[$field] = is_array($terms) ? array_map('intval', $terms) : [];
-		} elseif ($kind === 'yoast_term') {
-			$snapshot[$field] = get_option('wpseo_taxonomy_meta', [])[$key][$id] ?? null;
-		}
+		$snapshot[$field] = twcp_batch_value($field, $id);
 	}
 
 	return $snapshot;
@@ -570,47 +467,6 @@ function twcp_batch_undo(string $type): int
 
 
 /**
- * Helper to run a batch item callback and format log messages consistently
- *
- * @param int           $id
- * @param string        $label
- * @param callable      $callback
- * @param bool          $override
- * @param callable|null $detail
- *
- * @return array
- */
-function twcp_batch_run_item(int $id, string $label, callable $callback, bool $override = false, ?callable $detail = null): array
-{
-	$title = get_the_title($id) ?: ('#' . $id);
-	$result = call_user_func($callback, $id, $override);
-	$ok = is_string($result) ? ($result !== '') : (bool) $result;
-
-	if ($ok) {
-		$extra = '';
-		if ($detail !== null) {
-			$d = call_user_func($detail, $id, $result);
-			if ($d) {
-				$extra = sprintf(' ("%s")', mb_strimwidth($d, 0, 50, '...'));
-			}
-		} elseif (is_string($result) && $result !== '') {
-			$extra = sprintf(': "%s"', mb_strimwidth($result, 0, 80, '...'));
-		}
-
-		return [
-			'success' => true,
-			'message' => sprintf(__('Generated %s for "%s"%s', 'twee-mcp'), $label, $title, $extra),
-		];
-	}
-
-	return [
-		'success' => false,
-		'message' => sprintf(__('Failed to generate %s for "%s" (ID: %d).', 'twee-mcp'), $label, $title, $id),
-	];
-}
-
-
-/**
  * Log entry for an item whose job function returned the new text, or only whether it worked
  *
  * @param string      $type
@@ -621,7 +477,7 @@ function twcp_batch_run_item(int $id, string $label, callable $callback, bool $o
  */
 function twcp_batch_result(string $type, int $id, $result): array
 {
-	$title = get_the_title($id) ? : '#' . $id;
+	$title = twcp_batch_name($type, $id);
 	if (is_string($result) ? $result === '' : !$result) {
 		return ['success' => false, 'message' => sprintf(__('Failed to update "%s" (ID: %d).', 'twee-mcp'), $title, $id)];
 	}
@@ -633,104 +489,18 @@ function twcp_batch_result(string $type, int $id, $result): array
 
 
 /**
- * Process a single post/page for SEO title and meta description with log output
+ * Name of an item of a batch job for its log
+ *
+ * @param string $type
+ * @param int    $id
+ *
+ * @return string
  */
-function twcp_batch_run_seo(int $id, bool $override = false): array
+function twcp_batch_name(string $type, int $id): string
 {
-	return twcp_batch_run_item($id, 'SEO Tags', 'twcp_post_generate_seo', $override, fn($pid) => get_post_meta($pid, 'rank_math_title', true) ?: get_post_meta($pid, '_yoast_wpseo_title', true) ?: '');
-}
+	$name = !empty(twcp_batch_types()[$type]['terms']) ? (get_term($id)->name ?? '') : get_the_title($id);
 
-
-/**
- * Process a single post for a featured image from the Media Library or stock providers
- */
-function twcp_batch_run_featured(int $id, bool $override = false): array
-{
-	return twcp_batch_run_item($id, 'featured image', fn(int $pid) => twcp_post_assign_image($pid) and has_post_thumbnail($pid), $override, fn($pid) => get_the_title(get_post_thumbnail_id($pid)));
-}
-
-
-/**
- * Process a single post or product still in the default category
- */
-function twcp_batch_run_categories(int $id, bool $override = false): array
-{
-	$taxonomy = get_post_type($id) === 'product' ? 'product_cat' : 'category';
-
-	return twcp_batch_run_item($id, 'categories', 'twcp_post_assign_categories', $override, fn($pid) => implode(', ', wp_get_post_terms($pid, $taxonomy, ['fields' => 'names'])));
-}
-
-
-/**
- * Process a single taxonomy term for archive SEO tags
- */
-function twcp_batch_run_term_seo(int $id, bool $override = false): array
-{
-	$term = get_term($id);
-	if (!$term or is_wp_error($term) or !current_user_can('edit_term', $id)) {
-		return ['success' => false, 'message' => sprintf(__('Term #%d is not available.', 'twee-mcp'), $id)];
-	}
-
-	if (twcp_term_generate_seo($id, $term->taxonomy, $override)) {
-		return ['success' => true, 'message' => sprintf(__('Generated SEO Tags for "%s" (%s): "%s"', 'twee-mcp'), $term->name, $term->taxonomy, mb_strimwidth((string) get_term_meta($id, 'rank_math_title', true), 0, 60, '...'))];
-	}
-
-	return ['success' => false, 'message' => sprintf(__('Failed to generate SEO Tags for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
-}
-
-
-/**
- * Process a single taxonomy term for its archive description
- */
-function twcp_batch_run_term_description(int $id, bool $override = false): array
-{
-	$term = get_term($id);
-	if (!$term or is_wp_error($term) or !current_user_can('edit_term', $id)) {
-		return ['success' => false, 'message' => sprintf(__('Term #%d is not available.', 'twee-mcp'), $id)];
-	}
-
-	if (twcp_term_generate_description($id, $term->taxonomy, $override)) {
-		return ['success' => true, 'message' => sprintf(__('Wrote a description for "%s" (%s): "%s"', 'twee-mcp'), $term->name, $term->taxonomy, mb_strimwidth((string) get_term_field('description', $id, '', 'raw'), 0, 60, '...'))];
-	}
-
-	return ['success' => false, 'message' => sprintf(__('Failed to write a description for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
-}
-
-
-/**
- * Process a single taxonomy term for the full description in an ACF field
- */
-function twcp_batch_run_term_content(int $id, bool $override = false): array
-{
-	$term = get_term($id);
-	if (!$term or is_wp_error($term) or !current_user_can('edit_term', $id)) {
-		return ['success' => false, 'message' => sprintf(__('Term #%d is not available.', 'twee-mcp'), $id)];
-	}
-
-	if (twcp_term_generate_content($id, twcp_batch_field('term_content')['key'] ?? '', $override)) {
-		return ['success' => true, 'message' => sprintf(__('Wrote a full description for "%s" (%s).', 'twee-mcp'), $term->name, $term->taxonomy)];
-	}
-
-	return ['success' => false, 'message' => sprintf(__('Failed to write a full description for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
-}
-
-
-/**
- * Process a single taxonomy term for the FAQ in an ACF repeater
- */
-function twcp_batch_run_term_faq(int $id, bool $override = false): array
-{
-	$term = get_term($id);
-	if (!$term or is_wp_error($term) or !current_user_can('edit_term', $id)) {
-		return ['success' => false, 'message' => sprintf(__('Term #%d is not available.', 'twee-mcp'), $id)];
-	}
-
-	$key = twcp_batch_field('term_faq')['key'] ?? '';
-	if (twcp_term_generate_faq($id, $key, $override)) {
-		return ['success' => true, 'message' => sprintf(__('Wrote %d questions for "%s" (%s).', 'twee-mcp'), count((array) get_field($key, 'term_' . $id, false)), $term->name, $term->taxonomy)];
-	}
-
-	return ['success' => false, 'message' => sprintf(__('Failed to write an FAQ for "%s" (ID: %d).', 'twee-mcp'), $term->name, $id)];
+	return $name !== '' ? $name : '#' . $id;
 }
 
 
@@ -750,138 +520,51 @@ add_filter('posts_where', function(string $where, WP_Query $query): string {
 
 
 /**
- * Base WP_Query arguments describing the item set of a batch type
+ * Post types or taxonomies a batch job runs over in the scope chosen on its card: its own post type, the one chosen,
+ * or all those the card offers. Term jobs with targets keep to the taxonomies of the chosen field.
  *
  * @param string $type
- * @param bool   $override
+ * @param string $scope Post type or taxonomy, or "all"
  *
- * @return array Empty when the type is unavailable
+ * @return string[]
  */
-function twcp_batch_args(string $type, bool $override = false, string $post_type = 'all'): array
+function twcp_batch_scope(string $type, string $scope = 'all'): array
 {
-	$post_types = ($post_type && $post_type !== 'all') ? [$post_type] : array_keys(twcp_batch_post_types());
-
-	switch ($type) {
-		case 'alts':
-			$args = [
-				'post_type'      => 'attachment',
-				'post_mime_type' => 'image',
-				'post_status'    => 'inherit',
-			];
-			if (!$override) {
-				$args['meta_query'] = [
-					'relation' => 'OR',
-					['key' => '_wp_attachment_image_alt', 'value' => '', 'compare' => '='],
-					['key' => '_wp_attachment_image_alt', 'compare' => 'NOT EXISTS'],
-				];
-			}
-
-			return $args;
-
-		case 'seo':
-			if (!$post_types) {
-				return [];
-			}
-			$args = [
-				'post_type'   => $post_types,
-				'post_status' => 'publish',
-			];
-			if (!$override) {
-				$args['meta_query'] = [
-					'relation' => 'AND',
-					[
-						'relation' => 'OR',
-						['key' => 'rank_math_title', 'value' => '', 'compare' => '='],
-						['key' => 'rank_math_title', 'compare' => 'NOT EXISTS'],
-					],
-					[
-						'relation' => 'OR',
-						['key' => '_yoast_wpseo_title', 'value' => '', 'compare' => '='],
-						['key' => '_yoast_wpseo_title', 'compare' => 'NOT EXISTS'],
-					],
-				];
-			}
-
-			return $args;
-
-		case 'featured_images':
-			$args = [
-				'post_type'   => array_values(array_filter($post_types, fn($type) => post_type_supports($type, 'thumbnail'))),
-				'post_status' => 'publish',
-				'meta_query'  => [['key' => '_thumbnail_id', 'compare' => 'NOT EXISTS']],
-			];
-
-			return $args['post_type'] ? $args : [];
-
-		case 'categories':
-			// Posts and products the assignment can classify, still in the default category unless overriding
-			$types = array_values(array_intersect($post_types, taxonomy_exists('product_cat') ? ['post', 'product'] : ['post']));
-			if (!$types) {
-				return [];
-			}
-			$args = ['post_type' => $types, 'post_status' => 'publish'];
-			if (!$override) {
-				$args['tax_query'] = ['relation' => 'OR'];
-				if (in_array('post', $types, true)) {
-					$args['tax_query'][] = ['taxonomy' => 'category', 'terms' => [(int) get_option('default_category')]];
-				}
-				if (in_array('product', $types, true)) {
-					$args['tax_query'][] = ['taxonomy' => 'product_cat', 'terms' => [(int) get_option('default_product_cat')]];
-				}
-			}
-
-			return $args;
-
-	}
-
 	$job = twcp_batch_types()[$type] ?? [];
 
-	return isset($job['args']) ? (array) call_user_func($job['args'], $override, $post_type) : [];
+	if (!empty($job['terms'])) {
+		$types = array_keys(twcp_batch_taxonomies());
+		if (isset($job['targets'])) {
+			$types = array_intersect($types, twcp_batch_field($type)['taxonomies'] ?? []);
+		}
+	} elseif (!empty($job['post_type'])) {
+		return [$job['post_type']];
+	} else {
+		$types = array_keys(twcp_batch_post_types());
+		if (isset($job['scopes'])) {
+			$types = array_intersect($types, $job['scopes']);
+		}
+	}
+
+	return array_values($scope === 'all' ? $types : array_intersect($types, [$scope]));
 }
 
 
 /**
- * get_terms arguments for term batches
+ * WP_Query or get_terms arguments describing the items of a batch job
  *
+ * @param string $type
  * @param bool   $override
- * @param string $taxonomy Taxonomy name or "all"
+ * @param string $scope Post type or taxonomy, or "all"
  *
- * @return array Empty when no taxonomy is available
+ * @return array Empty when the job has nothing to fill
  */
-function twcp_batch_term_args(bool $override, string $taxonomy = 'all', string $type = 'term_seo'): array
+function twcp_batch_args(string $type, bool $override = false, string $scope = 'all'): array
 {
-	global $wpdb;
+	$job = twcp_batch_types()[$type] ?? [];
+	$types = twcp_batch_scope($type, $scope);
 
-	$taxonomies = array_keys(twcp_batch_taxonomies());
-	if ($taxonomy !== 'all') {
-		$taxonomies = array_intersect($taxonomies, [$taxonomy]);
-	}
-	$field = !empty(twcp_batch_types()[$type]['acf']) ? twcp_batch_field($type) : null;
-	if ($field !== null) {
-		$taxonomies = array_intersect($taxonomies, $field['taxonomies'] ?? []);
-	}
-	if (!$taxonomies) {
-		return [];
-	}
-
-	$args = ['taxonomy' => array_values($taxonomies), 'hide_empty' => false];
-	if (!$override and $type === 'term_description') {
-		$in = implode(',', array_fill(0, count($taxonomies), '%s'));
-		$args['include'] = array_map('intval', $wpdb->get_col($wpdb->prepare("SELECT term_id FROM {$wpdb->term_taxonomy} WHERE description = '' AND taxonomy IN ({$in})", ...array_values($taxonomies)))) ? : [0];
-	} elseif (!$override) {
-		$key = $field ? $field['name'] : 'rank_math_title';
-		$args['meta_query'] = [
-			'relation' => 'OR',
-			['key' => $key, 'compare' => 'NOT EXISTS'],
-			['key' => $key, 'value' => ''],
-		];
-		// An empty ACF repeater stores its row count
-		if ($field) {
-			$args['meta_query'][] = ['key' => $key, 'value' => '0'];
-		}
-	}
-
-	return $args;
+	return ($types and isset($job['args'])) ? (array) call_user_func($job['args'], $override, $types) : [];
 }
 
 
@@ -902,7 +585,7 @@ function twcp_batch_query(string $type, int $offset, int $limit, bool $override 
 		return (array) call_user_func($job['query'], $offset, max(0, $limit), $override);
 	}
 	if (!empty($job['terms'])) {
-		$args = twcp_batch_term_args($override, $post_type, $type);
+		$args = twcp_batch_args($type, $override, $post_type);
 
 		return ($args and $limit > 0) ? array_map('intval', get_terms($args + ['fields' => 'ids', 'number' => $limit, 'offset' => $offset, 'orderby' => 'term_id'])) : [];
 	}
@@ -942,7 +625,7 @@ function twcp_batch_total(string $type, bool $override = false, string $post_typ
 		return (int) call_user_func($job['total'], $override);
 	}
 	if (!empty($job['terms'])) {
-		$args = twcp_batch_term_args($override, $post_type, $type);
+		$args = twcp_batch_args($type, $override, $post_type);
 		if (!$args) {
 			return 0;
 		}
@@ -971,16 +654,16 @@ function twcp_batch_total(string $type, bool $override = false, string $post_typ
 
 
 /**
- * ACF term field a batch job writes to: the one chosen on its card, or the first that fits
+ * Target field a batch job writes to: the one chosen on its card, or the first that fits
  *
  * @param string $type
  *
- * @return array Field from twcp_term_acf_fields(), empty for jobs without a field
+ * @return array Field from the targets of the job, empty for jobs without targets
  */
 function twcp_batch_field(string $type): array
 {
-	$kind = twcp_batch_types()[$type]['acf'] ?? '';
-	$fields = $kind ? twcp_term_acf_fields($kind) : [];
+	$targets = twcp_batch_types()[$type]['targets'] ?? null;
+	$fields = $targets ? (array) call_user_func($targets) : [];
 	$saved = get_option('twcp_batch_' . $type, [])['field'] ?? '';
 
 	return $fields[$saved] ?? (reset($fields) ? : []);
@@ -1002,7 +685,7 @@ function twcp_batch_blank(string $type): array
 		'mode'       => 'fill', // fill, refine, poor, all
 		'override'   => false,
 		'post_type'  => 'all',
-		'field'      => '', // ACF field key of jobs that write to a term field
+		'field'      => '', // Target field of jobs with targets
 		'offset'     => 0,
 		'total'      => 0,
 		'processed'  => 0,
@@ -1167,7 +850,7 @@ function twcp_batch_slice(string $type): array
 		$state['processed']++;
 
 		if (!in_array($id, $runs, true)) {
-			$name = !empty($job['terms']) ? (get_term($id)->name ?? '#' . $id) : (get_the_title($id) ? : '#' . $id);
+			$name = twcp_batch_name($type, $id);
 			$res = $poor === null
 				? ['success' => false, 'message' => sprintf(__('Could not check the quality of "%s" (ID: %d).', 'twee-mcp'), $name, $id)]
 				: ['success' => true, 'message' => sprintf(__('Kept "%s": the current text looks good.', 'twee-mcp'), $name)];
@@ -1410,7 +1093,7 @@ function twcp_batch_items(string $type, string $scope, string $mode, string $sea
 
 	foreach ($mode === 'fill' ? [false, true] : [true] as $all) {
 		if (!empty($job['terms'])) {
-			$args = twcp_batch_term_args($all, $scope, $type);
+			$args = twcp_batch_args($type, $all, $scope);
 			$terms = $args ? get_terms($args + ['number' => 30, 'search' => $search, 'orderby' => 'name', 'update_term_meta_cache' => false]) : [];
 			foreach (is_wp_error($terms) ? [] : $terms as $term) {
 				$items[] = ['id' => $term->term_id, 'label' => $term->name . ' (' . (get_taxonomy($term->taxonomy)->labels->singular_name ?? $term->taxonomy) . ')'];
@@ -1620,19 +1303,6 @@ function twcp_batch_sections(): array
 
 
 /**
- * Internal link settings in the Content Automation section
- */
-add_action('twcp_batch_section', function(string $section) {
-	if ($section === 'content') {
-		echo twcp_template('links', [
-			'post_links' => array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', [])),
-			'woo_active' => class_exists('WooCommerce'),
-		]);
-	}
-});
-
-
-/**
  * Cards of the batch jobs the current user can run, by section
  *
  * @return array Section => cards
@@ -1651,7 +1321,7 @@ function twcp_batch_cards(): array
 		$state = twcp_batch_state($type);
 		$unit = $job['unit'] ?? '';
 		$fields = [];
-		foreach (empty($job['acf']) ? [] : twcp_term_acf_fields($job['acf']) as $key => $field) {
+		foreach (isset($job['targets']) ? (array) call_user_func($job['targets']) : [] as $key => $field) {
 			$where = count($field['taxonomies']) > 2
 				? sprintf(__('%d taxonomies', 'twee-mcp'), count($field['taxonomies']))
 				: implode(', ', array_map(fn(string $taxonomy) => get_taxonomy($taxonomy)->labels->name, $field['taxonomies']));
@@ -1660,7 +1330,6 @@ function twcp_batch_cards(): array
 		$badge = $state['mode'] !== 'fill'
 			? ($unit ? sprintf(__('%d Total %s', 'twee-mcp'), $state['total'], $unit) : sprintf(__('%d Total', 'twee-mcp'), $state['total']))
 			: sprintf(__('%d Missing', 'twee-mcp'), max(0, $state['total'] - $state['success']));
-
 
 		// Jobs of terms choose a taxonomy, and jobs of posts without a post type of their own choose one
 		$scopes = [];
@@ -1678,7 +1347,7 @@ function twcp_batch_cards(): array
 			'scopes'      => $scopes,
 			'data'        => $state,
 			'badge'       => $badge,
-			'modes'       => $type === 'featured_images' ? [] : twcp_batch_modes($type),
+			'modes'       => count(twcp_batch_modes($type)) > 1 ? twcp_batch_modes($type) : [],
 			'cost'        => $job['cost'],
 			'combine'     => !empty($job['combine']),
 			'slice'       => $job['slice'],
@@ -1693,118 +1362,28 @@ function twcp_batch_cards(): array
 
 
 /**
- * Items that need attention, for the overview on the Automation screen. Modules add theirs with the
- * twcp_batch_overview filter.
+ * Items that need attention, for the overview on the Automation screen, added by modules with the twcp_batch_overview
+ * filter
  *
- * @return array[] [ label, count, url ]
+ * @return array Item => [ label, count, url ], url empty when there is no screen to open
  */
 function twcp_batch_overview(): array
 {
-	$items = [];
-
-	if (current_user_can('moderate_comments')) {
-		$items[] = [__('Comments awaiting moderation', 'twee-mcp'), (int) wp_count_comments()->moderated, admin_url('edit-comments.php?comment_status=moderated')];
-	}
-	if (current_user_can('edit_others_posts')) {
-		$items[] = [__('Drafts and pending posts', 'twee-mcp'), (int) wp_count_posts()->draft + (int) wp_count_posts()->pending, admin_url('edit.php?post_status=draft')];
-		$items[] = [__('Posts without SEO tags', 'twee-mcp'), twcp_batch_total('seo', false, 'post'), ''];
-	}
-	if (current_user_can('upload_files')) {
-		$items[] = [__('Images without Alt text', 'twee-mcp'), twcp_media_alt_count(), admin_url('upload.php?mode=list&orderby=twcp_alt&order=asc')];
-	}
-
-	return (array) apply_filters('twcp_batch_overview', $items);
+	return (array) apply_filters('twcp_batch_overview', []);
 }
 
 
 /**
- * WordPress list-table bulk actions per screen. Modules add theirs with the twcp_batch_actions filter.
+ * WordPress list-table bulk actions per screen, added by modules with the twcp_batch_actions filter. An action runs
+ * "run" on each selected item, which returns whether it worked; with "ids", run gets all of them at once and returns
+ * [ processed, skipped ]. A generate action names the batch "type" whose fields it fills, so items that already have
+ * them count as skipped.
  *
- * @return array Screen ID => [ action => [ label, callback, batch type of the fields a generate action skips when they are set ] ]
+ * @return array Screen ID => [ action => [ label, run, type, ids ] ]
  */
 function twcp_batch_actions(): array
 {
-	$seo_gen = __('Generate SEO Tags', 'twee-mcp');
-	$seo_regen = __('Regenerate SEO Tags', 'twee-mcp');
-	$screens = [];
-
-	$screens['upload']['twcp_alt_check'] = [
-		__('Check Alt Text', 'twee-mcp'),
-		fn(int $id) => (bool) twcp_media_check_batch([$id])
-	];
-	$screens['upload']['twcp_alt'] = [
-		__('Generate Alt Text', 'twee-mcp'),
-		fn(int $id) => (bool) twcp_media_generate_alt($id, false),
-		'alts',
-	];
-	$screens['upload']['twcp_alt_regen'] = [
-		__('Regenerate Alt Text', 'twee-mcp'),
-		fn(int $id) => (bool) twcp_media_generate_alt($id, true)
-	];
-
-	$all_post_types = array_unique(array_merge(get_post_types(['public' => true], 'names'), get_post_types(['show_ui' => true], 'names')));
-	$excluded = ['attachment', 'wp_block', 'wp_navigation', 'acf-field-group', 'acf-field', 'shop_order', 'shop_coupon', 'shop_order_placehold'];
-	$post_types = array_diff($all_post_types, $excluded);
-
-	foreach ($post_types as $post_type) {
-		$screen_id = 'edit-' . $post_type;
-
-		// Create Similar (duplicate & rewrite title, excerpt, content, select featured image, generate SEO)
-		$screens[$screen_id]['twcp_create_similar'] = [
-			__('Create Similar', 'twee-mcp'),
-			fn(int $id) => (bool) twcp_post_create_similar($id),
-		];
-
-		// SEO: Generate (if empty) vs Regenerate (always override)
-		$screens[$screen_id]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_post_generate_seo($id, false), 'seo'];
-		$screens[$screen_id]['twcp_seo_regen'] = [$seo_regen, fn(int $id) => twcp_post_generate_seo($id, true)];
-
-		// Featured Image
-		$screens[$screen_id]['twcp_featured_image'] = [
-			__('Assign Featured Image', 'twee-mcp'),
-			'twcp_post_assign_image',
-			'featured_images',
-		];
-
-		// Excerpt: Generate (if empty) vs Regenerate (override)
-		$screens[$screen_id]['twcp_excerpt'] = [
-			__('Generate Short Excerpt', 'twee-mcp'),
-			fn(int $id) => twcp_post_generate_excerpt($id, false),
-			'post_excerpt',
-		];
-		$screens[$screen_id]['twcp_excerpt_regen'] = [
-			__('Regenerate Short Excerpt', 'twee-mcp'),
-			fn(int $id) => twcp_post_generate_excerpt($id, true),
-		];
-
-		// Full Content: Generate (if empty) vs Regenerate (override)
-		$screens[$screen_id]['twcp_content'] = [
-			__('Generate Full Content', 'twee-mcp'),
-			fn(int $id) => twcp_post_generate_content($id, false),
-			'post_content',
-		];
-		$screens[$screen_id]['twcp_content_regen'] = [
-			__('Regenerate Full Content', 'twee-mcp'),
-			fn(int $id) => twcp_post_generate_content($id, true),
-		];
-
-		// Assign Categories (for Posts and Products)
-		if ($post_type === 'post' or ($post_type === 'product' and taxonomy_exists('product_cat'))) {
-			$screens[$screen_id]['twcp_categories'] = [
-				__('Assign Categories', 'twee-mcp'),
-				'twcp_post_assign_categories',
-			];
-		}
-	}
-
-	foreach (get_taxonomies(['public' => true], 'names') as $taxonomy) {
-		$screens['edit-' . $taxonomy]['twcp_seo'] = [$seo_gen, fn(int $id) => twcp_term_generate_seo($id, $taxonomy, false), 'term_seo'];
-		$screens['edit-' . $taxonomy]['twcp_seo_regen'] = [$seo_regen, fn(int $id) => twcp_term_generate_seo($id, $taxonomy, true)];
-		$screens['edit-' . $taxonomy]['twcp_description'] = [__('Generate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, false), 'term_description'];
-		$screens['edit-' . $taxonomy]['twcp_description_regen'] = [__('Regenerate Descriptions', 'twee-mcp'), fn(int $id) => twcp_term_generate_description($id, $taxonomy, true)];
-	}
-
-	return (array) apply_filters('twcp_batch_actions', $screens);
+	return (array) apply_filters('twcp_batch_actions', []);
 }
 
 
@@ -1824,7 +1403,7 @@ function twcp_batch_bulk(): void
 	foreach (twcp_batch_actions() as $screen => $actions) {
 		add_filter('bulk_actions-' . $screen, function($current) use ($actions) {
 			foreach ($actions as $action => $info) {
-				$current[$action] = $info[0];
+				$current[$action] = $info['label'];
 			}
 
 			return $current;
@@ -1840,37 +1419,29 @@ function twcp_batch_bulk(): void
 					return add_query_arg('twcp_model_missing', 1, $redirect_to);
 				}
 
-				if ($action === 'twcp_alt_check') {
-					$result = twcp_media_check_batch($item_ids);
-					$redirect_to = add_query_arg([
-						'twcp_alt_checked' => $result['checked'],
-						'twcp_alt_updated' => $result['updated'],
-					], $redirect_to);
-
-					return $redirect_to;
-				}
-
-				$processed = 0;
-				$skipped = 0;
-				foreach ($item_ids as $id) {
-					// Generate actions succeed without a change on items that already have the value
-					$before = isset($info[2]) ? twcp_batch_snapshot($info[2], (int) $id) : null;
-					if (!call_user_func($info[1], (int) $id)) {
-						continue;
-					}
-					if ($before !== null and $before === twcp_batch_snapshot($info[2], (int) $id)) {
-						$skipped++;
-					} else {
-						$processed++;
+				$ids = array_map('intval', $item_ids);
+				if (!empty($info['ids'])) {
+					$result = (array) call_user_func($info['run'], $ids);
+					$processed = (int) ($result['processed'] ?? 0);
+					$skipped = (int) ($result['skipped'] ?? 0);
+				} else {
+					$processed = 0;
+					$skipped = 0;
+					foreach ($ids as $id) {
+						// Generate actions succeed without a change on items that already have the value
+						$before = isset($info['type']) ? twcp_batch_snapshot($info['type'], $id) : null;
+						if (!call_user_func($info['run'], $id)) {
+							continue;
+						}
+						if ($before !== null and $before === twcp_batch_snapshot($info['type'], $id)) {
+							$skipped++;
+						} else {
+							$processed++;
+						}
 					}
 				}
 
-				$redirect_to = add_query_arg(['twcp_processed' => $processed, 'twcp_skipped' => $skipped, 'twcp_selected' => count($item_ids)], $redirect_to);
-				if ($action === 'twcp_create_similar') {
-					$redirect_to = add_query_arg('twcp_created_similar', $processed, $redirect_to);
-				}
-
-				return $redirect_to;
+				return add_query_arg(['twcp_processed' => $processed, 'twcp_skipped' => $skipped, 'twcp_selected' => count($ids)], $redirect_to);
 			}, 10, 3);
 		}
 	}
@@ -1881,34 +1452,6 @@ function twcp_batch_bulk(): void
 			?>
 			<div class="notice notice-error is-dismissible">
 				<p><?php echo esc_html(twcp_model_missing() ? : __('The AI model was not set up.', 'twee-mcp')); ?> <?php echo esc_html__('Nothing was processed. Add an API key or sign in with ChatGPT on the AI Tools > AI Provider screen.', 'twee-mcp'); ?></p>
-			</div>
-			<?php
-		});
-	} elseif (isset($_GET['twcp_alt_checked'])) {
-		add_action('admin_notices', function() {
-			$checked = (int) $_GET['twcp_alt_checked'];
-			$updated = (int) ($_GET['twcp_alt_updated'] ?? 0);
-			$kept = max(0, $checked - $updated);
-			?>
-			<div class="notice notice-success is-dismissible">
-				<p>
-					<?php
-					if ($updated > 0) {
-						echo sprintf(esc_html__('Alt Text audit complete: Checked %d image(s) &mdash; %d Alt text(s) regenerated due to poor quality, %d were already high quality.', 'twee-mcp'), $checked, $updated, $kept);
-					} else {
-						echo sprintf(esc_html__('Alt Text audit complete: Checked %d image(s) &mdash; all Alt texts were evaluated as high quality.', 'twee-mcp'), $checked);
-					}
-					?>
-				</p>
-			</div>
-			<?php
-		});
-	} elseif (isset($_GET['twcp_created_similar'])) {
-		add_action('admin_notices', function() {
-			$count = absint($_GET['twcp_created_similar']);
-			?>
-			<div class="notice notice-success is-dismissible">
-			<p><?php echo sprintf(esc_html(_n('Successfully created %d similar post as draft.', 'Successfully created %d similar posts as drafts.', $count, 'twee-mcp')), $count); ?></p>
 			</div>
 			<?php
 		});

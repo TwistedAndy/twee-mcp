@@ -267,6 +267,32 @@ function twcp_post_query(array $args): array
 
 
 /**
+ * Whether the current user can create a post of the type and status the create_post tool names
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_post_create_access(array $input): ?string
+{
+	return twcp_tools_access_create($input['post_type'] ?? 'post', $input['post_status'] ?? 'publish');
+}
+
+
+/**
+ * Whether the current user can trash the post the trash_post tool names
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_post_trash_access(array $input): ?string
+{
+	return twcp_tools_access_target($input, 'delete_post');
+}
+
+
+/**
  * Create a post, page, or registered custom post type.
  *
  * @param array $args Post fields.
@@ -963,6 +989,7 @@ PROMPT;
  * Approved internal links for generated post content, or generated HTML with unapproved links unwrapped
  *
  * The link sources and the maximum number of links are chosen in the Internal Links panel of the Automation screen.
+ * Modules add the links of their sources with the twcp_post_links filter.
  *
  * @param int         $post_id Post the content is written for, or the source of a similar post
  * @param string|null $html    Generated HTML to check
@@ -1014,15 +1041,7 @@ function twcp_post_links(int $post_id, ?string $html = null)
 			}
 		}
 
-		if (in_array('products', $sources, true) and class_exists('WooCommerce')) {
-			$categories = get_terms(['taxonomy' => 'product_cat', 'number' => 5, 'orderby' => 'count', 'order' => 'DESC', 'exclude' => [(int) get_option('default_product_cat')]]);
-			foreach (is_wp_error($categories) ? [] : $categories as $term) {
-				$link = get_term_link($term);
-				if (!is_wp_error($link)) {
-					$links[$link] = $term->name;
-				}
-			}
-		}
+		$links = (array) apply_filters('twcp_post_links', $links, $post, $sources);
 	}
 
 	$lookup = $settings['max'] > 0 && in_array('lookup', $sources, true);
@@ -1190,7 +1209,7 @@ function twcp_post_assign_image(int $post_id, ?string $search_query = null): boo
 	}
 
 	// 2. An image found by a module, such as a stock photo of the images module
-	$img_id = (int) apply_filters('twcp_post_featured_image', 0, $clean_title, $post);
+	$img_id = (int) apply_filters('twcp_post_assign_image', 0, $clean_title, $post);
 	if ($img_id) {
 		set_post_thumbnail($post_id, $img_id);
 		twcp_media_generate_alt($img_id, false);
@@ -1199,6 +1218,28 @@ function twcp_post_assign_image(int $post_id, ?string $search_query = null): boo
 	}
 
 	return false;
+}
+
+
+/**
+ * Category taxonomy of a post type: its first hierarchical taxonomy, such as category of posts. Modules name theirs with
+ * the twcp_post_category_taxonomy filter, such as product_cat of products.
+ *
+ * @param string $post_type
+ *
+ * @return string Empty when it has none
+ */
+function twcp_post_category_taxonomy(string $post_type): string
+{
+	$category = '';
+	foreach (get_object_taxonomies($post_type, 'objects') as $taxonomy) {
+		if ($taxonomy->hierarchical) {
+			$category = $taxonomy->name;
+			break;
+		}
+	}
+
+	return (string) apply_filters('twcp_post_category_taxonomy', $category, $post_type);
 }
 
 
@@ -1216,23 +1257,9 @@ function twcp_post_assign_categories(int $post_id): bool
 		return false;
 	}
 
-	// Identify primary hierarchical taxonomy
-	if ($post->post_type === 'product') {
-		$taxonomy = 'product_cat';
-	} elseif ($post->post_type === 'post') {
-		$taxonomy = 'category';
-	} else {
-		$taxonomies = get_object_taxonomies($post->post_type, 'objects');
-		$taxonomy = '';
-		foreach ($taxonomies as $t) {
-			if ($t->hierarchical) {
-				$taxonomy = $t->name;
-				break;
-			}
-		}
-		if (!$taxonomy) {
-			return false;
-		}
+	$taxonomy = twcp_post_category_taxonomy($post->post_type);
+	if (!$taxonomy) {
+		return false;
 	}
 
 	$terms = get_terms([

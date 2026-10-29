@@ -85,7 +85,7 @@ class ToolsTest extends TWCP_TestCase {
 		$this->assertSame(defined('ACF_PRO'), twcp_tools_groups()['blocks']['active']);
 		$this->assertSame('ACF Pro', twcp_tools_groups()['blocks']['plugin']);
 		$this->assertTrue(twcp_tools_groups()['content']['active']);
-		$this->assertSame(['activity', 'blocks', 'images', 'woo', 'wp'], array_keys(twcp_modules()));
+		$this->assertSame(['wp', 'activity', 'blocks', 'images', 'woo', 'sample'], array_keys(twcp_modules()));
 
 		add_filter('twcp_modules', function(array $modules): array {
 			$modules['blocks']['active'] = false;

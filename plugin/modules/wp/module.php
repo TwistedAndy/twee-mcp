@@ -14,6 +14,8 @@ require_once __DIR__ . '/comment.php';
 require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/site.php';
 require_once __DIR__ . '/search.php';
+require_once __DIR__ . '/automation.php';
+require_once __DIR__ . '/examples.php';
 
 
 /**
@@ -29,7 +31,7 @@ add_filter('twcp_modules', function(array $modules): array {
 /**
  * Add the post tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
+add_filter('twcp_tools_groups', function(array $groups): array {
 	$post_fields = [
 		'title'           => ['type' => 'string', 'description' => 'Post title.'],
 		'content'         => ['type' => 'string', 'description' => 'HTML body; supports native [gallery] shortcodes.'],
@@ -53,10 +55,10 @@ add_filter('twcp_tools', function(array $groups): array {
 		'meta'            => ['type' => 'object', 'description' => 'Editable custom metadata. Protected internals require dedicated tools.'],
 	];
 
-	$groups[] = [
-		'group' => 'content',
-		'label' => __('Content & Posts', 'twee-mcp'),
-		'tools' => [
+	$groups['content'] = [
+		'label'    => __('Content & Posts', 'twee-mcp'),
+		'position' => 10,
+		'tools'    => [
 			'get_posts'           => [
 				'description' => 'Query posts, pages, WooCommerce products, or custom post types. Provide "id" to get a single post with full content.',
 				'hint'        => 'Read posts, pages, and custom post types with get_posts.',
@@ -79,6 +81,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'description' => 'Create a post, page, or registered custom post type with title, content, thumbnail, taxonomies, SEO metadata, and custom meta. Prefer create_product for WooCommerce.',
 				'hint'        => 'Create and edit posts or custom post types with create_post and edit_post. Omitted fields are preserved.',
 				'callable'    => 'twcp_post_create',
+				'access'      => 'twcp_post_create_access',
 				'required'    => ['title'],
 				'parameters'  => [
 						'post_type' => [
@@ -99,6 +102,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'description' => 'Move an existing post, page, product, or custom post to WordPress Trash. Does not permanently delete content.',
 				'hint'        => 'trash_post moves content to recoverable WordPress Trash; it never permanently deletes content.',
 				'callable'    => 'twcp_post_trash',
+				'access'      => 'twcp_post_trash_access',
 				'required'    => ['id'],
 				'parameters'  => ['id' => ['type' => 'integer', 'minimum' => 1]],
 				'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
@@ -126,18 +130,18 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 10);
+});
 
 
 /**
  * Add the taxonomy term tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group' => 'terms',
-		'label' => __('Taxonomies', 'twee-mcp'),
-		'hint'  => 'Use get_terms, create_term, edit_term, and assign_terms to manage taxonomy terms. Assignments can replace, append, remove, or clear terms.',
-		'tools' => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['terms'] = [
+		'label'    => __('Taxonomies', 'twee-mcp'),
+		'position' => 20,
+		'hint'     => 'Use get_terms, create_term, edit_term, and assign_terms to manage taxonomy terms. Assignments can replace, append, remove, or clear terms.',
+		'tools'    => [
 			'get_terms'    => [
 				'description' => 'Get existing taxonomy terms (categories, tags, product categories) with search, post counts, and links.',
 				'callable'    => 'twcp_term_query',
@@ -154,6 +158,7 @@ add_filter('twcp_tools', function(array $groups): array {
 			'create_term'  => [
 				'description' => 'Create a new taxonomy term (e.g. category or product category), optionally with SEO metadata.',
 				'callable'    => 'twcp_term_create',
+				'access'      => 'twcp_term_create_access',
 				'required'    => ['taxonomy', 'name'],
 				'parameters'  => [
 					'taxonomy'        => ['type' => 'string', 'description' => 'Taxonomy name.'],
@@ -198,18 +203,18 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 20);
+});
 
 
 /**
  * Add the comment tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group' => 'comments',
-		'label' => __('Comments', 'twee-mcp'),
-		'hint'  => 'Moderate comments and product reviews with get_comments (status "hold" lists the queue), moderate_comment, and reply_comment.',
-		'tools' => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['comments'] = [
+		'label'    => __('Comments', 'twee-mcp'),
+		'position' => 30,
+		'hint'     => 'Moderate comments and product reviews with get_comments (status "hold" lists the queue), moderate_comment, and reply_comment.',
+		'tools'    => [
 			'get_comments'     => [
 				'description' => 'Read comments and WooCommerce product reviews for moderation: pending, approved, spam, or trashed, with author, date, content, and post. Filter by post, status, or keyword.',
 				'callable'    => 'twcp_comment_query',
@@ -249,17 +254,17 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 30);
+});
 
 
 /**
  * Add the Media Library tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group' => 'media',
-		'label' => __('Media Library', 'twee-mcp'),
-		'tools' => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['media'] = [
+		'label'    => __('Media Library', 'twee-mcp'),
+		'position' => 40,
+		'tools'    => [
 			'get_images'              => [
 				'description' => 'Browse and search media library images. Returns original dimensions (width, height, orientation, filesize), file extension (svg, png, jpg, webp), mime_type, is_vector flag, Alt text, and URLs. Pass an id, or details=true, for intermediate sizes and the HTML tag. Use type="svg" to find SVG icon masks or type="raster" for photos.',
 				'hint'        => 'Use get_images and edit_media for Media Library images. Lists are compact; pass an id for every size and the HTML tag.',
@@ -320,6 +325,7 @@ add_filter('twcp_tools', function(array $groups): array {
 			'assign_media_image'      => [
 				'description' => 'Assign an existing WordPress Media Library attachment to a WooCommerce product (featured or gallery), post/page (featured thumbnail or content), taxonomy term (category thumbnail), or ACF flexible content block.',
 				'callable'    => 'twcp_media_assign',
+				'access'      => 'twcp_media_assign_access',
 				'required'    => ['attachment_id', 'type', 'id'],
 				'parameters'  => [
 					'attachment_id' => ['type' => 'integer', 'description' => 'WordPress media attachment ID.'],
@@ -354,6 +360,7 @@ add_filter('twcp_tools', function(array $groups): array {
 			'import_media_image'      => [
 				'description' => 'Download an image from a URL or stock photo and import/sideload it directly into the WordPress Media Library with automatic responsive sizes, alt text, title, and attribution. Can optionally assign it immediately to a product, post, term, or block.',
 				'callable'    => 'twcp_media_import',
+				'access'      => 'twcp_media_import_access',
 				'required'    => ['url'],
 				'parameters'  => [
 					'url'        => ['type' => 'string', 'description' => 'Direct download URL of the remote raster image. SVG imports are not supported.'],
@@ -378,18 +385,18 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 40);
+});
 
 
 /**
  * Add the site and menu tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group' => 'site',
-		'label' => __('Site & Menus', 'twee-mcp'),
-		'hint'  => 'Read site settings with get_site_info. Manage navigation with get_menus, add_menu_item, and remove_menu_item.',
-		'tools' => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['site'] = [
+		'label'    => __('Site & Menus', 'twee-mcp'),
+		'position' => 70,
+		'hint'     => 'Read site settings with get_site_info. Manage navigation with get_menus, add_menu_item, and remove_menu_item.',
+		'tools'    => [
 			'get_site_info'    => [
 				'description' => 'Get general site settings: name, tagline, URLs, language, timezone, date format, permalink structure, front page and blog page, active theme, active plugins, and store currency.',
 				'callable'    => 'twcp_site_info',
@@ -449,20 +456,21 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 70);
+});
 
 
 /**
  * Add the public search and fetch tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group' => 'search',
-		'label' => __('Discovery & Search', 'twee-mcp'),
-		'tools' => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['search'] = [
+		'label'    => __('Discovery & Search', 'twee-mcp'),
+		'position' => 110,
+		'tools'    => [
 			'search' => [
 				'description' => 'Unified search across published posts, pages, products, and public taxonomy terms (ChatGPT connector compatible).',
 				'callable'    => 'twcp_search_query',
+				'public'      => true,
 				'required'    => ['query'],
 				'parameters'  => [
 					'query' => ['type' => 'string', 'description' => 'Search keyword.'],
@@ -472,6 +480,7 @@ add_filter('twcp_tools', function(array $groups): array {
 			'fetch'  => [
 				'description' => 'Fetch entity details by search ID, e.g. "post:123", "term:45", "image:67" (ChatGPT connector compatible).',
 				'callable'    => 'twcp_search_fetch',
+				'public'      => true,
 				'required'    => ['id'],
 				'parameters'  => [
 					'id' => ['type' => 'string', 'description' => 'Entity ID (post:ID, term:ID, image:ID).'],
@@ -482,4 +491,4 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 110);
+});

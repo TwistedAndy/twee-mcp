@@ -25,13 +25,13 @@ add_filter('twcp_modules', function(array $modules): array {
 /**
  * Add the ACF block tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group'  => 'blocks',
-		'label'  => __('ACF Blocks', 'twee-mcp'),
-		'module' => 'blocks',
-		'hint'   => 'Inspect get_block_types before using get_blocks, create_block, edit_block, or remove_block. Follow field formats and check warnings.',
-		'tools'  => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['blocks'] = [
+		'label'    => __('ACF Blocks', 'twee-mcp'),
+		'position' => 60,
+		'module'   => 'blocks',
+		'hint'     => 'Inspect get_block_types before using get_blocks, create_block, edit_block, or remove_block. Follow field formats and check warnings.',
+		'tools'    => [
 			'get_block_types'             => [
 				'description' => 'List ACF page builder layouts with label, description, preview URL, and the full typed field structure. Fields repeated across layouts (contents, settings, buttons) are listed once under "shared" and referenced as {"$ref": "shared.<name>"}. Every field has a "format" (plain text, HTML, ID, choice list), follow it exactly. "conventions" explains contents / settings / items, hand-picking posts and products (order=custom + items IDs), and media rules (icons = SVG masks, image/background = raster). Pass layout=<name> to get one fully resolved layout.',
 				'callable'    => 'twcp_block_catalog',
@@ -130,4 +130,4 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 60);
+});

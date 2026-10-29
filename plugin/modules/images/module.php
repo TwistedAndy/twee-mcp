@@ -29,14 +29,14 @@ add_filter('twcp_modules', function(array $modules): array {
 /**
  * Add the stock image tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
+add_filter('twcp_tools_groups', function(array $groups): array {
 	$providers = twcp_image_providers();
 
-	$groups[] = [
-		'group'  => 'images',
-		'label'  => __('Stock Images', 'twee-mcp'),
-		'module' => 'images',
-		'tools'  => [
+	$groups['images'] = [
+		'label'    => __('Stock Images', 'twee-mcp'),
+		'position' => 50,
+		'module'   => 'images',
+		'tools'    => [
 			'search_stock_images'  => [
 				'description' => 'Search free high-quality stock photos and graphics across ' . implode(', ', array_column($providers, 'name')) . '. Returns image metadata, dimensions, author credits, and download URLs.',
 				'hint'        => 'For external images, search_stock_images, preserve attribution, then use import_media_image and assign_media_image.',
@@ -61,4 +61,4 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 50);
+});

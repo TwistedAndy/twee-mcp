@@ -26,15 +26,15 @@ add_filter('twcp_modules', function(array $modules): array {
 /**
  * Add the WooCommerce product tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
+add_filter('twcp_tools_groups', function(array $groups): array {
 	$product_params = twcp_product_parameters();
 	$edit_params = array_diff_key($product_params, ['type' => 1]);
 
-	$groups[] = [
-		'group'  => 'products',
-		'label'  => __('WooCommerce Products', 'twee-mcp'),
-		'module' => 'woo',
-		'tools'  => [
+	$groups['products'] = [
+		'label'    => __('WooCommerce Products', 'twee-mcp'),
+		'position' => 80,
+		'module'   => 'woo',
+		'tools'    => [
 			'get_products'                       => [
 				'description' => 'Read WooCommerce products with prices, SKU, stock, attributes, terms, featured image, and gallery IDs. Provide "id" or "sku" for one product with its content. Filter by category or another taxonomy term, text, stock status, or low stock, and sort by price or sales. Variation prices come from get_product_variations.',
 				'hint'        => 'Read WooCommerce products with get_products.',
@@ -59,6 +59,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'description' => 'Create a WooCommerce product using its CRUD API, with prices, SKU, stock, attributes, categories, images, and SEO metadata. Defaults to draft.',
 				'hint'        => 'Use create_product and edit_product for WooCommerce prices, stock, SKUs, attributes, and images. New products start as drafts. For a variable product, add attributes with variation true, then set prices on its variations with save_product_variation. Use edit_product.gallery_image_ids for product galleries.',
 				'callable'    => 'twcp_product_create',
+				'access'      => 'twcp_product_create_access',
 				'required'    => ['name'],
 				'parameters'  => $product_params,
 				'annotations' => ['readOnlyHint' => false],
@@ -139,18 +140,18 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 80);
+});
 
 
 /**
  * Add the WooCommerce order and coupon tools to the MCP server
  */
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group'  => 'orders',
-		'label'  => __('WooCommerce Orders & Coupons', 'twee-mcp'),
-		'module' => 'woo',
-		'tools'  => [
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['orders'] = [
+		'label'    => __('WooCommerce Orders & Coupons', 'twee-mcp'),
+		'position' => 90,
+		'module'   => 'woo',
+		'tools'    => [
 			'get_orders'        => [
 				'description' => 'Read WooCommerce orders with status, totals, customer, line items, and payment method. Provide "id" to get one order with its notes. Filter by status, customer, or date range.',
 				'hint'        => 'Read orders with get_orders and change status or add notes with update_order. Customer notes are emailed to the customer.',
@@ -233,4 +234,4 @@ add_filter('twcp_tools', function(array $groups): array {
 	];
 
 	return $groups;
-}, 90);
+});

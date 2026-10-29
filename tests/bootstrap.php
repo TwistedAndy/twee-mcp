@@ -42,6 +42,22 @@ function _manually_load_plugin()
 tests_add_filter('muplugins_loaded', '_manually_load_plugin');
 
 /**
+ * Load the sample project module, which lives outside the plugin
+ */
+tests_add_filter('twcp_module_dirs', function(array $dirs): array {
+	$dirs[] = __DIR__ . '/modules';
+
+	return $dirs;
+});
+
+// ModulesTest runs the tests again with each module switched off
+if (getenv('TWCP_TESTS_MODULE_OFF')) {
+	tests_add_filter('pre_option_twcp_disabled_modules', function(): array {
+		return [getenv('TWCP_TESTS_MODULE_OFF')];
+	});
+}
+
+/**
  * Create the WooCommerce tables, pages, and roles in the test database.
  */
 function _manually_install_woocommerce()

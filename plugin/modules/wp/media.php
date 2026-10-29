@@ -791,6 +791,26 @@ function twcp_media_check_tool(array $args): array
 
 
 /**
+ * Whether the current user can upload the image the import_media_image tool names, and attach and assign it
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_media_import_access(array $input): ?string
+{
+	if (!current_user_can('upload_files')) {
+		return 'You cannot upload media.';
+	}
+	if (!empty($input['post_id']) and !current_user_can('edit_post', absint($input['post_id']))) {
+		return 'You cannot edit the parent post.';
+	}
+
+	return empty($input['assign_to']) ? null : twcp_media_assign_access((array) $input['assign_to']);
+}
+
+
+/**
  * Download remote image from URL and import into WordPress Media Library
  *
  * @param string|array $url_or_args
@@ -918,6 +938,19 @@ function twcp_media_import($url_or_args, array $meta = []): array
 	}
 
 	return $result;
+}
+
+
+/**
+ * Whether the current user can assign an image to the target the assign_media_image tool names
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_media_assign_access(array $input): ?string
+{
+	return current_user_can('upload_files') ? twcp_tools_access_target($input) : 'You cannot assign media.';
 }
 
 

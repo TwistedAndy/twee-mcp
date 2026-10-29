@@ -61,6 +61,7 @@ if (!defined('WP_PHP_BINARY')) {
 
 /*
  * Table Prefix
- * Must be defined to avoid warnings during test execution.
+ * Must be defined to avoid warnings during test execution. The runs of ModulesTest with a module switched off install
+ * tables of their own, as the main run holds its tables in a transaction.
  */
-$table_prefix = 'wptests_';
+$table_prefix = getenv('TWCP_TESTS_MODULE_OFF') ? 'wptests_off_' : 'wptests_';

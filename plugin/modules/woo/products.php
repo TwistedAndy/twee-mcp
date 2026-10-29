@@ -104,6 +104,19 @@ function twcp_product_query(array $args): array
 
 
 /**
+ * Whether the current user can create a product with the status the create_product tool names
+ *
+ * @param array $input
+ *
+ * @return string|null Error message, or null when allowed
+ */
+function twcp_product_create_access(array $input): ?string
+{
+	return twcp_tools_access_create('product', $input['status'] ?? 'draft');
+}
+
+
+/**
  * Create a simple WooCommerce product
  *
  * @param array $args
@@ -981,6 +994,11 @@ add_filter('twcp_batch_types', function(array $types): array {
 		return $types;
 	}
 
+	// Products move out of the default product category, like posts
+	if (isset($types['categories'])) {
+		$types['categories']['scopes'][] = 'product';
+	}
+
 	$types['products_short'] = [
 		'title'       => __('Short Product Descriptions', 'twee-mcp'),
 		'description' => __('Writes 120 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
@@ -1038,56 +1056,122 @@ add_filter('twcp_batch_overview', function(array $items): array {
 		};
 		$low = (int) get_option('woocommerce_notify_low_stock_amount', 2);
 
-		$items[] = [__('Products out of stock', 'twee-mcp'), $stock([['key' => '_stock_status', 'value' => 'outofstock']]), admin_url('edit.php?post_type=product&stock_status=outofstock')];
-		$items[] = [sprintf(__('Products with %d or fewer in stock', 'twee-mcp'), $low), $stock([['key' => '_manage_stock', 'value' => 'yes'], ['key' => '_stock', 'value' => $low, 'compare' => '<=', 'type' => 'NUMERIC'], ['key' => '_stock_status', 'value' => 'instock']]), admin_url('edit.php?post_type=product&stock_status=instock')];
-		$items[] = [__('Products without short descriptions', 'twee-mcp'), twcp_batch_total('products_short'), ''];
+		$items['out_of_stock'] = [
+			'label' => __('Products out of stock', 'twee-mcp'),
+			'count' => $stock([['key' => '_stock_status', 'value' => 'outofstock']]),
+			'url'   => admin_url('edit.php?post_type=product&stock_status=outofstock'),
+		];
+		$items['low_stock'] = [
+			'label' => sprintf(__('Products with %d or fewer in stock', 'twee-mcp'), $low),
+			'count' => $stock([['key' => '_manage_stock', 'value' => 'yes'], ['key' => '_stock', 'value' => $low, 'compare' => '<=', 'type' => 'NUMERIC'], ['key' => '_stock_status', 'value' => 'instock']]),
+			'url'   => admin_url('edit.php?post_type=product&stock_status=instock'),
+		];
+		$items['products_short'] = [
+			'label' => __('Products without short descriptions', 'twee-mcp'),
+			'count' => twcp_batch_total('products_short'),
+			'url'   => '',
+		];
 	}
 	if (twcp_product_active() and current_user_can('edit_shop_orders')) {
 		$hpos = class_exists('Automattic\WooCommerce\Utilities\OrderUtil') && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
-		$items[] = [__('Orders processing or on hold', 'twee-mcp'), (int) wc_orders_count('processing') + (int) wc_orders_count('on-hold'), admin_url($hpos ? 'admin.php?page=wc-orders&status=wc-processing' : 'edit.php?post_type=shop_order&post_status=wc-processing')];
+		$items['orders'] = [
+			'label' => __('Orders processing or on hold', 'twee-mcp'),
+			'count' => (int) wc_orders_count('processing') + (int) wc_orders_count('on-hold'),
+			'url'   => admin_url($hpos ? 'admin.php?page=wc-orders&status=wc-processing' : 'edit.php?post_type=shop_order&post_status=wc-processing'),
+		];
 	}
-
 
 	return $items;
 });
 
 
 /**
- * Product copy bulk actions on the Products screen
+ * Category and product copy bulk actions on the Products screen
  */
 add_filter('twcp_batch_actions', function(array $screens): array {
 	if (!twcp_product_active()) {
 		return $screens;
 	}
 
+	$screens['edit-product']['twcp_categories'] = [
+		'label' => __('Assign Categories', 'twee-mcp'),
+		'run'   => 'twcp_post_assign_categories',
+	];
 	$screens['edit-product']['twcp_short'] = [
-		__('Generate Short Product Descriptions', 'twee-mcp'),
-		function(int $id) {
-			return twcp_product_short($id, false);
-		},
-		'products_short',
+		'label' => __('Generate Short Product Descriptions', 'twee-mcp'),
+		'run'   => 'twcp_product_short',
+		'type'  => 'products_short',
 	];
 	$screens['edit-product']['twcp_short_regen'] = [
-		__('Regenerate Short Product Descriptions', 'twee-mcp'),
-		function(int $id) {
+		'label' => __('Regenerate Short Product Descriptions', 'twee-mcp'),
+		'run'   => function(int $id) {
 			return twcp_product_short($id, true);
 		},
 	];
 	$screens['edit-product']['twcp_full'] = [
-		__('Generate Full Product Descriptions', 'twee-mcp'),
-		function(int $id) {
-			return twcp_product_full($id, false);
-		},
-		'products',
+		'label' => __('Generate Full Product Descriptions', 'twee-mcp'),
+		'run'   => 'twcp_product_full',
+		'type'  => 'products',
 	];
 	$screens['edit-product']['twcp_full_regen'] = [
-		__('Regenerate Full Product Descriptions', 'twee-mcp'),
-		function(int $id) {
+		'label' => __('Regenerate Full Product Descriptions', 'twee-mcp'),
+		'run'   => function(int $id) {
 			return twcp_product_full($id, true);
 		},
 	];
 
 	return $screens;
+});
+
+
+/**
+ * Store categories with the most products as a source of internal links
+ */
+add_filter('twcp_post_link_sources', function(array $sources): array {
+	if (twcp_product_active()) {
+		$sources['products'] = __('Store categories with the most products', 'twee-mcp');
+	}
+
+	return $sources;
+});
+
+add_filter('twcp_post_links', function(array $links, WP_Post $post, array $sources): array {
+	if (in_array('products', $sources, true) and twcp_product_active()) {
+		$categories = get_terms(['taxonomy' => 'product_cat', 'number' => 5, 'orderby' => 'count', 'order' => 'DESC', 'exclude' => [(int) get_option('default_product_cat')]]);
+		foreach (is_wp_error($categories) ? [] : $categories as $term) {
+			$link = get_term_link($term);
+			if (!is_wp_error($link)) {
+				$links[$link] = $term->name;
+			}
+		}
+	}
+
+	return $links;
+}, 10, 3);
+
+
+/**
+ * Product categories, which come after the brands of WooCommerce
+ */
+add_filter('twcp_post_category_taxonomy', function(string $taxonomy, string $post_type): string {
+	return $post_type === 'product' ? 'product_cat' : $taxonomy;
+}, 10, 2);
+
+
+/**
+ * Products and their categories tell prompts what a store is about
+ */
+add_filter('twcp_site_catalog', function(array $catalog): array {
+	if (twcp_product_active()) {
+		$catalog = [
+			'taxonomy'  => 'product_cat',
+			'post_type' => 'product',
+			'items'     => 'products',
+			'about'     => 'It sells products in an online store built on WooCommerce.',
+		];
+	}
+
+	return $catalog;
 });
 
 

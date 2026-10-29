@@ -109,7 +109,7 @@ class BatchTest extends TWCP_TestCase {
 
 		update_term_meta($term, 'rank_math_title', 'Category title');
 		$this->assertSame($before, twcp_batch_total('term_seo', false, 'category'));
-		$this->assertSame([], twcp_batch_term_args(false, 'post_format'));
+		$this->assertSame([], twcp_batch_args('term_seo', false, 'post_format'));
 	}
 
 	/**
@@ -246,15 +246,15 @@ class BatchTest extends TWCP_TestCase {
 		self::factory()->post->create(['post_status' => 'draft']);
 		self::factory()->comment->create(['comment_post_ID' => self::factory()->post->create(), 'comment_approved' => '0']);
 
-		$items = array_column(twcp_batch_overview(), null, 0);
-		$this->assertGreaterThanOrEqual(1, $items['Drafts and pending posts'][1]);
-		$this->assertGreaterThanOrEqual(1, $items['Comments awaiting moderation'][1]);
-		$this->assertStringContainsString('comment_status=moderated', $items['Comments awaiting moderation'][2]);
+		$items = twcp_batch_overview();
+		$this->assertGreaterThanOrEqual(1, $items['drafts']['count']);
+		$this->assertGreaterThanOrEqual(1, $items['comments']['count']);
+		$this->assertStringContainsString('comment_status=moderated', $items['comments']['url']);
 
 		wp_set_current_user(self::factory()->user->create(['role' => 'author']));
-		$labels = array_column(twcp_batch_overview(), 0);
-		$this->assertNotContains('Drafts and pending posts', $labels);
-		$this->assertContains('Images without Alt text', $labels);
+		$items = twcp_batch_overview();
+		$this->assertArrayNotHasKey('drafts', $items);
+		$this->assertSame('Images without Alt text', $items['alts']['label']);
 	}
 
 
@@ -877,7 +877,7 @@ class BatchTest extends TWCP_TestCase {
 
 		$this->assertArrayHasKey('term_content', twcp_batch_types());
 		$this->assertSame('field_twcp_long', twcp_batch_state('term_content')['field']);
-		$this->assertSame([], twcp_batch_term_args(false, 'post_tag', 'term_content'));
+		$this->assertSame([], twcp_batch_args('term_content', false, 'post_tag'));
 
 		$before = twcp_batch_total('term_content', false, 'category');
 		$term = self::factory()->category->create();

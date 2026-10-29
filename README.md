@@ -178,7 +178,7 @@ The repository keeps the plugin apart from its tests, so the `plugin/` directory
 twee-mcp/
 ├── plugin/            The WordPress plugin
 │   ├── assets/        SCSS, compiled CSS, and JavaScript
-│   ├── includes/      Server, OAuth, models, batch jobs, admin, and the tool registry
+│   ├── includes/      Server, OAuth, models, the batch engine, admin, and the tool registry
 │   ├── modules/       Tools and integrations, one folder per module
 │   ├── parts/         Admin screen templates
 │   └── index.php      Plugin header and loader
@@ -188,47 +188,32 @@ twee-mcp/
 └── phpunit.xml
 ```
 
-### Adding Tools
-
-A module adds a group of tools with the `twcp_tools` filter in its `module.php`. Filters append their groups, and the entries of one `group` are merged, so a filter never replaces tools another filter added. The filter priority sets where the group appears on the Agent Tools screen. The `hint` is sent to AI clients once for the group, unless a tool sets its own:
-
-```php
-add_filter('twcp_tools', function(array $groups): array {
-	$groups[] = [
-		'group'  => 'reviews',
-		'label'  => __('Reviews', 'twee-mcp'),
-		'module' => 'reviews',  // Without its module or plugin, the group is left out and shown as unavailable
-		'hint'   => 'Read reviews with get_reviews.',
-		'tools'  => [
-			'get_reviews' => [
-				'description' => 'Read product reviews with their rating and author.',
-				'callable'    => 'my_reviews_query',
-				'parameters'  => ['product_id' => ['type' => 'integer', 'description' => 'Only reviews of this product.']],
-				'annotations' => ['readOnlyHint' => true],
-			],
-		],
-	];
-
-	return $groups;
-}, 85);
-```
-
-A tool can also set `capability`, which the user needs on top of `edit_posts`, `private` to keep it out of the plugin's own model lookups, and `required` for its required parameters.
-
 ### Modules
 
-Tools and integrations live in `plugin/modules/`, one folder each: `wp` (the base WordPress tools the other modules build on), `activity` (WP Activity Log), `blocks` (ACF Pro), `images` (stock photo providers), and `woo` (WooCommerce). The plugin loads the `module.php` of every folder, so a module other than `wp` can be added or removed without changing the rest of the plugin. `module.php` loads the other files of its module, registers the module, and adds its tools. Admin templates of a module go in its `parts/` folder.
+Tools and integrations live in modules, one folder each. The plugin ships `wp` (posts, terms, comments, media, the site, and search, with their batch jobs, prompts, and bulk actions), `activity` (WP Activity Log), `blocks` (ACF Pro), `images` (stock photo providers), and `woo` (WooCommerce) in `plugin/modules/`. The core runs the MCP server, OAuth, the model, the batch engine, and the admin screens, and takes everything else from the hooks of the modules, so it never calls a module's functions.
+
+A project keeps modules of its own outside the plugin, so updates leave them alone. A theme or plugin adds their folder with the `twcp_module_dirs` filter, which runs on `after_setup_theme`:
+
+```php
+add_filter('twcp_module_dirs', function(array $dirs): array {
+	$dirs[] = get_stylesheet_directory() . '/twcp-modules';
+
+	return $dirs;
+});
+```
+
+The plugin loads the `module.php` of every folder there and in `plugin/modules/`, `wp` first, as the others build on it. A module name keeps the first folder found with it. `module.php` loads the other files of its module, registers the module, and adds its tools; its admin templates go in its `parts/` folder, where `twcp_template()` finds them, and `twcp_module_url()` gives the URL of its scripts and styles.
 
 Modules other than `wp` can be switched off under Modules on the Agent Tools screen, or with the `twcp_disabled_modules` option, a list of module folders. A module that is switched off is not loaded, so its tools, settings, screens, and jobs are gone. The screen names each module from the `Module` and `Description` lines in the header of its `module.php`, which it reads without loading the module.
 
 ```
-modules/reviews/
+twcp-modules/reviews/
 ├── module.php     Loads reviews.php, registers the module, and adds its tools
 ├── reviews.php    The tool callables and the module's hooks
 └── parts/         Admin templates
 ```
 
-A module registers itself with the `twcp_modules` filter, naming the plugin it needs and whether that plugin is running:
+A module registers itself with the `twcp_modules` filter, naming the plugin it needs and whether that plugin is running. Its tool groups are available while it is active, and other modules check it with `twcp_module_active()`:
 
 ```php
 /**
@@ -245,13 +230,52 @@ add_filter('twcp_modules', function(array $modules): array {
 });
 ```
 
-Tool groups with that `module` are available while it is active. The core and the `wp` module check a module with `twcp_module_active()` and never call its functions directly. Modules add the rest with hooks:
+### Hooks
 
-- `twcp_admin_tabs` and `twcp_admin_data` - Tabs of the AI Tools menu, or parts of other tabs, and the data of their templates. A tab sets its `position` among the tabs of the plugin, which are at 10, 20, 40, 50, and 60; the Blocks tab of the `blocks` module is at 30 and the Images tab of the `images` module at 35. A module ships the scripts and styles of its tab in its own folder.
-- `twcp_batch_types`, `twcp_batch_sections`, `twcp_batch_overview`, and `twcp_batch_actions` - Batch jobs, sections of the Automation screen, overview items, and bulk actions. The `twcp_batch_section` action adds settings below the cards of a section, such as the Internal Links form under Content Automation. The sections of the plugin are at 10 (content) and 20 (media); the `woo` module adds Store Automation at 30 and the `blocks` module Site Setup at 40.
-- `twcp_prompt_groups`, `twcp_prompt_registry`, and the `twcp_prompt_fields` action - Prompt groups, prompts, and extra settings saved with a prompt. A prompt shows on the cards of the jobs that list it in `prompts`, or else in the `section` of its group; the shared context has no section and shows above the sections. Each prompt saves in its own form, so a setting a module shows with a prompt is registered in the settings group named after the prompt's option. Groups are at 10 (shared context), 20 (posts and pages), 30 (categories and tags), and 40 (images); the store group of the `woo` module is at 25.
-- `twcp_prompt_examples` - Groups of the copy-ready Agent Prompts on the Agent Access tab, at 10 (posts and pages) and 20 (categories and media); the store prompts of the `woo` module are at 30. The filter also gets the site name and URL for the prompt texts.
-- `twcp_media_assign`, `twcp_post_blocks`, and `twcp_post_featured_image` - Image targets of `assign_media_image`, page builder blocks of posts and terms, and featured images found outside the Media Library.
+A filter is named after the function that applies it, so `twcp_batch_types()` returns what the `twcp_batch_types` filter gives. Registries are keyed by name with named fields, and those shown in order set a `position`.
+
+- `twcp_module_dirs` and `twcp_modules` - Folders of project modules, and the modules with the plugin each needs.
+- `twcp_tools_groups` - Tool groups of the Agent Tools screen and the MCP server, see Adding Tools.
+- `twcp_admin_tabs` and `twcp_admin_data` - Tabs of the AI Tools menu, or parts of other tabs, and the data of their templates. The tabs of the plugin are at 10, 20, 40, 50, and 60; the Blocks tab of the `blocks` module is at 30 and the Images tab of the `images` module at 35.
+- `twcp_batch_types`, `twcp_batch_sections`, `twcp_batch_overview`, and `twcp_batch_actions` - Batch jobs, see Adding Batch Jobs, sections of the Automation screen, overview items `[label, count, url]`, and list-table bulk actions `[label, run, type, ids]` by screen ID. The `twcp_batch_section` action adds settings below the cards of a section, such as the Internal Links form of the `wp` module under Content Automation. The sections of the plugin are at 10 (content) and 20 (media); the `woo` module adds Store Automation at 30 and the `blocks` module Site Setup at 40.
+- `twcp_prompt_groups`, `twcp_prompt_registry`, and the `twcp_prompt_fields` action - Prompt groups, prompts, and extra settings saved with a prompt. A prompt shows on the cards of the jobs that list it in `prompts`, or else in the `section` of its group; the shared context of the plugin has no section and shows above the sections. Each prompt saves in its own form, so a setting a module shows with a prompt is registered in the settings group named after the prompt's option. Groups are at 10 (shared context), 20 (posts and pages), 30 (categories and tags), and 40 (images) of the `wp` module, and 25 (store) of the `woo` module.
+- `twcp_prompt_examples` - Groups of the copy-ready Agent Prompts on the Agent Access tab, at 10 (posts and pages) and 20 (categories and media) of the `wp` module, and 30 (store) of the `woo` module. The filter also gets the site name and URL for the prompt texts.
+- `twcp_site_catalog` and `twcp_site_facts` - The taxonomy and post type that tell prompts what the site is about, with a line on the business, and what the profile written for the shared context starts from. The `woo` module names products, and the `wp` module adds the home page.
+- `twcp_post_links` and `twcp_post_link_sources` - Approved internal links of generated content and the sources of the Internal Links panel, such as the store categories of the `woo` module.
+- `twcp_post_category_taxonomy`, `twcp_post_blocks`, `twcp_post_assign_image`, `twcp_term_format`, and `twcp_media_assign` - The category taxonomy of a post type, page builder blocks of posts and terms, featured images found outside the Media Library, the reply of the term tools, and image targets of `assign_media_image`.
+
+### Adding Tools
+
+A module adds a group of tools with the `twcp_tools_groups` filter in its `module.php`. The `position` sets where the group appears on the Agent Tools screen: the groups of the bundled modules are at 10 (content) to 110 (search). The `hint` is sent to AI clients once for the group, unless a tool sets its own:
+
+```php
+add_filter('twcp_tools_groups', function(array $groups): array {
+	$groups['reviews'] = [
+		'label'    => __('Reviews', 'twee-mcp'),
+		'position' => 85,
+		'module'   => 'reviews',  // Without its module or plugin, the group is left out and shown as unavailable
+		'hint'     => 'Read reviews with get_reviews.',
+		'tools'    => [
+			'get_reviews' => [
+				'description' => 'Read product reviews with their rating and author.',
+				'callable'    => 'my_reviews_query',
+				'parameters'  => ['product_id' => ['type' => 'integer', 'description' => 'Only reviews of this product.']],
+				'annotations' => ['readOnlyHint' => true],
+			],
+		],
+	];
+
+	return $groups;
+});
+```
+
+Every tool needs a user with `edit_posts`, and read-only tools need no more. A tool that changes content gets the post or term its first ID argument names and checks that the user can edit it, and publish it when the arguments ask for a published status. A tool sets who may run it on its own:
+
+- `access` - A function of the arguments that returns an error message, or null to allow the call, for a tool that creates items or checks more than one. `twcp_tools_access_target()` and `twcp_tools_access_create()` cover the usual cases.
+- `capability` - A capability the user needs on top of `edit_posts`; the callable checks single objects.
+- `public` - Anyone may run it, as it only returns what the user may see, like `search` and `fetch`.
+
+A tool can also set `private` to keep it out of the plugin's own model lookups, and `required` for its required parameters.
 
 ### Adding Stock Image Providers
 
@@ -280,7 +304,7 @@ add_filter('twcp_image_providers', function(array $providers): array {
 
 ### Adding Batch Jobs
 
-A module declares a job with its card, the post type and field it fills, and the function that fills one item, as the jobs of the plugin do. The plugin does the rest: the capability and unit come from the post type; the query finds the published items whose field is empty, or all of them when rewriting; and the field is backed up for Undo and shown in the log. `field` is `post:` with a column of the posts table, or `meta:` with a meta key:
+A module declares a job with its card, the post type and field it fills, and the function that fills one item, as the jobs of the `wp` and `woo` modules do. The plugin does the rest: the capability and unit come from the post type; the query finds the published items whose field is empty, or all of them when rewriting; and the field is backed up for Undo and shown in the log. `field` is `post:` with a column of the posts table, or `meta:` with a meta key:
 
 ```php
 add_filter('twcp_batch_types', function(array $types): array {
@@ -291,7 +315,7 @@ add_filter('twcp_batch_types', function(array $types): array {
 		'section'     => 'store',                  // Content when left out
 		'post_type'   => 'product',
 		'field'       => 'meta:_review_summary',
-		'run'         => 'my_review_summary',      // Gets the post ID; returns the new text, or false
+		'run'         => 'my_review_summary',      // Gets the post ID and whether to rewrite; returns the new text, or false
 		'cost'        => [1, 3000],                // Model requests and tokens per item, for the estimate
 	];
 
@@ -299,7 +323,19 @@ add_filter('twcp_batch_types', function(array $types): array {
 });
 ```
 
-`run` can also return `['success' => bool, 'message' => string]` for its own log line, and `prompts` lists the options of the system prompts it runs with, whose editors its card shows. Without `post_type`, the job fills the post type chosen on its card, which offers every post type, or those listed in `scopes`. A job can set `combine` (send the model requests of a slice as one request; for jobs that make one text request per item), `slice` (items per slice, 5 by default), `cost` (`[1, 2000]` by default), `capability`, `unit`, `text` (what it writes, which enables the refine and rewrite modes), `restored` (called after Undo), or its own `args`, `query`, `total`, `fields`, and `current` when it does not fill one field of a post type. A job for a section of its own adds the section with `twcp_batch_sections`:
+`run` can also return `true`, which logs the new value, or `['success' => bool, 'message' => string]` for its own log line, and `prompts` lists the options of the system prompts it runs with, whose editors its card shows. Without `post_type`, the job fills the post type chosen on its card, which offers every post type, or those listed in `scopes`. A job with `terms` runs over taxonomy terms, and its `field` is `term:description` or `term_meta:` with a meta key; with `targets`, a function returning ACF term fields, it fills the one chosen on its card.
+
+A job can also set:
+
+- `combine` - Send the model requests of a slice as one request, for jobs that make one text request per item.
+- `slice` (5 by default), `cost` (`[1, 2000]` by default), `capability`, and `unit`.
+- `text` - What it writes, which enables the refine and rewrite modes. Without it, `redo` names the mode that redoes all items, or is `false` for a job that only fills.
+- `fields` - The fields it may change for Undo, or a function of the item returning them.
+- `args` - A function of `(bool $override, array $types)` returning the `WP_Query` or `get_terms` arguments of its items in the post types or taxonomies of its scope, or `query` and `total` for items that are neither.
+- `current` - A function of the item returning the text it would replace.
+- `restored` - Called after Undo.
+
+A job for a section of its own adds the section with `twcp_batch_sections`:
 
 ```php
 add_filter('twcp_batch_sections', function(array $sections): array {
@@ -322,6 +358,7 @@ The integration suite boots WordPress with `wp-phpunit/wp-phpunit` and runs agai
 - WordPress core is loaded from four levels above `tests/`, for example `D:\Work\` for `D:\Work\wp-content\plugins\twee-mcp\tests\`.
 - WooCommerce tests run when WooCommerce is found next to this repository in `wp-content/plugins/woocommerce/`, or in the folder set by the `WOOCOMMERCE_DIR` environment variable. Without it they are skipped.
 - ACF term field tests run when ACF Pro is found in `wp-content/plugins/advanced-custom-fields-pro/`, or in the folder set by `ACF_DIR`.
+- The `sample` module in `tests/modules/` is loaded like a project module, and `ModulesTest` runs the plugin again with each module switched off, in a PHPUnit run of its own.
 - Run the suite with `composer test`, which collects coverage with the `pcov` extension, or without coverage:
 
 ```bash

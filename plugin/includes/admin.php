@@ -136,22 +136,6 @@ function twcp_admin_init(): void
 	// Modules and MCP tools switched off on the Agent Tools screen
 	register_setting('twcp_modules_group', 'twcp_disabled_modules', ['type' => 'array', 'sanitize_callback' => 'twcp_admin_sanitize_modules', 'default' => []]);
 	register_setting('twcp_tools_group', 'twcp_disabled_tools', ['type' => 'array', 'sanitize_callback' => 'twcp_tools_sanitize_disabled', 'default' => []]);
-
-	// Internal links of generated post content, saved from the Content Automation section by anyone who runs its jobs
-	register_setting('twcp_content_group', 'twcp_post_links', [
-		'type'              => 'array',
-		'sanitize_callback' => function($input) {
-			$input = is_array($input) ? $input : [];
-
-			return [
-				'max'     => isset($input['max']) ? min(15, max(0, (int) $input['max'])) : 4,
-				'sources' => array_values(array_intersect(['terms', 'posts', 'pages', 'products', 'lookup'], (array) ($input['sources'] ?? []))),
-			];
-		},
-		'default'           => [],
-	]);
-	add_filter('option_page_capability_twcp_content_group', fn() => 'edit_others_posts');
-
 }
 
 
@@ -382,6 +366,18 @@ function twcp_admin_sanitize_modules($input): array
 
 
 /**
+ * Copy-ready prompts of the Agent Prompts, grouped by area. Modules add their groups with the twcp_prompt_examples
+ * filter, which also gets the site name and URL.
+ *
+ * @return array Group => [ label, position, plugin, active, prompts [ id, title, description, content ] ]
+ */
+function twcp_prompt_examples(): array
+{
+	return twcp_position_sort((array) apply_filters('twcp_prompt_examples', [], wp_strip_all_tags((string) get_bloginfo('name')), home_url('/')));
+}
+
+
+/**
  * Data needed by a template part. Modules add the data of their parts with the twcp_admin_data filter.
  *
  * @param string $part
@@ -402,6 +398,14 @@ function twcp_admin_data(string $part): array
 			break;
 
 		case 'automation':
+			// SEO plugins the jobs save tags for, and the plugins of the modules
+			$plugins = array_keys(array_filter(['Rank Math' => class_exists('RankMath'), 'Yoast SEO' => defined('WPSEO_VERSION')]));
+			foreach (twcp_modules() as $module) {
+				if ($module['plugin'] and $module['active']) {
+					$plugins[] = $module['plugin'];
+				}
+			}
+
 			// Administrators edit the system prompts next to the jobs that use them
 			$prompt_groups = current_user_can('manage_options') ? twcp_prompt_groups() : [];
 			foreach (twcp_prompt_registry() as $option => $prompt) {
@@ -422,9 +426,7 @@ function twcp_admin_data(string $part): array
 				'overview'         => twcp_batch_overview(),
 				'sections'         => twcp_batch_sections(),
 				'batch_cards'      => twcp_batch_cards(),
-				'rank_math_active' => class_exists('RankMath'),
-				'yoast_active'     => defined('WPSEO_VERSION'),
-				'woo_active'       => class_exists('WooCommerce'),
+				'plugins'          => $plugins,
 				'can_manage'       => current_user_can('manage_options'),
 				'model_missing'    => twcp_model_missing(),
 				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('model')),
@@ -446,6 +448,10 @@ function twcp_admin_data(string $part): array
 				'disabled_tools'   => twcp_tools_disabled(),
 				'enabled_count'    => count(twcp_tools_enabled()),
 			];
+			break;
+
+		case 'examples':
+			$data = ['groups' => twcp_prompt_examples()];
 			break;
 
 		case 'connection':
