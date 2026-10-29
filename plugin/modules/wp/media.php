@@ -410,10 +410,22 @@ GUIDELINES:
    - Visible text, logos, or labels when they carry meaning
 3. Accuracy: Describe only what is visible or confirmed by the context. Do not guess brands, sizes, or features.
 4. Keywords: No keyword lists, repeated phrases, or promotional words.
-5. Formatting:
-   - Output strictly plain text in the language of the site.
-   - Do NOT include labels like "Alt text:", "Image of", or "Photo of".
-   - Do NOT wrap in quotes, brackets, or markdown code blocks.
+PROMPT;
+}
+
+
+/**
+ * Output format of the image Alt text prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_alt_format(): string
+{
+	return <<<PROMPT
+FORMAT:
+* Output strictly plain text in the language of the site.
+* Do NOT include labels like "Alt text:", "Image of", or "Photo of".
+* Do NOT wrap in quotes, brackets, or markdown code blocks.
 PROMPT;
 }
 

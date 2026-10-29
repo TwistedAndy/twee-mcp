@@ -75,7 +75,7 @@ Content jobs need `edit_others_posts`, the media job `upload_files`, and the sto
 
 ### Prompts
 
-- Each prompt can be edited on the card of the job that uses it, and reset to its default.
+- Each prompt can be edited on the card of the job that uses it, and reset to its default. The output format, language, and examples are added automatically and cannot be edited, so the replies can always be saved.
 - The default prompts follow the Google, Bing, and Merchant Center guidance on titles, descriptions, and product copy.
 - The **Shared Context** describes the business, audience, and tone, and goes into every prompt. **Generate from website** drafts it from the site. **Target Keywords** lists the search phrases to work in.
 - Focus keywords from Rank Math or Yoast SEO go into the prompts of their post, product, or term.
@@ -189,7 +189,7 @@ A filter has the name of the function that applies it: `twcp_batch_types()` retu
 - `twcp_batch_overview`, `twcp_batch_actions` - Overview items `[label, count, url]`, and bulk actions `[label, run, type, ids]` by screen.
 - `twcp_batch_section` (action) - Settings below the cards of a section, such as Internal Links.
 - `twcp_batch_background` - Return `false` to run jobs only while the page is open.
-- `twcp_prompt_groups`, `twcp_prompt_registry`, `twcp_prompt_fields` (action) - Prompts, their groups, and settings saved with a prompt.
+- `twcp_prompt_groups`, `twcp_prompt_registry`, `twcp_prompt_fields` (action) - Prompts, their groups, and settings saved with a prompt. A prompt's `format` function returns its output format, language, and examples, which are added to it whether it was edited or not.
 - `twcp_prompt_examples` - Copy-ready prompts on the **Connection** screen.
 - `twcp_site_catalog`, `twcp_site_facts` - What prompts and the site profile are told about the site.
 - `twcp_post_links`, `twcp_post_link_sources` - Internal links and their sources.

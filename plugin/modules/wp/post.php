@@ -759,18 +759,31 @@ You are an SEO editor writing the title tag and meta description for pages on {$
    - Use the main keyword once where it reads naturally. Never list keywords.
    - A short call to action is fine when it fits the search intent, but do not end every description the same way.
    - State only facts found in the content: no invented prices, discounts, guarantees, delivery promises, or awards.
+PROMPT;
+}
 
-3. LANGUAGE: Write in the language of the content.
 
-4. OUTPUT: Strictly valid JSON without markdown, code fences, or commentary, matching this schema:
-   {"title": "...", "description": "..."}
+/**
+ * Output format of the post and page SEO prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_seo_format(): string
+{
+	$site_name = twcp_site_name();
 
-5. EXAMPLES:
-   Input: Title: How to Choose a Project Management Tool, Post Type: post
-   Output: {"title": "How to Choose a Project Management Tool | {$site_name}", "description": "Compare features, pricing models, and team fit with a practical checklist for choosing a project management tool that suits how your team works."}
+	return <<<PROMPT
+LANGUAGE: Write in the language of the content.
 
-   Input: Title: Web Design Services, Post Type: page
-   Output: {"title": "Custom Web Design Services | {$site_name}", "description": "Fast, accessible websites designed around your goals, from discovery and wireframes to launch and support. See our process and recent projects."}
+OUTPUT: Strictly valid JSON without markdown, code fences, or commentary, matching this schema:
+{"title": "...", "description": "..."}
+
+EXAMPLES:
+Input: Title: How to Choose a Project Management Tool, Post Type: post
+Output: {"title": "How to Choose a Project Management Tool | {$site_name}", "description": "Compare features, pricing models, and team fit with a practical checklist for choosing a project management tool that suits how your team works."}
+
+Input: Title: Web Design Services, Post Type: page
+Output: {"title": "Custom Web Design Services | {$site_name}", "description": "Fast, accessible websites designed around your goals, from discovery and wireframes to launch and support. See our process and recent projects."}
 PROMPT;
 }
 
@@ -879,7 +892,19 @@ GUIDELINES:
 2. Content: Summarize what the reader learns or gets from the whole post, including its most specific point. Ground it in the post's content, builder blocks, or title, and never add topics or facts it does not cover.
 3. Style: Clear, plain, active voice. Summarize instead of teasing: no clickbait, unanswered questions, hype, or openings like "In this post, we".
 4. Keywords: Use the main topic or focus keyword once where it reads naturally. Never list keywords.
-5. Formatting: Plain text without quotes, prefixes like "Excerpt:", or markdown, in the language of the post.
+PROMPT;
+}
+
+
+/**
+ * Output format of the post excerpt prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_excerpt_format(): string
+{
+	return <<<PROMPT
+FORMAT: Plain text in the language of the post, without quotes, prefixes like "Excerpt:", or markdown.
 PROMPT;
 }
 
@@ -977,8 +1002,19 @@ Structure:
 * Keep paragraphs short and each sentence on one point, so a passage still makes sense when quoted on its own.
 * Use ordered or unordered lists (UL/OL and LI) of 3 to 8 items for steps and key points, and a comparison table (<table class="table">) where readers compare options or specifications. Do not turn every paragraph into a list.
 * Mention relevant products, services, or categories where they genuinely help the reader.
+PROMPT;
+}
 
-Format:
+
+/**
+ * Output format of the post content prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_content_format(): string
+{
+	return <<<PROMPT
+FORMAT:
 * Valid WordPress HTML without wrapper tags (no <html> or <body>) and without an H1, since the post title is the H1.
 * No markdown code fences (```html). Write in the language of the title.
 PROMPT;
@@ -1345,13 +1381,28 @@ Guidelines:
 * Topic: Choose a related angle the source post does not cover, such as a next step, a comparison, a specific use case, or a common question, so the two posts do not compete for the same searches. Never paraphrase the source.
 * Title: Specific and descriptive, in the words a searcher would use. No clickbait or exaggeration.
 * Short Excerpt: 1 to 2 sentences (130 to 160 characters) summarizing what the reader gets from the post.
-* Full Content: A complete HTML article that answers its topic directly in the opening paragraph, then covers it in sections under descriptive H2 and H3 headings, with short paragraphs and lists (UL/LI) or a table where they help. Valid WordPress HTML only (no <html>, <body>, or H1 tags). Never invent statistics, quotes, prices, or claims about the business.
+* Full Content: A complete HTML article that answers its topic directly in the opening paragraph, then covers it in sections under descriptive H2 and H3 headings, with short paragraphs and lists (UL/LI) or a table where they help. Never invent statistics, quotes, prices, or claims about the business.
 * SEO Title: 50 to 60 characters, describing the post accurately, ending with "| {$site_name}" when it fits.
 * SEO Meta Description: 120 to 155 characters summarizing the post with its most useful specifics, in readable sentences without keyword lists.
 * Image Keyword: 2 to 4 precise search terms to find a relevant stock photo or media library image.
-* Write in the language of the source post.
+PROMPT;
+}
 
-Output strictly valid JSON with NO surrounding markdown or backticks:
+
+/**
+ * Output format of the similar post prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_similar_format(): string
+{
+	$site_name = twcp_site_name();
+
+	return <<<PROMPT
+FORMAT:
+* Write in the language of the source post.
+* The content is valid WordPress HTML without wrapper tags (no <html> or <body>) and without an H1.
+* Output strictly valid JSON with NO surrounding markdown or backticks:
 {
   "title": "New Similar Title",
   "excerpt": "Short excerpt...",

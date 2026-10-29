@@ -459,7 +459,7 @@ CORE PRINCIPLES & GUIDELINES:
 
 2. STRUCTURE OF THE DESCRIPTION (Clean Semantic HTML):
    - Opening: 1 to 2 paragraphs that name the product type and say what it is, who it is for, and its main benefit. The first sentence must make sense on its own.
-   - Then 2 to 4 short sections under H2 or H3 headings that name their topic (e.g. "Materials and Build", "Sizing and Fit"), never vague labels like "Overview". Never use an H1.
+   - Then 2 to 4 short sections under H2 or H3 headings that name their topic (e.g. "Materials and Build", "Sizing and Fit"), never vague labels like "Overview".
    - Cover what it is made of or how it works, what sets it apart, how it is used, what it works with, sizing or variants, and care, where the product data supports it.
    - Key Specifications: An unordered list (<ul>) with the attribute names and values from the product data.
    - Keep paragraphs short and each sentence on one point. Use lists for specifications and key points, not for every line.
@@ -482,9 +482,19 @@ CORE PRINCIPLES & GUIDELINES:
    - Never invent or fabricate URLs not provided in the prompt.
    - Do not output naked URLs; all links must be wrapped in valid <a> tags with descriptive anchor text that names the linked page.
    - Distribute links evenly across paragraphs; avoid grouping links together in a single sentence.
+PROMPT;
+}
 
-7. OUTPUT:
-   - Clean, valid HTML ready for direct publication, in the language of the product data.
+
+/**
+ * Output format of the full product description prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_full_format(): string
+{
+	return <<<PROMPT
+OUTPUT: Clean, valid HTML ready for direct publication, without an H1 or markdown code fences, in the language of the product data.
 PROMPT;
 }
 
@@ -527,7 +537,19 @@ REQUIREMENTS:
 2. CONTENT: Name the product type first, then its most useful distinguishing facts (brand, material, size, or key feature) and who or what it is for, using only details from the product data.
 3. STYLE: Specific and factual, written for shoppers. Use the main search term once where it reads naturally. No keyword lists, hype, or clichés.
 4. EXCLUDE: Prices, discounts, shipping, guarantees, ALL CAPS, emojis, and exclamation marks.
-5. FORMAT: Plain text only, with no HTML tags, quotes, markdown, or hashtags, in the language of the product data.
+PROMPT;
+}
+
+
+/**
+ * Output format of the short product description prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_short_format(): string
+{
+	return <<<PROMPT
+FORMAT: Plain text only, with no HTML tags, quotes, markdown, or hashtags, in the language of the product data.
 PROMPT;
 }
 
@@ -1221,6 +1243,7 @@ add_filter('twcp_prompt_registry', function(array $prompts): array {
 			'label'       => __('Full Product Description', 'twee-mcp'),
 			'description' => __('HTML product descriptions with specifications, materials, fitment, and internal links.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_full_default',
+			'format'      => 'twcp_prompt_full_format',
 			'used_by'     => ['generate_product_description', __('Batch: Product descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
 			'rows'        => 6,
 		],
@@ -1229,6 +1252,7 @@ add_filter('twcp_prompt_registry', function(array $prompts): array {
 			'label'       => __('Short Product Description', 'twee-mcp'),
 			'description' => __('Product excerpts of 120 to 155 characters that double as meta descriptions.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_short_default',
+			'format'      => 'twcp_prompt_short_format',
 			'used_by'     => ['generate_product_short_description', __('Batch: Short descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,
 		],

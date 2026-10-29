@@ -369,17 +369,30 @@ You are an SEO editor writing the title tag and meta description for category, t
    - Use the archive name once where it reads naturally. Never list keywords.
    - A short call to action is fine when it fits ("Shop the range", "Browse the guides"), but do not end every description the same way.
    - State only facts found in the context: no invented counts, prices, discounts, delivery promises, or guarantees.
+PROMPT;
+}
 
-3. LANGUAGE: Write in the language of the archive name.
 
-4. OUTPUT: Strictly valid JSON without markdown or code fences: {"title": "...", "description": "..."}
+/**
+ * Output format of the archive SEO prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_term_format(): string
+{
+	$site_name = twcp_site_name();
 
-5. EXAMPLES:
-   Input: Taxonomy: Product Category, Term Name: Running Shoes
-   Output: {"title": "Running Shoes for Road and Trail | {$site_name}", "description": "Cushioned and lightweight running shoes for road and trail, with neutral and stability models in every size. Compare fit and support to find your pair."}
+	return <<<PROMPT
+LANGUAGE: Write in the language of the archive name.
 
-   Input: Taxonomy: Category, Term Name: Email Marketing
-   Output: {"title": "Email Marketing Guides and Tips | {$site_name}", "description": "Practical guides to growing an email list, writing emails people open, and automating campaigns, with examples for small teams. Browse the guides."}
+OUTPUT: Strictly valid JSON without markdown or code fences: {"title": "...", "description": "..."}
+
+EXAMPLES:
+Input: Taxonomy: Product Category, Term Name: Running Shoes
+Output: {"title": "Running Shoes for Road and Trail | {$site_name}", "description": "Cushioned and lightweight running shoes for road and trail, with neutral and stability models in every size. Compare fit and support to find your pair."}
+
+Input: Taxonomy: Category, Term Name: Email Marketing
+Output: {"title": "Email Marketing Guides and Tips | {$site_name}", "description": "Practical guides to growing an email list, writing emails people open, and automating campaigns, with examples for small teams. Browse the guides."}
 PROMPT;
 }
 
@@ -485,9 +498,21 @@ Guidelines:
 * Say what the archive covers and who it helps, based on the term name, its parent, and the items in it. Name the specific kinds of items, styles, or subtopics from the context, so the text could not fit any other archive.
 * Use the archive name naturally once, in plain and specific language. No keyword stuffing, hype, or calls to action.
 * Never invent facts, numbers, brands, or claims that are not in the context.
-* Plain text only: no HTML, markdown, quotes around the text, emojis, or links. Write in the language of the term name.
+PROMPT;
+}
 
-Examples:
+
+/**
+ * Output format of the archive description prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_term_description_format(): string
+{
+	return <<<PROMPT
+FORMAT: Plain text only: no HTML, markdown, quotes around the text, emojis, or links. Write in the language of the term name.
+
+EXAMPLES:
 Input: Taxonomy: Product Category, Term Name: Running Shoes
 Output: Lightweight running shoes for road and trail, with options for every stride and distance. Compare cushioning, support, and fit to find the right pair for your next run.
 
@@ -629,13 +654,25 @@ You are a senior content writer creating the full descriptions shown on category
 Requirements:
 * Length: 250 to 500 words, in 2 to 4 sections. Stop when the reader has what they need; never pad to reach a length.
 * Write it as a short guide to the archive: what it covers, who it is for, how to choose between the items in it, and what to look for.
-* Start each section with an H2 heading that states its topic, such as "How to Choose Running Shoes", never a vague label. Use H3 headings only where a section has distinct subtopics. Never use an H1.
+* Start each section with an H2 heading that states its topic, such as "How to Choose Running Shoes", never a vague label. Use H3 headings only where a section has distinct subtopics.
 * Keep paragraphs short and each sentence on one point, so a passage still makes sense when quoted on its own.
 * Include one unordered list (UL/LI) with 3 to 6 practical points.
 * Use the archive name and closely related search terms naturally, without keyword stuffing.
 * Ground the text in the term name, its parent, its short description, and the items listed in the request, and name specific items, styles, or subtopics from them. Never invent facts, numbers, brands, or claims.
 * Do not add links unless the request lists them.
-* Output strictly valid WordPress HTML without wrapper tags or markdown code fences, in the language of the term name.
+PROMPT;
+}
+
+
+/**
+ * Output format of the archive full description prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_term_content_format(): string
+{
+	return <<<PROMPT
+FORMAT: Output strictly valid WordPress HTML without wrapper tags, an H1, or markdown code fences, in the language of the term name.
 PROMPT;
 }
 
@@ -660,6 +697,19 @@ Requirements:
 * Use the item titles and excerpts in the request to pick relevant questions and details, and use general expert knowledge for the answers.
 * Never invent facts about the business itself: prices, numbers, policies, guarantees, locations, or services it offers.
 * Cover different intents: choosing, comparing, using, caring for, or learning. Do not repeat a question.
+PROMPT;
+}
+
+
+/**
+ * Output format of the archive FAQ prompt, added to it whether it was edited or not
+ *
+ * @return string
+ */
+function twcp_prompt_term_faq_format(): string
+{
+	return <<<PROMPT
+FORMAT:
 * Write in the language of the term name.
 * Output strictly valid JSON with NO surrounding markdown: [{"question": "...", "answer": "..."}]
 PROMPT;

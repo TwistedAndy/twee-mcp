@@ -1306,7 +1306,8 @@ function twcp_model_test(): array
 
 
 /**
- * Resolve a configured prompt and prepend the shared store context and target keywords once.
+ * Resolve a configured prompt, prepend the shared store context and target keywords once, and append the output
+ * format of the prompt, which is not editable
  *
  * @param string   $option  WordPress option name.
  * @param callable $default Callback returning the built-in prompt.
@@ -1317,6 +1318,10 @@ function twcp_prompt(string $option, callable $default): string
 {
 	$custom = trim((string) get_option($option, ''));
 	$system = $custom !== '' ? $custom : $default();
+	$format = twcp_prompt_registry()[$option]['format'] ?? '';
+	if ($format) {
+		$system .= "\n\n" . call_user_func($format);
+	}
 	$context = twcp_general_context();
 	$keywords = trim((string) get_option('twcp_target_keywords', ''));
 	if ($keywords !== '') {
@@ -1351,8 +1356,9 @@ function twcp_prompt_groups(): array
 
 
 /**
- * Editable system prompts: option => [ group, label, description, default callback, used by, rows ]. Modules add
- * theirs with the twcp_prompt_registry filter.
+ * Editable system prompts: option => [ group, label, description, default callback, format callback, used by, rows ].
+ * The format callback returns the output format, language, and examples, which are added to the prompt whether it
+ * was edited or not. Modules add theirs with the twcp_prompt_registry filter.
  *
  * @return array
  */

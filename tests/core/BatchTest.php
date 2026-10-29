@@ -518,7 +518,9 @@ class BatchTest extends TWCP_TestCase {
 		$this->assertSame('A previewed excerpt.', $reply['data']['results'][0]['reply']);
 		$this->assertStringContainsString('Refine the current excerpt', $reply['data']['results'][0]['prompt']);
 		$this->assertCount(1, $requests);
-		$this->assertStringEndsWith('Unsaved excerpt rules.', $requests[0]['body']['instructions']);
+		$this->assertStringEndsWith("Unsaved excerpt rules.
+
+" . twcp_prompt_excerpt_format(), $requests[0]['body']['instructions']);
 		$this->assertSame('The old excerpt.', get_post_field('post_excerpt', $filled));
 		remove_all_filters('pre_option_twcp_system_prompt_post_excerpt');
 		$this->assertSame('', (string) get_option('twcp_system_prompt_post_excerpt', ''), 'The unsaved text only lasts for the preview request');

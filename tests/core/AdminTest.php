@@ -157,6 +157,26 @@ class AdminTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * The editable prompts leave out the output format, which is added to the prompt whether it was edited or not.
+	 */
+	public function test_prompt_format_is_added(): void
+	{
+		foreach (twcp_prompt_registry() as $option => $prompt) {
+			if (isset($prompt['format'])) {
+				$format = call_user_func($prompt['format']);
+				$this->assertStringNotContainsString(trim(strtok($format, "\n")), call_user_func($prompt['default']), $option);
+				$this->assertStringContainsString($format, twcp_prompt($option, $prompt['default']), $option);
+			}
+		}
+
+		update_option('twcp_system_prompt_seo', 'Write short SEO tags.');
+		$system = twcp_prompt('twcp_system_prompt_seo', 'twcp_prompt_seo_default');
+		$this->assertStringContainsString("Write short SEO tags.\n\nLANGUAGE:", $system);
+		$this->assertStringContainsString('"description": "Compare features', $system);
+		delete_option('twcp_system_prompt_seo');
+	}
+
+	/**
 	 * Target keywords of the Shared Context follow the site context in every system prompt, and no section is added
 	 * without them.
 	 */

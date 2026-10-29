@@ -6,7 +6,7 @@
  * whether it was customized, and its approximate size in tokens.
  *
  * @var string $option
- * @var array  $prompt [ label, description, used_by, rows, value, default, customized ]
+ * @var array  $prompt [ label, description, format, used_by, rows, value, default, customized ]
  *
  * @package Twee_MCP
  */
@@ -27,7 +27,12 @@ defined('ABSPATH') or exit;
 		</span>
 		<span class="prompt_preview"><?php echo esc_html(wp_html_excerpt($prompt['value'], 240)); ?></span>
 	</summary>
-	<p class="text text_muted"><?php echo esc_html($prompt['description']); ?></p>
+	<p class="text text_muted">
+		<?php echo esc_html($prompt['description']); ?>
+		<?php if (!empty($prompt['format'])) {
+			echo esc_html__('The output format, language, and examples are added automatically, so the reply can always be saved.', 'twee-mcp');
+		} ?>
+	</p>
 	<div class="chips">
 		<span class="text text_muted"><?php echo esc_html__('Used by:', 'twee-mcp'); ?></span>
 		<?php foreach ($prompt['used_by'] as $use) { ?>
