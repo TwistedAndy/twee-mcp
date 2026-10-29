@@ -82,7 +82,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'required'    => ['object_id'],
 				'parameters'  => [
 					'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-					'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
+					'object_type' => ['type' => 'string', 'enum' => ['post', 'term'], 'description' => '"post" or "term" (default "post").'],
 				],
 				'annotations' => ['readOnlyHint' => true],
 			],
@@ -92,7 +92,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'required'    => ['object_id', 'layout', 'data'],
 				'parameters'  => [
 					'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-					'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
+					'object_type' => ['type' => 'string', 'enum' => ['post', 'term'], 'description' => '"post" or "term" (default "post").'],
 					'layout'      => ['type' => 'string', 'description' => 'Layout name (hero, heading, cards, etc.).'],
 					'data'        => [
 						'type'        => 'object',
@@ -108,7 +108,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'required'    => ['object_id', 'index', 'data'],
 				'parameters'  => [
 					'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-					'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
+					'object_type' => ['type' => 'string', 'enum' => ['post', 'term'], 'description' => '"post" or "term" (default "post").'],
 					'index'       => ['type' => 'integer', 'description' => '0-based index of block to update.'],
 					'data'        => ['type' => 'object', 'description' => 'Changed field values, shaped like the layout schema.'],
 					'layout'      => ['type' => 'string', 'description' => 'Optional new layout name.'],
@@ -121,7 +121,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'required'    => ['object_id', 'index'],
 				'parameters'  => [
 					'object_id'   => ['type' => 'integer', 'description' => 'Post or Term ID.'],
-					'object_type' => ['type' => 'string', 'description' => '"post" or "term" (default "post").'],
+					'object_type' => ['type' => 'string', 'enum' => ['post', 'term'], 'description' => '"post" or "term" (default "post").'],
 					'index'       => ['type' => ['integer', 'string'], 'description' => '0-based index of block to remove, or string "all".'],
 				],
 				'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],

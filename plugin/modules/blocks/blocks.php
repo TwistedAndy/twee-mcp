@@ -1493,43 +1493,43 @@ add_filter('twcp_media_assign', function($result, string $type, int $attachment_
 		return $result;
 	}
 
-		if (!$target_id) {
-			return ['error' => 'Missing post/page ID for block assignment.'];
-		}
-		if (!isset($target['block_index'])) {
-			return ['error' => 'Missing block_index for block assignment.'];
-		}
-		if (!twcp_module_active('blocks')) {
-			return ['error' => 'ACF blocks are not available.'];
-		}
-		$field_name = !empty($target['field_name']) ? sanitize_key($target['field_name']) : 'image';
-		$block_index = (int) $target['block_index'];
+	if (!$target_id) {
+		return ['error' => 'Missing post/page ID for block assignment.'];
+	}
+	if (!isset($target['block_index'])) {
+		return ['error' => 'Missing block_index for block assignment.'];
+	}
+	if (!twcp_module_active('blocks')) {
+		return ['error' => 'ACF blocks are not available.'];
+	}
+	$field_name = !empty($target['field_name']) ? sanitize_key($target['field_name']) : 'image';
+	$block_index = (int) $target['block_index'];
 
-		$edit_res = twcp_block_edit([
-			'object_id' => $target_id,
-			'index'     => $block_index,
-			'data'      => [
-				$field_name => $attachment_id,
-			],
-		]);
+	$edit_res = twcp_block_edit([
+		'object_id' => $target_id,
+		'index'     => $block_index,
+		'data'      => [
+			$field_name => $attachment_id,
+		],
+	]);
 
-		if (!empty($edit_res['error'])) {
-			return ['error' => 'Failed to update ACF block: ' . $edit_res['error']];
-		}
+	if (!empty($edit_res['error'])) {
+		return ['error' => 'Failed to update ACF block: ' . $edit_res['error']];
+	}
 
-		if (!empty($edit_res['warnings'])) {
-			return ['error' => 'Block field was rejected: ' . implode('; ', $edit_res['warnings'])];
-		}
+	if (!empty($edit_res['warnings'])) {
+		return ['error' => 'Block field was rejected: ' . implode('; ', $edit_res['warnings'])];
+	}
 
-		return [
-			'success'       => true,
-			'type'          => 'block',
-			'post_id'       => $target_id,
-			'block_index'   => $block_index,
-			'field_name'    => $field_name,
-			'attachment_id' => $attachment_id,
-			'message'       => sprintf("Assigned image #%d to field '%s' on block #%d of post #%d.", $attachment_id, $field_name, $block_index, $target_id),
-		];
+	return [
+		'success'       => true,
+		'type'          => 'block',
+		'post_id'       => $target_id,
+		'block_index'   => $block_index,
+		'field_name'    => $field_name,
+		'attachment_id' => $attachment_id,
+		'message'       => sprintf("Assigned image #%d to field '%s' on block #%d of post #%d.", $attachment_id, $field_name, $block_index, $target_id),
+	];
 }, 10, 6);
 
 

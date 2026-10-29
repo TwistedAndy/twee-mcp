@@ -75,6 +75,50 @@ class ProductTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * Products sort by price, a term ID alone filters categories, and an ID of another post type is not a product.
+	 */
+	public function test_get_products_sorting(): void
+	{
+		$category = self::factory()->term->create(['taxonomy' => 'product_cat']);
+		$cheap = $this->product('Cheap', ['regular_price' => '5', 'category_ids' => [$category]]);
+		$dear = $this->product('Dear', ['regular_price' => '90']);
+		$middle = $this->product('Middle', ['regular_price' => '40']);
+
+		$this->assertSame([$cheap, $middle, $dear], array_column($this->call('get_products', ['order_by' => 'price', 'order' => 'ASC'])['posts'], 'id'));
+		$this->assertSame([$cheap], array_column($this->call('get_products', ['term_id' => $category])['posts'], 'id'));
+		$this->assertStringContainsString('Product not found', $this->call('get_products', ['id' => self::factory()->post->create()])['error']);
+	}
+
+	/**
+	 * A store-wide attribute is saved under its taxonomy with its terms, and products return attributes in the format
+	 * create_product takes.
+	 */
+	public function test_global_attribute(): void
+	{
+		wc_create_attribute(['name' => 'Color', 'slug' => 'color']);
+		register_taxonomy('pa_color', 'product');
+		wp_insert_term('Black', 'pa_color');
+
+		$result = $this->call('create_product', [
+			'name'       => 'NATO Strap',
+			'type'       => 'variable',
+			'attributes' => [['name' => 'Color', 'options' => ['Black', 'Olive'], 'variation' => true], ['name' => 'Fit', 'options' => ['Slim']]],
+		]);
+		$this->assertTrue($result['success'], $result['error'] ?? '');
+
+		$id = $result['product']['id'];
+		$this->assertSame(['Black', 'Olive'], wp_get_post_terms($id, 'pa_color', ['fields' => 'names']));
+		$this->assertSame([
+			['name' => 'Color', 'taxonomy' => 'pa_color', 'options' => ['Black', 'Olive'], 'visible' => true, 'variation' => true],
+			['name' => 'Fit', 'options' => ['Slim'], 'visible' => true, 'variation' => false],
+		], $this->call('get_products', ['id' => $id])['product']['attributes']);
+
+		$variation = $this->call('save_product_variation', ['product_id' => $id, 'attributes' => ['Color' => 'Olive'], 'regular_price' => '25']);
+		$this->assertSame(['pa_color' => 'olive'], $variation['variation']['attributes']);
+		$this->assertSame(['Color' => ['Black', 'Olive']], $this->call('get_product_variations', ['product_id' => $id])['attributes']);
+	}
+
+	/**
 	 * Variations are created from attribute names and listed with prices.
 	 */
 	public function test_variations(): void
@@ -97,7 +141,7 @@ class ProductTest extends TWCP_TestCase {
 		$this->assertSame('15', $edited['variation']['sale_price']);
 
 		$list = $this->call('get_product_variations', ['product_id' => $parent->get_id()]);
-		$this->assertSame(['color' => ['Black', 'Olive']], $list['attributes']);
+		$this->assertSame(['Color' => ['Black', 'Olive']], $list['attributes']);
 		$this->assertSame(['NATO-OL'], array_column($list['variations'], 'sku'));
 
 		$this->assertStringContainsString('Unknown variation attribute', $this->call('save_product_variation', ['product_id' => $parent->get_id(), 'attributes' => ['Size' => 'L']])['error']);
@@ -137,7 +181,7 @@ class ProductTest extends TWCP_TestCase {
 	private function product(string $name, array $props = []): int
 	{
 		$product = new WC_Product_Simple();
-		$product->set_props(['name' => $name, 'status' => 'publish', 'regular_price' => '10'] + $props);
+		$product->set_props($props + ['name' => $name, 'status' => 'publish', 'regular_price' => '10']);
 
 		return $product->save();
 	}

@@ -35,7 +35,7 @@ function twcp_term_query(array $args): array
 	if (!empty($args['slug'])) {
 		$term_args['slug'] = sanitize_title($args['slug']);
 	}
-	if (!empty($args['parent'])) {
+	if (isset($args['parent'])) {
 		$term_args['parent'] = absint($args['parent']);
 	}
 
@@ -283,20 +283,13 @@ function twcp_term_create(array $args): array
  */
 function twcp_term_edit(array $args): array
 {
-	$taxonomy = sanitize_key($args['taxonomy'] ?? 'category');
-	if (!taxonomy_exists($taxonomy)) {
-		return ['error' => 'Taxonomy does not exist: ' . $taxonomy];
-	}
-
-	if (empty($args['term_id'])) {
-		return ['error' => 'term_id parameter is required'];
-	}
-
-	$term_id = absint($args['term_id']);
-	$term = get_term($term_id, $taxonomy);
+	$term_id = absint($args['term_id'] ?? 0);
+	$term = get_term($term_id, sanitize_key($args['taxonomy'] ?? ''));
 	if (!$term or is_wp_error($term)) {
 		return ['error' => 'Term not found: ' . $term_id];
 	}
+
+	$taxonomy = $term->taxonomy;
 
 	$update_args = [];
 	if (!empty($args['name'])) {

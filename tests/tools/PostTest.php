@@ -25,6 +25,9 @@ class PostTest extends TWCP_TestCase {
 
 		$by_term = $this->call('get_posts', ['post_type' => 'post', 'taxonomy' => 'category', 'term_id' => $cat]);
 		$this->assertSame([$old], array_column($by_term['posts'], 'id'));
+		$this->assertSame([$old], array_column($this->call('get_posts', ['post_type' => 'post', 'term_id' => $cat])['posts'], 'id'), 'The term finds its taxonomy');
+		$this->assertStringContainsString('Term not found', $this->call('get_posts', ['term_id' => 999999])['error']);
+		$this->assertStringContainsString('Unknown post type', $this->call('get_posts', ['post_type' => 'nope'])['error']);
 
 		$single = $this->call('get_posts', ['id' => $old]);
 		$this->assertSame('News', $single['terms']['category'][0]['name']);

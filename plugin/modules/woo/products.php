@@ -42,6 +42,9 @@ function twcp_product_parameters(): array
 		'stock_quantity'     => ['type' => 'integer'],
 		'stock_status'       => ['type' => 'string', 'enum' => ['instock', 'outofstock', 'onbackorder']],
 		'weight'             => ['type' => 'string'],
+		'length'             => ['type' => 'string'],
+		'width'              => ['type' => 'string'],
+		'height'             => ['type' => 'string'],
 		'category_ids'       => ['type' => 'array', 'items' => ['type' => 'integer']],
 		'tag_ids'            => ['type' => 'array', 'items' => ['type' => 'integer']],
 		'image_id'           => ['type' => 'integer'],
@@ -50,8 +53,9 @@ function twcp_product_parameters(): array
 		'upsell_ids'         => ['type' => 'array', 'items' => ['type' => 'integer']],
 		'default_attributes' => ['type' => 'object'],
 		'attributes'         => [
-			'type'  => 'array',
-			'items' => [
+			'type'        => 'array',
+			'description' => 'Replaces all attributes of the product, so include the ones to keep, as get_products returns them. A name of a store-wide attribute, such as "Color" or "pa_color", links its terms and creates missing ones.',
+			'items'       => [
 				'type'       => 'object',
 				'required'   => ['name'],
 				'properties' => [
@@ -89,6 +93,10 @@ function twcp_product_query(array $args): array
 		} else {
 			return ['posts' => []];
 		}
+	}
+
+	if (!empty($args['id']) and !in_array(get_post_type(absint($args['id'])), ['product', 'product_variation'], true)) {
+		return ['error' => 'Product not found: ' . absint($args['id'])];
 	}
 
 	return twcp_post_query($args);
@@ -165,33 +173,35 @@ function twcp_product_persist(WC_Product $product, array $args): array
 		}
 
 		$name = sanitize_text_field($data['name']);
+		$options = array_map('sanitize_text_field', (array) ($data['options'] ?? []));
 		$attribute = new WC_Product_Attribute();
 		$taxonomy_id = wc_attribute_taxonomy_id_by_name($name);
 
+		// A store-wide attribute is saved under its pa_ taxonomy, which WooCommerce needs to read it back
 		if ($taxonomy_id) {
-			$taxonomy_name = wc_attribute_taxonomy_name($name);
+			$taxonomy = wc_attribute_taxonomy_name_by_id($taxonomy_id);
 			$term_ids = [];
 
-			foreach ($data['options'] ?? [] as $term_name) {
-				$term = get_term_by('name', sanitize_text_field($term_name), $taxonomy_name);
-				if (!$term) {
-					$created = wp_insert_term(sanitize_text_field($term_name), $taxonomy_name);
+			foreach ($options as $option) {
+				$term = get_term_by('name', $option, $taxonomy) ? : get_term_by('slug', sanitize_title($option), $taxonomy);
+				if ($term) {
+					$term_ids[] = (int) $term->term_id;
+				} else {
+					$created = wp_insert_term($option, $taxonomy);
 					if (!is_wp_error($created)) {
 						$term_ids[] = (int) $created['term_id'];
 					}
-				} else {
-					$term_ids[] = (int) $term->term_id;
 				}
 			}
 
 			$attribute->set_id($taxonomy_id);
-			$attribute->set_name($taxonomy_name);
+			$attribute->set_name($taxonomy);
 			$attribute->set_options($term_ids);
 		} else {
-			$attribute->set_options(array_map('sanitize_text_field', $data['options'] ?? []));
+			$attribute->set_name($name);
+			$attribute->set_options($options);
 		}
-		$attribute->set_name($name);
-		$attribute->set_position($position);
+		$attribute->set_position((int) ($data['position'] ?? $position));
 		$attribute->set_visible($data['visible'] ?? true);
 		$attribute->set_variation($data['variation'] ?? false);
 		$attributes[] = $attribute;
@@ -294,9 +304,16 @@ function twcp_product_variations(array $args): array
 
 	$variations = array_filter(array_map('wc_get_product', $product->get_children()));
 
+	$attributes = [];
+	foreach (twcp_post_attributes($product) as $attribute) {
+		if ($attribute['variation']) {
+			$attributes[$attribute['name']] = $attribute['options'];
+		}
+	}
+
 	return [
 		'product_id' => $product->get_id(),
-		'attributes' => array_map(fn($attribute) => $attribute->get_options(), array_filter($product->get_attributes(), fn($attribute) => $attribute->get_variation())),
+		'attributes' => $attributes,
 		'variations' => array_values(array_map('twcp_product_variation_format', $variations)),
 	];
 }
@@ -354,7 +371,7 @@ function twcp_product_variation_save(array $args): array
 	}
 
 	try {
-		foreach (['status', 'sku', 'regular_price', 'sale_price', 'manage_stock', 'stock_quantity', 'stock_status', 'weight', 'description', 'image_id'] as $field) {
+		foreach (['status', 'sku', 'regular_price', 'sale_price', 'manage_stock', 'stock_quantity', 'stock_status', 'weight', 'length', 'width', 'height', 'description', 'image_id'] as $field) {
 			if (array_key_exists($field, $args)) {
 				$value = $args[$field];
 				if ($field === 'description') {
@@ -715,8 +732,7 @@ function twcp_product_short(int $product_id, bool $regenerate = false): bool
 		$short_clean = sanitize_text_field(trim($short_content, "\"' \t\n\r"));
 		$product->set_short_description($short_clean);
 		$product->update_meta_data('rank_math_description', $short_clean);
-		update_post_meta($product_id, '_yoast_wpseo_metadesc', $short_clean);
-		update_post_meta($product_id, 'rank_math_description', $short_clean);
+		$product->update_meta_data('_yoast_wpseo_metadesc', $short_clean);
 		$product->save();
 
 		return true;
@@ -735,24 +751,22 @@ function twcp_product_short(int $product_id, bool $regenerate = false): bool
  */
 function twcp_product_desc_tool(array $args): array
 {
-	if (empty($args['product_id'])) {
-		return ['error' => 'product_id parameter is required'];
+	$product = twcp_product_active() ? wc_get_product(absint($args['product_id'] ?? 0)) : null;
+	if (!($product instanceof WC_Product)) {
+		return ['error' => 'Product not found: ' . absint($args['product_id'] ?? 0)];
 	}
 
-	$product_id = absint($args['product_id']);
 	$regenerate = !empty($args['regenerate']);
-	$success = twcp_product_full($product_id, $regenerate);
-
-	if (!$success) {
-		return ['error' => 'Failed to generate product description for product ID ' . $product_id];
+	$generated = $regenerate || $product->get_description() === '';
+	if (!twcp_product_full($product->get_id(), $regenerate)) {
+		return ['error' => 'Could not generate the description: ' . (twcp_model_last_error() ? : 'the model returned no text.')];
 	}
-
-	$product = wc_get_product($product_id);
 
 	return [
 		'success'     => true,
-		'product_id'  => $product_id,
-		'description' => $product ? $product->get_description() : '',
+		'product_id'  => $product->get_id(),
+		'generated'   => $generated,
+		'description' => wc_get_product($product->get_id())->get_description(),
 	];
 }
 
@@ -766,24 +780,22 @@ function twcp_product_desc_tool(array $args): array
  */
 function twcp_product_short_tool(array $args): array
 {
-	if (empty($args['product_id'])) {
-		return ['error' => 'product_id parameter is required'];
+	$product = twcp_product_active() ? wc_get_product(absint($args['product_id'] ?? 0)) : null;
+	if (!($product instanceof WC_Product)) {
+		return ['error' => 'Product not found: ' . absint($args['product_id'] ?? 0)];
 	}
 
-	$product_id = absint($args['product_id']);
 	$regenerate = !empty($args['regenerate']);
-	$success = twcp_product_short($product_id, $regenerate);
-
-	if (!$success) {
-		return ['error' => 'Failed to generate short description for product ID ' . $product_id];
+	$generated = $regenerate || $product->get_short_description() === '';
+	if (!twcp_product_short($product->get_id(), $regenerate)) {
+		return ['error' => 'Could not generate the short description: ' . (twcp_model_last_error() ? : 'the model returned no text.')];
 	}
-
-	$product = wc_get_product($product_id);
 
 	return [
 		'success'           => true,
-		'product_id'        => $product_id,
-		'short_description' => $product ? $product->get_short_description() : '',
+		'product_id'        => $product->get_id(),
+		'generated'         => $generated,
+		'short_description' => wc_get_product($product->get_id())->get_short_description(),
 	];
 }
 
@@ -905,14 +917,15 @@ function twcp_product_select_related(array $args): array
 	// Build prompt for AI model with candidates
 	$system = twcp_prompt_related();
 
+	$currency = get_woocommerce_currency();
 	$candidate_lines = [];
 	foreach ($candidates as $cid => $cinfo) {
-		$candidate_lines[] = "- ID {$cid}: \"{$cinfo['title']}\" (Price: \${$cinfo['price']})";
+		$candidate_lines[] = "- ID {$cid}: \"{$cinfo['title']}\" (Price: {$cinfo['price']} {$currency})";
 	}
 
 	$user_prompt = "Target Product:\n";
 	$user_prompt .= "- ID {$product_id}: \"{$product->get_name()}\"\n";
-	$user_prompt .= "- Price: \${$product->get_price()}\n\n";
+	$user_prompt .= "- Price: {$product->get_price()} {$currency}\n\n";
 	$user_prompt .= "Available Candidate Products in Same Category/Brand:\n";
 	$user_prompt .= implode("\n", $candidate_lines) . "\n\n";
 	$user_prompt .= "Select up to {$limit} top complementary or cross-sell products. Return valid JSON only.";
@@ -932,8 +945,11 @@ function twcp_product_select_related(array $args): array
 		}
 	}
 
+	$note = [];
 	if (empty($selected_ids)) {
 		$selected_ids = array_slice(array_keys($candidates), 0, $limit);
+		$error = twcp_model_last_error();
+		$note = ['note' => 'The model gave no answer' . ($error ? ' (' . $error . ')' : '') . ', so these are the first products of the same category.'];
 	}
 
 	$selected_ids = array_slice(array_unique(array_filter($selected_ids, function($id) use ($candidates) {
@@ -950,7 +966,7 @@ function twcp_product_select_related(array $args): array
 				break;
 			}
 		}
-		$prod_data['reason'] = $reason ? : 'Complementary collection accessory in the same category.';
+		$prod_data['reason'] = $reason;
 		$selected_products[] = $prod_data;
 	}
 
@@ -959,7 +975,7 @@ function twcp_product_select_related(array $args): array
 		'product_name'      => $product->get_name(),
 		'selected_ids'      => $selected_ids,
 		'selected_products' => $selected_products,
-	];
+	] + $note;
 }
 
 
@@ -1204,45 +1220,45 @@ add_filter('twcp_media_assign', function($result, string $type, int $attachment_
 		return $result;
 	}
 
-		if (!$target_id) {
-			return ['error' => 'Missing product ID.'];
-		}
+	if (!$target_id) {
+		return ['error' => 'Missing product ID.'];
+	}
 
-		if (!twcp_module_active('woo')) {
-			return ['error' => 'WooCommerce is not active.'];
-		}
+	if (!twcp_module_active('woo')) {
+		return ['error' => 'WooCommerce is not active.'];
+	}
 
-		$product = wc_get_product($target_id);
-		if (!$product) {
-			return ['error' => 'Product not found.'];
-		}
-		if (!in_array($assign_as, ['featured', 'gallery', 'both'], true)) {
-			return ['error' => 'Unknown product image role.'];
-		}
+	$product = wc_get_product($target_id);
+	if (!$product) {
+		return ['error' => 'Product not found.'];
+	}
+	if (!in_array($assign_as, ['featured', 'gallery', 'both'], true)) {
+		return ['error' => 'Unknown product image role.'];
+	}
 
-		$args = ['product_id' => $target_id];
-		if ($assign_as !== 'gallery') {
-			$args['image_id'] = $attachment_id;
-		}
-		if ($assign_as !== 'featured') {
-			$args['gallery_image_ids'] = array_values(array_unique([
-				...$product->get_gallery_image_ids(),
-				$attachment_id,
-			]));
-		}
+	$args = ['product_id' => $target_id];
+	if ($assign_as !== 'gallery') {
+		$args['image_id'] = $attachment_id;
+	}
+	if ($assign_as !== 'featured') {
+		$args['gallery_image_ids'] = array_values(array_unique([
+			...$product->get_gallery_image_ids(),
+			$attachment_id,
+		]));
+	}
 
-		$result = twcp_product_edit($args);
-		if (isset($result['error'])) {
-			return $result;
-		}
+	$result = twcp_product_edit($args);
+	if (isset($result['error'])) {
+		return $result;
+	}
 
-		return [
-			'success'       => true,
-			'type'          => 'product',
-			'product_id'    => $target_id,
-			'product_name'  => $product->get_name(),
-			'assign_as'     => $assign_as,
-			'attachment_id' => $attachment_id,
-			'message'       => 'Product image assigned.',
-		];
+	return [
+		'success'       => true,
+		'type'          => 'product',
+		'product_id'    => $target_id,
+		'product_name'  => $product->get_name(),
+		'assign_as'     => $assign_as,
+		'attachment_id' => $attachment_id,
+		'message'       => 'Product image assigned.',
+	];
 }, 10, 6);

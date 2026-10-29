@@ -53,7 +53,7 @@ function twcp_comment_query(array $args): array
 
 	$query_args = [
 		'status'  => in_array($status, ['all', 'hold', 'approve', 'spam', 'trash'], true) ? $status : 'all',
-		'type'    => 'comment',
+		'type'    => ['comment', 'review'],
 		'number'  => $limit,
 		'offset'  => $offset,
 		'orderby' => 'comment_date_gmt',
@@ -94,6 +94,12 @@ function twcp_comment_moderate(array $args): array
 	}
 	if (!current_user_can('edit_comment', $comment->comment_ID)) {
 		return ['error' => 'You cannot moderate this comment.'];
+	}
+
+	// Setting the status a comment already has changes no row, which WordPress reports as a failure
+	$statuses = ['approve' => '1', 'hold' => '0', 'spam' => 'spam', 'trash' => 'trash'];
+	if (($statuses[$args['action'] ?? ''] ?? null) === $comment->comment_approved) {
+		return ['success' => true, 'comment' => twcp_comment_format($comment)];
 	}
 
 	$id = (int) $comment->comment_ID;

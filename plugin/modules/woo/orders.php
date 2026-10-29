@@ -66,6 +66,24 @@ function twcp_order_format(WC_Order $order, bool $details = false): array
 
 
 /**
+ * Order status without the wc- prefix, or an error that lists the statuses of the store
+ *
+ * @param string $status
+ *
+ * @return array [ status ] or [ error ]
+ */
+function twcp_order_status(string $status): array
+{
+	$status = sanitize_key(preg_replace('/^wc-/', '', $status));
+	$statuses = array_map(function($key) {
+		return substr($key, 3);
+	}, array_keys(wc_get_order_statuses()));
+
+	return in_array($status, $statuses, true) ? ['status' => $status] : ['error' => 'Unknown order status. Available: ' . implode(', ', $statuses)];
+}
+
+
+/**
  * Action/Tool: Query orders
  *
  * @param array $args
@@ -97,7 +115,11 @@ function twcp_order_query(array $args): array
 	];
 
 	if (!empty($args['status'])) {
-		$query['status'] = 'wc-' . sanitize_key(preg_replace('/^wc-/', '', $args['status']));
+		$status = twcp_order_status($args['status']);
+		if (isset($status['error'])) {
+			return $status;
+		}
+		$query['status'] = 'wc-' . $status['status'];
 	}
 	if (!empty($args['customer_id'])) {
 		$query['customer_id'] = absint($args['customer_id']);
@@ -141,14 +163,15 @@ function twcp_order_update(array $args): array
 		return ['error' => 'Order not found.'];
 	}
 
-	$status = isset($args['status']) ? sanitize_key(preg_replace('/^wc-/', '', $args['status'])) : '';
-	$note = isset($args['note']) ? sanitize_textarea_field($args['note']) : '';
+	$status = !empty($args['status']) ? twcp_order_status($args['status']) : ['status' => ''];
+	if (isset($status['error'])) {
+		return $status;
+	}
 
+	$status = $status['status'];
+	$note = isset($args['note']) ? sanitize_textarea_field($args['note']) : '';
 	if ($status === '' and $note === '') {
 		return ['error' => 'Provide a status, a note, or both.'];
-	}
-	if ($status !== '' and !array_key_exists('wc-' . $status, wc_get_order_statuses())) {
-		return ['error' => 'Unknown order status. Available: ' . implode(', ', array_map(fn($key) => substr($key, 3), array_keys(wc_get_order_statuses())))];
 	}
 
 	if ($note !== '') {

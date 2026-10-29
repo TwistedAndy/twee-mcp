@@ -95,6 +95,10 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 
 `trash_post` moves content to the Trash and never deletes it permanently. `remove_block` and `remove_menu_item` are marked as destructive.
 
+`get_posts` and `get_products` filter by a term ID alone, which finds its own taxonomy, and refuse post types the site does not have. `get_products` also sorts by `price` and `popularity` (total sales). Products return their attributes in the format `create_product` and `edit_product` take: the name, the `pa_` taxonomy of a store-wide attribute, and the option names. A store-wide attribute is matched by its name, such as "Color" or `pa_color`, so its terms are linked and missing ones created. `attributes` replaces the whole list. The order tools refuse a status the store does not have and list the ones it has. The generation tools say whether they wrote new text (`generated`) and pass on the model's error when they fail.
+
+`get_comments` lists product reviews along with comments, and setting the status a comment already has succeeds. `edit_term` and `assign_media_image` find the taxonomy from the term when it is omitted.
+
 The Activity Log tools read the events WP Activity Log records, shop managers by default:
 
 - `get_activity_summary` lists, per user, the items published, those published for the first time (`published_new`), the price updates (saves that changed a product's prices), the active days, sessions, and time. Users who published most come first. For each post type, such as products and materials, it counts the items opened, edited, created, published, trashed, repriced, and given other terms, and the saves. It also counts term changes, media uploads, and logins. `tracked_minutes` is the measured editing time (see Activity Tracking below). Active time adds the gaps between logged actions up to 15 minutes, so work outside WordPress is not counted. It is a lower bound, best for comparing people. `span_hours`, from the first to the last action of each day, is the upper bound. Logins of one account working at the same time show up as `parallel_sessions`, a sign of a shared account.

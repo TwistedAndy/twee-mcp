@@ -23,6 +23,10 @@ class CommentTest extends TWCP_TestCase {
 
 		$this->assertSame(2, $this->call('get_comments', ['post_id' => $post_id])['total']);
 		$this->assertSame(1, $this->call('get_comments', ['search' => 'waterproof'])['total']);
+
+		$review = self::factory()->comment->create(['comment_post_ID' => $post_id, 'comment_approved' => '0', 'comment_type' => 'review']);
+		self::factory()->comment->create(['comment_post_ID' => $post_id, 'comment_type' => 'order_note']);
+		$this->assertEqualsCanonicalizing([$held, $review], array_column($this->call('get_comments', ['status' => 'hold'])['comments'], 'id'));
 	}
 
 	/**
@@ -33,6 +37,7 @@ class CommentTest extends TWCP_TestCase {
 		$comment_id = self::factory()->comment->create(['comment_post_ID' => self::factory()->post->create(), 'comment_approved' => '0']);
 
 		$this->assertSame('approved', $this->call('moderate_comment', ['comment_id' => $comment_id, 'action' => 'approve'])['comment']['status']);
+		$this->assertTrue($this->call('moderate_comment', ['comment_id' => $comment_id, 'action' => 'approve'])['success']);
 		$this->assertSame('spam', $this->call('moderate_comment', ['comment_id' => $comment_id, 'action' => 'spam'])['comment']['status']);
 		$this->assertSame('approved', $this->call('moderate_comment', ['comment_id' => $comment_id, 'action' => 'unspam'])['comment']['status']);
 		$this->assertSame('trash', $this->call('moderate_comment', ['comment_id' => $comment_id, 'action' => 'trash'])['comment']['status']);

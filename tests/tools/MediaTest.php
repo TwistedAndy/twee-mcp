@@ -88,7 +88,7 @@ class MediaTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * Images can be assigned as a post thumbnail or a term thumbnail.
+	 * Images can be assigned as a post thumbnail or a term thumbnail, and the term's taxonomy is found from the term.
 	 */
 	public function test_assign_media_image(): void
 	{
@@ -99,7 +99,9 @@ class MediaTest extends TWCP_TestCase {
 		$this->call('assign_media_image', ['attachment_id' => $image, 'type' => 'post', 'id' => $post_id]);
 		$this->assertSame($image, (int) get_post_thumbnail_id($post_id));
 
-		$this->call('assign_media_image', ['attachment_id' => $image, 'type' => 'term', 'id' => $term_id, 'taxonomy' => 'category']);
+		$this->assertSame('Unknown post image role.', $this->call('assign_media_image', ['attachment_id' => $image, 'type' => 'post', 'id' => $post_id, 'assign_as' => 'gallery'])['error']);
+
+		$this->call('assign_media_image', ['attachment_id' => $image, 'type' => 'term', 'id' => $term_id]);
 		$this->assertSame($image, (int) get_term_meta($term_id, 'thumbnail_id', true));
 	}
 

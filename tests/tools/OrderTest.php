@@ -33,6 +33,7 @@ class OrderTest extends TWCP_TestCase {
 		$this->assertSame(2, $this->call('get_orders', ['date_from' => wp_date('Y-m-d'), 'date_to' => wp_date('Y-m-d')])['total']);
 		$this->assertStringContainsString('YYYY-MM-DD', $this->call('get_orders', ['date_from' => '01/02/2025'])['error']);
 		$this->assertStringContainsString('not found', $this->call('get_orders', ['id' => 999999])['error']);
+		$this->assertStringContainsString('Unknown order status', $this->call('get_orders', ['status' => 'shipped'])['error']);
 	}
 
 	/**

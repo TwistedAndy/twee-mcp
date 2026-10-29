@@ -36,7 +36,7 @@ add_filter('twcp_tools', function(array $groups): array {
 		'excerpt'         => ['type' => 'string'],
 		'seo_title'       => ['type' => 'string', 'description' => 'SEO title saved for both Rank Math and Yoast SEO.'],
 		'seo_description' => ['type' => 'string', 'description' => 'SEO meta description saved for both Rank Math and Yoast SEO.'],
-		'post_status'         => [
+		'post_status'     => [
 			'type'        => 'string',
 			'enum'        => ['draft', 'pending', 'publish', 'private', 'future'],
 			'description' => 'New posts default to publish.',
@@ -45,7 +45,7 @@ add_filter('twcp_tools', function(array $groups): array {
 		'slug'            => ['type' => 'string'],
 		'parent'          => ['type' => 'integer', 'minimum' => 0],
 		'thumbnail_id'    => ['type' => 'integer', 'minimum' => 0, 'description' => 'Image attachment ID; 0 removes it.'],
-		'taxonomies'          => [
+		'taxonomies'      => [
 			'type'        => 'object',
 			'description' => 'Map of registered taxonomy names to arrays of existing term IDs. Empty arrays clear assignments.',
 		],
@@ -63,15 +63,15 @@ add_filter('twcp_tools', function(array $groups): array {
 				'callable'    => 'twcp_post_query',
 				'parameters'  => [
 					'id'          => ['type' => 'integer', 'description' => 'Single post ID.'],
-					'post_type'   => ['type' => 'string', 'description' => 'Post type: "post", "page", "product", etc. (default "any").'],
-					'search'      => ['type' => 'string', 'description' => 'Keyword search.'],
-					'post_status' => ['type' => 'string', 'description' => 'Status: "publish", "draft", etc. (default "publish").'],
-					'taxonomy'    => ['type' => 'string', 'description' => 'Filter taxonomy.'],
-					'term_id'     => ['type' => 'integer', 'description' => 'Filter term ID.'],
+					'post_type'   => ['type' => 'string', 'description' => 'Post type: "post", "page", "product", or a custom type from get_schema (default "any", which leaves out types hidden from search).'],
+					'search'      => ['type' => 'string', 'description' => 'Keyword search in titles and content.'],
+					'post_status' => ['type' => 'string', 'description' => 'Status: "publish", "draft", "private", or "any" (default "publish").'],
+					'taxonomy'    => ['type' => 'string', 'description' => 'Taxonomy of term_id; found from the term when omitted.'],
+					'term_id'     => ['type' => 'integer', 'description' => 'Only posts with this term.'],
 					'limit'       => ['type' => 'integer', 'description' => 'Number of posts (default 20, max 50).'],
 					'offset'      => ['type' => 'integer', 'description' => 'Pagination offset.'],
-					'order_by'    => ['type' => 'string', 'description' => 'Sort field.'],
-					'order'       => ['type' => 'string', 'description' => '"ASC" or "DESC".'],
+					'order_by'    => ['type' => 'string', 'enum' => ['date', 'modified', 'title', 'menu_order', 'rand'], 'description' => 'Sort field (default "date").'],
+					'order'       => ['type' => 'string', 'description' => '"ASC" or "DESC" (default "DESC").'],
 				],
 				'annotations' => ['readOnlyHint' => true],
 			],
@@ -144,8 +144,8 @@ add_filter('twcp_tools', function(array $groups): array {
 				'parameters'  => [
 					'taxonomy'   => ['type' => 'string', 'description' => 'Taxonomy name (e.g. "category", "product_cat"). Defaults to all.'],
 					'search'     => ['type' => 'string', 'description' => 'Keyword search in term names.'],
-					'parent'     => ['type' => 'integer', 'description' => 'Parent term ID.'],
-					'limit'      => ['type' => 'integer', 'description' => 'Number of terms (default 50).'],
+					'parent'     => ['type' => 'integer', 'description' => 'Parent term ID; 0 lists top-level terms.'],
+					'limit'      => ['type' => 'integer', 'description' => 'Number of terms (default 50, max 100).'],
 					'offset'     => ['type' => 'integer', 'description' => 'Offset for pagination.'],
 					'hide_empty' => ['type' => 'boolean', 'description' => 'Hide empty terms (default false).'],
 				],
@@ -169,10 +169,10 @@ add_filter('twcp_tools', function(array $groups): array {
 			'edit_term'    => [
 				'description' => 'Edit an existing taxonomy term name, slug, description, parent, or SEO metadata.',
 				'callable'    => 'twcp_term_edit',
-				'required'    => ['term_id', 'taxonomy'],
+				'required'    => ['term_id'],
 				'parameters'  => [
 					'term_id'         => ['type' => 'integer', 'description' => 'Term ID to edit.'],
-					'taxonomy'        => ['type' => 'string', 'description' => 'Taxonomy of the term.'],
+					'taxonomy'        => ['type' => 'string', 'description' => 'Taxonomy of the term; found from the term when omitted.'],
 					'name'            => ['type' => 'string', 'description' => 'New term name.'],
 					'slug'            => ['type' => 'string', 'description' => 'New slug.'],
 					'description'     => ['type' => 'string', 'description' => 'New description.'],
@@ -208,10 +208,10 @@ add_filter('twcp_tools', function(array $groups): array {
 	$groups[] = [
 		'group' => 'comments',
 		'label' => __('Comments', 'twee-mcp'),
-		'hint'  => 'Moderate comments with get_comments (status "hold" lists the queue), moderate_comment, and reply_comment.',
+		'hint'  => 'Moderate comments and product reviews with get_comments (status "hold" lists the queue), moderate_comment, and reply_comment.',
 		'tools' => [
 			'get_comments'     => [
-				'description' => 'Read post and page comments for moderation: pending, approved, spam, or trashed, with author, date, content, and post. Filter by post, status, or keyword.',
+				'description' => 'Read comments and WooCommerce product reviews for moderation: pending, approved, spam, or trashed, with author, date, content, and post. Filter by post, status, or keyword.',
 				'callable'    => 'twcp_comment_query',
 				'capability'  => 'moderate_comments',
 				'parameters'  => [
@@ -329,7 +329,7 @@ add_filter('twcp_tools', function(array $groups): array {
 						'type'        => 'string',
 						'description' => 'Assignment role: for product: "featured", "gallery", "both"; for post: "featured", "content". Default "featured".',
 					],
-					'taxonomy'      => ['type' => 'string', 'description' => 'Taxonomy slug if type is "term" (default "product_cat").'],
+					'taxonomy'      => ['type' => 'string', 'description' => 'Taxonomy of the term if type is "term"; found from the term when omitted.'],
 					'block_index'   => ['type' => 'integer', 'description' => '0-based index of the ACF block if type is "block".'],
 					'field_name'    => [
 						'type'        => 'string',
@@ -357,6 +357,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'required'    => ['url'],
 				'parameters'  => [
 					'url'        => ['type' => 'string', 'description' => 'Direct download URL of the remote raster image. SVG imports are not supported.'],
+					'provider'   => ['type' => 'string', 'description' => 'Provider from stock search.'],
 					'source_url' => ['type' => 'string', 'description' => 'Original provider page URL from stock search.'],
 					'author'     => ['type' => 'string'],
 					'author_url' => ['type' => 'string'],
@@ -460,7 +461,7 @@ add_filter('twcp_tools', function(array $groups): array {
 		'label' => __('Discovery & Search', 'twee-mcp'),
 		'tools' => [
 			'search' => [
-				'description' => 'Unified search across posts, terms, and images (ChatGPT connector compatible).',
+				'description' => 'Unified search across published posts, pages, products, and public taxonomy terms (ChatGPT connector compatible).',
 				'callable'    => 'twcp_search_query',
 				'required'    => ['query'],
 				'parameters'  => [

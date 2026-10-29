@@ -117,14 +117,12 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 	if (in_array($post->post_type, ['product', 'product_variation'], true) and class_exists('WooCommerce')) {
 		$product = wc_get_product($post_id);
 		if ($product) {
-			$attributes = array_map(static fn($attribute) => $attribute instanceof WC_Product_Attribute ? $attribute->get_data() : $attribute, $product->get_attributes());
-
 			$data['product'] = [
 				'sku'               => $product->get_sku(),
 				'type'              => $product->get_type(),
 				'status'            => $product->get_status(),
 				'currency'          => get_woocommerce_currency(),
-				'attributes'        => $attributes,
+				'attributes'        => twcp_post_attributes($product),
 				'manage_stock'      => $product->get_manage_stock(),
 				'gallery_image_ids' => $product->get_gallery_image_ids(),
 				'upsell_ids'        => $product->get_upsell_ids(),
@@ -143,6 +141,39 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 	}
 
 	return $data;
+}
+
+
+/**
+ * Attributes of a WooCommerce product in the format create_product and edit_product take, with the term names of
+ * store-wide attributes
+ *
+ * @param WC_Product $product
+ *
+ * @return array[] [ name, taxonomy, options, visible, variation ], taxonomy only for store-wide attributes
+ */
+function twcp_post_attributes(WC_Product $product): array
+{
+	$attributes = [];
+	foreach ($product->get_attributes() as $attribute) {
+		if (!($attribute instanceof WC_Product_Attribute)) {
+			continue;
+		}
+
+		if ($attribute->is_taxonomy()) {
+			$item = [
+				'name'     => wc_get_attribute($attribute->get_id())?->name ?? $attribute->get_name(),
+				'taxonomy' => $attribute->get_name(),
+				'options'  => wc_get_product_terms($product->get_id(), $attribute->get_name(), ['fields' => 'names']),
+			];
+		} else {
+			$item = ['name' => $attribute->get_name(), 'options' => $attribute->get_options()];
+		}
+
+		$attributes[] = $item + ['visible' => $attribute->get_visible(), 'variation' => $attribute->get_variation()];
+	}
+
+	return $attributes;
 }
 
 
@@ -167,6 +198,9 @@ function twcp_post_query(array $args): array
 	}
 
 	$post_type = !empty($args['post_type']) ? sanitize_key($args['post_type']) : 'any';
+	if ($post_type !== 'any' and !post_type_exists($post_type)) {
+		return ['error' => 'Unknown post type: ' . $post_type . '. get_schema lists the post types.'];
+	}
 	$limit = isset($args['limit']) ? min(50, max(1, (int) $args['limit'])) : 20;
 	$offset = isset($args['offset']) ? max(0, (int) $args['offset']) : 0;
 	$status = !empty($args['post_status']) ? sanitize_key($args['post_status']) : 'publish';
@@ -194,15 +228,26 @@ function twcp_post_query(array $args): array
 		if ($meta_query) {
 			$query_args['meta_query'] = $meta_query;
 		}
+
+		$sort_keys = ['price' => '_price', 'popularity' => 'total_sales'];
+		if (isset($sort_keys[$query_args['orderby']])) {
+			$query_args['meta_key'] = $sort_keys[$query_args['orderby']];
+			$query_args['orderby'] = 'meta_value_num';
+		}
 	}
 	if (!empty($args['search'])) {
 		$query_args['s'] = sanitize_text_field($args['search']);
 	}
 
-	if (!empty($args['taxonomy']) and !empty($args['term_id'])) {
+	// Without a taxonomy, the term's own taxonomy is used
+	if (!empty($args['term_id'])) {
+		$term = get_term((int) $args['term_id'], sanitize_key($args['taxonomy'] ?? ''));
+		if (!($term instanceof WP_Term)) {
+			return ['error' => 'Term not found: ' . (int) $args['term_id']];
+		}
 		$query_args['tax_query'] = [
 			[
-				'taxonomy' => sanitize_key($args['taxonomy']),
+				'taxonomy' => $term->taxonomy,
 				'field'    => 'term_id',
 				'terms'    => (int) $args['term_id'],
 			],

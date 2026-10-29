@@ -965,6 +965,9 @@ function twcp_media_assign($attachment_id_or_args, array $target = []): array
 			if (!$post) {
 				return ['error' => "Post #{$target_id} not found."];
 			}
+			if (!in_array($assign_as, ['featured', 'content'], true)) {
+				return ['error' => 'Unknown post image role.'];
+			}
 
 			if ($assign_as === 'content') {
 				$img_html = wp_get_attachment_image($attachment_id, 'large');
@@ -1000,10 +1003,9 @@ function twcp_media_assign($attachment_id_or_args, array $target = []): array
 				return ['error' => 'Missing term ID.'];
 			}
 
-			$taxonomy = !empty($target['taxonomy']) ? sanitize_key($target['taxonomy']) : 'product_cat';
-			$term = get_term($target_id, $taxonomy);
+			$term = get_term($target_id, sanitize_key($target['taxonomy'] ?? ''));
 			if (!$term or is_wp_error($term)) {
-				return ['error' => "Taxonomy term #{$target_id} in '{$taxonomy}' not found."];
+				return ['error' => "Taxonomy term #{$target_id} not found."];
 			}
 
 			update_term_meta($target_id, 'thumbnail_id', $attachment_id);
@@ -1013,7 +1015,7 @@ function twcp_media_assign($attachment_id_or_args, array $target = []): array
 				'success'       => true,
 				'type'          => 'term',
 				'term_id'       => $target_id,
-				'taxonomy'      => $taxonomy,
+				'taxonomy'      => $term->taxonomy,
 				'term_name'     => $term->name,
 				'attachment_id' => $attachment_id,
 				'message'       => sprintf("Set thumbnail image #%d for term '%s' (#%d).", $attachment_id, $term->name, $target_id),

@@ -23,6 +23,10 @@ class TermTest extends TWCP_TestCase {
 		$this->assertEqualsCanonicalizing(['category', 'post_tag'], array_column($all['terms'], 'taxonomy'));
 
 		$this->assertStringContainsString('does not exist', $this->call('get_terms', ['taxonomy' => 'nope'])['error']);
+
+		$parent = self::factory()->category->create(['name' => 'Parent']);
+		self::factory()->category->create(['name' => 'Child', 'parent' => $parent]);
+		$this->assertNotContains('Child', array_column($this->call('get_terms', ['taxonomy' => 'category', 'parent' => 0])['terms'], 'name'));
 	}
 
 	/**
@@ -41,6 +45,10 @@ class TermTest extends TWCP_TestCase {
 		$this->assertTrue($edited['success']);
 		$this->assertSame('How-to Guides', get_term($term_id)->name);
 		$this->assertSame('Desc', get_option('wpseo_taxonomy_meta')['category'][$term_id]['wpseo_desc']);
+
+		$this->assertTrue($this->call('edit_term', ['term_id' => $term_id, 'description' => 'Found without a taxonomy'])['success']);
+		$this->assertSame('Found without a taxonomy', get_term($term_id)->description);
+		$this->assertStringContainsString('Term not found', $this->call('edit_term', ['term_id' => $term_id, 'taxonomy' => 'post_tag', 'name' => 'X'])['error']);
 	}
 
 	/**
