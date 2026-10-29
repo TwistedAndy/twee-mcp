@@ -1420,7 +1420,7 @@ function twcp_prompt_registry(): array
 		'twcp_system_prompt_seo'           => [
 			'group'       => 'content',
 			'label'       => __('Post & Page SEO', 'twee-mcp'),
-			'description' => __('SEO titles under 60 characters and meta descriptions of 130 to 155 characters, saved for Rank Math and Yoast SEO.', 'twee-mcp'),
+			'description' => __('SEO titles of 50 to 60 characters and meta descriptions of 120 to 155 characters, saved for Rank Math and Yoast SEO.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_seo_default',
 			'used_by'     => [__('Batch: SEO tags', 'twee-mcp'), __('Bulk actions', 'twee-mcp'), 'create_similar_post'],
 			'rows'        => 5,
@@ -1460,7 +1460,7 @@ function twcp_prompt_registry(): array
 		'twcp_system_prompt_media_alt'     => [
 			'group'       => 'media',
 			'label'       => __('Image Alt Text', 'twee-mcp'),
-			'description' => __('Accessibility and image SEO guidelines for describing photos in 15 to 35 words.', 'twee-mcp'),
+			'description' => __('Accessibility and image SEO guidelines for describing photos in 8 to 20 words.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_alt_default',
 			'used_by'     => [__('Batch: Image Alt text', 'twee-mcp'), 'check_media_alt_text', __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,

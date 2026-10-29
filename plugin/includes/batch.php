@@ -96,7 +96,7 @@ function twcp_batch_types(): array
 			'run'         => 'twcp_batch_run_seo',
 			'prompts'     => ['twcp_system_prompt_seo'],
 			'combine'     => true,
-			'text'        => 'SEO title (50 to 60 characters) and meta description (140 to 160 characters)',
+			'text'        => 'SEO title (50 to 60 characters) and meta description (120 to 155 characters)',
 			'cost'        => [1, 3000],
 		],
 		'featured_images'  => [
@@ -143,7 +143,7 @@ function twcp_batch_types(): array
 			'run'         => 'twcp_media_generate_alt',
 			'prompts'     => ['twcp_system_prompt_media_alt'],
 			'capability'  => 'upload_files',
-			'text'        => 'image Alt text (10 to 30 words)',
+			'text'        => 'image Alt text (8 to 20 words)',
 		],
 	];
 

@@ -395,22 +395,24 @@ function twcp_prompt_alt_default(): string
 	$store_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior accessibility and visual SEO specialist writing descriptive HTML image alt text for {$store_name}.
+You are an accessibility and image SEO specialist writing HTML image alt text for {$store_name}, following Google's image SEO guidance and WCAG.
 
 CORE OBJECTIVE:
-Generate clear, objective, and information-rich Alt text describing the provided image accurately for visually impaired users (screen readers), image search indexers (Google Images), and AI autonomous agents choosing photos for new catalog content.
+Describe what the image shows and what matters about it on the page, for screen reader users, image search, and AI agents choosing images from the media library.
 
 GUIDELINES:
-1. Conciseness: Strictly 1 to 2 sentences (between 15 and 35 words).
-2. Key Attributes to Identify:
-   - The main subject and its specific type (e.g. a product, a person at work, a place, a diagram, a screenshot)
-   - Color and finish (e.g. navy blue, matte black, brushed steel, pastel)
-   - Material, texture, and visible details that matter for the subject
-   - Visible text, logos, or labels when they carry meaning
+1. Length: One sentence, usually 8 to 20 words. Be specific rather than long: "Dalmatian puppy playing fetch" beats both "dog" and a paragraph.
+2. Key Attributes, most important first:
+   - The main subject and its specific type, with the product or model name when the context confirms it
+   - Color and finish (e.g. navy blue, matte black, brushed steel)
+   - Material, texture, and the visible details that set this image apart from similar ones
    - Setting and presentation (e.g. flat lay, close-up, in use, on a white background)
-3. Formatting:
-   - Output strictly plain text.
-   - Do NOT include labels like "Alt text:", "Image of", or "Photo shows".
+   - Visible text, logos, or labels when they carry meaning
+3. Accuracy: Describe only what is visible or confirmed by the context. Do not guess brands, sizes, or features.
+4. Keywords: No keyword lists, repeated phrases, or promotional words.
+5. Formatting:
+   - Output strictly plain text in the language of the site.
+   - Do NOT include labels like "Alt text:", "Image of", or "Photo of".
    - Do NOT wrap in quotes, brackets, or markdown code blocks.
 PROMPT;
 }
@@ -437,11 +439,10 @@ function twcp_media_generate_alt(int $attachment_id, bool $force = false): ?stri
 	}
 
 	$prompt = "Analyze this image from " . twcp_site_name() . ".\n";
-	$prompt .= "Generate a concise, highly descriptive Alt text (1 to 2 sentences, 10 to 30 words).\n";
-	$prompt .= "Include key details: the main subject and its type, color, material or texture, setting, and view angle.\n";
+	$prompt .= "Write its Alt text.\n";
 
 	if (!empty($current_alt)) {
-		$prompt .= twcp_rewrite_note('Alt text', "\"{$current_alt}\"", 'Improve, refine, or rewrite this Alt text to be more precise, descriptive, and SEO-friendly based on the photo.');
+		$prompt .= twcp_rewrite_note('Alt text', "\"{$current_alt}\"", 'Improve, refine, or rewrite this Alt text to describe the photo more precisely.');
 	}
 
 	$associated = twcp_media_associated_post($post);

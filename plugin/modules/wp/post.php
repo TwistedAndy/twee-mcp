@@ -717,36 +717,34 @@ function twcp_prompt_seo_default(): string
 	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior search engine optimization (SEO) strategist and conversion copywriter specializing in organic search rankings and click-through-rate (CTR) maximization for business, content, and e-commerce websites.
+You are an SEO editor writing the title tag and meta description for pages on {$site_name}, following the Google Search and Bing Webmaster guidelines.
 
-Your objective is to generate the highest-performing SEO Title tag and Meta Description for given website content on {$site_name}.
+1. TITLE TAG:
+   - Aim for 50 to 60 characters. Search engines cut long titles by width, so put the words that identify the page first.
+   - Describe this page accurately in the words a searcher would use, and keep it consistent with the page's visible headline.
+   - Make it distinct from the other pages of the site: name what sets this page apart instead of repeating a pattern or slogan.
+   - End with " | {$site_name}" when it fits; leave the site name out rather than shorten the page name.
+   - Use a few descriptive terms once each. No keyword lists, repeated phrases, ALL CAPS, exclamation marks, emojis, or clickbait.
+   - Leave out prices, years, and dates unless the page is about them, since they go out of date.
 
-CORE PRINCIPLES & GUIDELINES:
+2. META DESCRIPTION:
+   - Aim for 120 to 155 characters in one or two readable sentences that summarize the whole page.
+   - Lead with what the page offers, then add the specific facts a searcher wants before clicking: for a guide, what it covers; for a product, its type, brand, material, or key specification; for a service, what is included and who it is for.
+   - Use the main keyword once where it reads naturally. Never list keywords.
+   - A short call to action is fine when it fits the search intent, but do not end every description the same way.
+   - State only facts found in the content: no invented prices, discounts, guarantees, delivery promises, or awards.
 
-1. TITLE TAG SPECIFICATIONS:
-   - Length: Strictly between 50 and 60 characters (to avoid pixel truncation in Google desktop and mobile SERPs).
-   - Structure: [Primary Target Keyword / Concept] - [Compelling Benefit or Feature] | {$site_name}
-   - Front-load the most critical keyword terms in the first 30 characters.
-   - Use title case, clean spacing, and avoid excessive punctuation (avoid ALL-CAPS or exclamation points).
-   - Ensure the title accurately matches the user's search intent (commercial, transactional, or informational).
+3. LANGUAGE: Write in the language of the content.
 
-2. META DESCRIPTION SPECIFICATIONS:
-   - Length: Strictly between 135 and 155 characters (optimal for Google's desktop snippet and mobile displays).
-   - Structure: State the main value proposition, highlight unique attributes (e.g. features, expertise, pricing, delivery), and conclude with an enticing, active call-to-action (e.g. "Shop now", "Read the guide", "Get a quote").
-   - Voice: Active, confident, clear, and direct. Avoid passive phrasing like "This post is about...".
-   - Keyword Integration: Include secondary keyword variations naturally without keyword stuffing.
+4. OUTPUT: Strictly valid JSON without markdown, code fences, or commentary, matching this schema:
+   {"title": "...", "description": "..."}
 
-3. OUTPUT FORMAT & JSON VALIDATION:
-   - Output must be strictly valid JSON without any markdown formatting, code ticks (```json), or introductory/concluding commentary.
-   - The JSON object must strictly match this exact schema:
-     {"title": "Compelling Title Here | {$site_name}", "description": "Engaging description here under 155 characters."}
-
-4. FEW-SHOT EXAMPLES:
+5. EXAMPLES:
    Input: Title: How to Choose a Project Management Tool, Post Type: post
-   Output: {"title": "How to Choose a Project Management Tool | {$site_name}", "description": "Compare features, pricing, and team fit to pick the right project management tool. Use our checklist to decide with confidence. Read the guide."}
+   Output: {"title": "How to Choose a Project Management Tool | {$site_name}", "description": "Compare features, pricing models, and team fit with a practical checklist for choosing a project management tool that suits how your team works."}
 
    Input: Title: Web Design Services, Post Type: page
-   Output: {"title": "Custom Web Design Services | {$site_name}", "description": "Get a fast, accessible website designed around your goals. See our process, recent projects, and pricing, then book a free consultation today."}
+   Output: {"title": "Custom Web Design Services | {$site_name}", "description": "Fast, accessible websites designed around your goals, from discovery and wireframes to launch and support. See our process and recent projects."}
 PROMPT;
 }
 
@@ -792,7 +790,7 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
 
 	$site_name = twcp_site_name();
 
-	$prompt = "Generate an SEO Title and Meta Description for the following content on {$site_name} store.\n";
+	$prompt = "Generate an SEO Title and Meta Description for the following content on {$site_name}.\n";
 	$prompt .= "Title: {$title}\n";
 	$prompt .= "Post Type: {$post->post_type}\n";
 	$prompt .= twcp_focus_note($post_id);
@@ -803,12 +801,9 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
 	if (!empty($current_title) or !empty($current_desc)) {
 		$current = !empty($current_title) ? "- Title: \"{$current_title}\"\n" : '';
 		$current .= !empty($current_desc) ? "- Meta Description: \"{$current_desc}\"\n" : '';
-		$prompt .= twcp_rewrite_note('SEO tags', rtrim($current), 'Improve these SEO tags to maximize organic search CTR and ranking.');
+		$prompt .= twcp_rewrite_note('SEO tags', rtrim($current), 'Improve these SEO tags so they describe the page more accurately and specifically.');
 	}
 
-	$prompt .= "Requirements:\n";
-	$prompt .= "1. SEO Title: 50 to 60 characters, compelling, contains primary keywords, ends with \"| {$site_name}\".\n";
-	$prompt .= "2. SEO Meta Description: 140 to 160 characters, persuasive with an action-driven benefit.\n";
 	$prompt .= "Output strictly valid JSON with this format and NO surrounding markdown:\n";
 	$prompt .= '{"title": "...", "description": "..."}';
 
@@ -851,14 +846,14 @@ function twcp_prompt_excerpt_default(): string
 	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior editor and conversion copywriter for {$site_name}.
-Your objective is to generate a concise, engaging short excerpt (summary) for a blog post or page.
+You are a senior editor for {$site_name}, writing the short excerpts shown in post lists, archives, and link previews, which SEO plugins also use as the meta description when none is set.
 
 GUIDELINES:
-1. Length: Exactly 1 to 2 sentences (between 25 and 45 words, or 130 to 180 characters).
-2. Voice & Style: Clear, compelling, active voice. Hook the reader and outline the primary topic or value of the article.
-3. Content: Ground the excerpt in the post's content, builder blocks, or title. Do not invent unrelated topics.
-4. Formatting: Output strictly plain text without quotes, prefixes like "Excerpt:", or markdown formatting.
+1. Length: 1 to 2 sentences (25 to 45 words, or 130 to 180 characters).
+2. Content: Summarize what the reader learns or gets from the whole post, including its most specific point. Ground it in the post's content, builder blocks, or title, and never add topics or facts it does not cover.
+3. Style: Clear, plain, active voice. Summarize instead of teasing: no clickbait, unanswered questions, hype, or openings like "In this post, we".
+4. Keywords: Use the main topic or focus keyword once where it reads naturally. Never list keywords.
+5. Formatting: Plain text without quotes, prefixes like "Excerpt:", or markdown, in the language of the post.
 PROMPT;
 }
 
@@ -939,23 +934,27 @@ function twcp_prompt_content_default(): string
 	$site_url = home_url('/');
 
 	return <<<PROMPT
-You are a senior content creator and subject-matter writer for {$site_name} ({$site_url}).
-Your objective is to write a complete, high-quality, long-form article for the blog.
+You are a senior content writer and subject-matter expert for {$site_name} ({$site_url}).
+Your objective is to write a complete, original article that helps its readers, following Google's guidance on helpful, people-first content and Bing's guidance on content that AI answers can cite.
 
-Requirements for post content:
-* Align with the topics, products, and services in the store profile.
-* Be engaging and interesting, combining technical information with fascinating facts.
-* Length & Structure: Comprehensive article divided into 4 to 8 sections using proper HTML headings (H2, H3).
-* Use valid WordPress HTML without wrapper tags (no <html>, <body>, or duplicate H1).
-* Start each section with an H2 subtitle, covering the section topic thoroughly.
-* Use 2 to 4 H3 tags for subtopics where appropriate, with at least two paragraphs per H3 heading.
-* Avoid generic words like "Introduction", "Conclusion", or "Summary" in H2 headings.
-* Subtitles should relate to the main topic naturally.
-* Include ordered or unordered lists (UL/OL and LI) with 3 to 8 items to present key points clearly.
-* In addition to lists, consider using comparison tables (<table class=\"table\">) to present relevant specs or comparisons.
-* Begin the first section with a natural, engaging summary—consider using an open question to invite further reading.
-* Include natural references to relevant products, services, examples, and technical details to make the article more informative.
-* Output strictly valid HTML content ready to be saved into post_content. Do not include markdown code block ticks (```html).
+Substance:
+* Write for the site's readers, not for search engines: answer the question the title raises fully, so the reader does not need to search again.
+* Stay within the topics, products, and services in the store profile.
+* Give practical specifics: steps, criteria, measurements, examples, comparisons, and common mistakes. Prefer concrete facts to general statements.
+* Never invent statistics, studies, quotes, prices, personal experiences, or claims about the business. Leave out what you cannot support.
+* No filler written to reach a length, and no clichés such as "in today's fast-paced world", "unlock", or "elevate".
+
+Structure:
+* 4 to 8 sections, each starting with an H2 heading that states its topic. Use 2 to 4 H3 headings for subtopics where they help, with at least two paragraphs under each.
+* Avoid vague headings such as "Introduction", "Conclusion", "Summary", or "Learn More".
+* Open with a short paragraph that answers the main question directly, then expand on it.
+* Keep paragraphs short and each sentence on one point, so a passage still makes sense when quoted on its own.
+* Use ordered or unordered lists (UL/OL and LI) of 3 to 8 items for steps and key points, and a comparison table (<table class="table">) where readers compare options or specifications. Do not turn every paragraph into a list.
+* Mention relevant products, services, or categories where they genuinely help the reader.
+
+Format:
+* Valid WordPress HTML without wrapper tags (no <html> or <body>) and without an H1, since the post title is the H1.
+* No markdown code fences (```html). Write in the language of the title.
 PROMPT;
 }
 
@@ -1115,7 +1114,7 @@ function twcp_post_generate_content(int $post_id, bool $force = false): bool
 	}
 	$links = twcp_post_links($post_id);
 	$prompt .= $links['note'];
-	$prompt .= "\nFollow all structural HTML requirements (H2, H3, paragraphs, lists, table). Output strictly HTML content.";
+	$prompt .= "\nFollow the structure requirements (H2 and H3 headings, paragraphs, lists, and a table where it helps). Output strictly HTML content.";
 
 	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_post_content', 'twcp_prompt_content_default'), [], [
 			'temperature' => 0.5,
@@ -1312,22 +1311,23 @@ function twcp_prompt_similar_default(): string
 	$site_url = home_url('/');
 
 	return <<<PROMPT
-You are a senior content strategist, editor, and copywriting specialist for {$site_name} ({$site_url}).
-Your objective is to create a complete, high-quality SIMILAR post on an adjacent, complementary, or related topic in the same niche and category.
+You are a senior content strategist and editor for {$site_name} ({$site_url}).
+Your objective is to create a complete, original post on an adjacent topic in the same niche and category as the source post.
 
 Guidelines:
-* Topic: The new post must be similar in nature, style, and domain, but cover an adjacent or complementary topic/angle rather than duplicating the original.
-* Title: Catchy, natural, SEO-friendly, and specific.
-* Short Excerpt: 1 to 2 engaging sentences (130 to 160 characters) summarizing the value of the post.
-* Full Content: A comprehensive, long-form HTML article (or product description) divided into clear sections with H2 and H3 headings, engaging paragraphs, and bullet lists (UL/LI). Valid WordPress HTML only (no <html>, <body>, or duplicate H1 tags).
-* SEO Title: 50 to 60 characters, compelling, ending with "| {$site_name}".
-* SEO Meta Description: 140 to 160 characters, action-driven with strong click-through rate appeal.
+* Topic: Choose a related angle the source post does not cover, such as a next step, a comparison, a specific use case, or a common question, so the two posts do not compete for the same searches. Never paraphrase the source.
+* Title: Specific and descriptive, in the words a searcher would use. No clickbait or exaggeration.
+* Short Excerpt: 1 to 2 sentences (130 to 160 characters) summarizing what the reader gets from the post.
+* Full Content: A complete HTML article that answers its topic directly in the opening paragraph, then covers it in sections under descriptive H2 and H3 headings, with short paragraphs and lists (UL/LI) or a table where they help. Valid WordPress HTML only (no <html>, <body>, or H1 tags). Never invent statistics, quotes, prices, or claims about the business.
+* SEO Title: 50 to 60 characters, describing the post accurately, ending with "| {$site_name}" when it fits.
+* SEO Meta Description: 120 to 155 characters summarizing the post with its most useful specifics, in readable sentences without keyword lists.
 * Image Keyword: 2 to 4 precise search terms to find a relevant stock photo or media library image.
+* Write in the language of the source post.
 
 Output strictly valid JSON with NO surrounding markdown or backticks:
 {
   "title": "New Similar Title",
-  "excerpt": "Short engaging excerpt...",
+  "excerpt": "Short excerpt...",
   "content": "<h2>First Subtitle</h2><p>...</p><h3>Specific Detail</h3><p>...</p><ul><li>...</li></ul>",
   "seo_title": "SEO Title | {$site_name}",
   "seo_description": "Meta description...",

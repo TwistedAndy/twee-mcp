@@ -436,41 +436,42 @@ function twcp_prompt_full_default(): string
 	$max_links = (int) $settings['max_links'] ? : 6;
 
 	return <<<PROMPT
-You are a senior e-commerce copywriter and conversion specialist crafting informative, persuasive product descriptions for {$site_name}.
+You are a senior e-commerce copywriter writing product descriptions for {$site_name} that help shoppers decide and help search engines understand the product, following Google's and Bing's guidance for product pages and Google Merchant Center's rules for product descriptions.
 
 CORE PRINCIPLES & GUIDELINES:
 
 1. TARGET AUDIENCE & TONE:
    - The customers described in the store profile, from first-time buyers to experienced ones comparing options.
-   - Tone: Knowledgeable, clear, engaging, and trustworthy.
+   - Tone: Knowledgeable, clear, specific, and trustworthy. Write for people first, not for search engines.
 
 2. STRUCTURE OF THE DESCRIPTION (Clean Semantic HTML):
-   - Opening Hook: 1-2 compelling paragraphs on what the product is, who it is for, and the main benefit.
-   - Features & Quality: What it is made of or how it works, and what sets it apart. Use only details from the product data.
-   - Use & Compatibility: How it is used, what it works with, sizing or variants, and care where relevant.
-   - Key Specifications Summary: An unordered list (<ul>) with the specifications found in the product data and attributes.
+   - Opening: 1 to 2 paragraphs that name the product type and say what it is, who it is for, and its main benefit. The first sentence must make sense on its own.
+   - Then 2 to 4 short sections under H2 or H3 headings that name their topic (e.g. "Materials and Build", "Sizing and Fit"), never vague labels like "Overview". Never use an H1.
+   - Cover what it is made of or how it works, what sets it apart, how it is used, what it works with, sizing or variants, and care, where the product data supports it.
+   - Key Specifications: An unordered list (<ul>) with the attribute names and values from the product data.
+   - Keep paragraphs short and each sentence on one point. Use lists for specifications and key points, not for every line.
 
-3. ACCURACY:
-   - Never invent specifications, materials, certifications, compatibility, or prices that are not in the product data.
-   - When a detail is unknown, leave it out instead of guessing.
+3. ACCURACY & SPECIFICITY:
+   - Prefer measurable facts (dimensions, materials, capacity, compatibility) to general praise, and support each claim with a detail from the product data.
+   - Never invent specifications, materials, certifications, compatibility, reviews, or awards. When a detail is unknown, leave it out instead of guessing.
+   - Write original copy instead of repeating the manufacturer's wording or the description of a similar product.
 
 4. NEGATIVE CONSTRAINTS (STRICT):
-   - NEVER use emojis in headings, body copy, or lists.
-   - Avoid cheesy marketing clichés (e.g. "look no further", "game changer", "take it to the next level").
+   - No prices, discounts, sale dates, shipping, delivery times, returns, or guarantees: they change and belong in their own product fields.
+   - No emojis, decorative symbols, ALL CAPS, or exclamation marks.
+   - No clichés or unsupported hype (e.g. "look no further", "game changer", "revolutionary", "next-gen").
 
-5. SEO & CONVERSION FOCUS:
-   - Naturally integrate the search terms a shopper would use for this product, without keyword stuffing.
-   - Mention complementary products or categories using natural anchor text.
+5. SEARCH TERMS:
+   - Use the product type and the terms a shopper would search for naturally, along with close synonyms. Never repeat a phrase to stuff keywords.
 
 6. INTERNAL LINKING RULES:
    - Embed between 3 and {$max_links} links using ONLY the approved links provided in the request.
    - Never invent or fabricate URLs not provided in the prompt.
-   - Do not output naked URLs; all links must be wrapped in valid <a> tags with contextually natural anchor text.
+   - Do not output naked URLs; all links must be wrapped in valid <a> tags with descriptive anchor text that names the linked page.
    - Distribute links evenly across paragraphs; avoid grouping links together in a single sentence.
 
-7. COMPLIANCE & TONE:
-   - Maintain a refined, knowledgeable tone (avoid excessive hyperbole like "revolutionary" or "jaw-dropping").
-   - Output must be clean, valid HTML ready for direct publication.
+7. OUTPUT:
+   - Clean, valid HTML ready for direct publication, in the language of the product data.
 PROMPT;
 }
 
@@ -506,16 +507,14 @@ function twcp_prompt_short_default(): string
 	$store_name = twcp_site_name();
 
 	return <<<PROMPT
-You are an expert e-commerce search marketing copywriter crafting concise, high-CTR product summary excerpts for {$store_name}.
-
-CORE OBJECTIVE:
-Generate a compelling, concise product short description (excerpt) designed for Google Search meta snippets and WooCommerce catalog listings.
+You are an e-commerce copywriter writing short product descriptions for {$store_name}. The text appears next to the price on the product page and in catalog listings, and SEO plugins often use it as the meta description.
 
 REQUIREMENTS:
-1. STRICT CHARACTER LIMIT: Strictly between 130 and 155 characters (including spaces).
-2. STYLE: Engaging, benefits-driven, and action-oriented for experienced and first-time shoppers alike.
-3. CONTENT: State what the product is, its key highlight, and who or what it is for, using only details from the product data.
-4. FORMAT: Plain text only. No HTML tags, no quotes, no markdown, and no hashtags.
+1. LENGTH: 120 to 155 characters, including spaces, in one or two sentences.
+2. CONTENT: Name the product type first, then its most useful distinguishing facts (brand, material, size, or key feature) and who or what it is for, using only details from the product data.
+3. STYLE: Specific and factual, written for shoppers. Use the main search term once where it reads naturally. No keyword lists, hype, or clichés.
+4. EXCLUDE: Prices, discounts, shipping, guarantees, ALL CAPS, emojis, and exclamation marks.
+5. FORMAT: Plain text only, with no HTML tags, quotes, markdown, or hashtags, in the language of the product data.
 PROMPT;
 }
 
@@ -532,28 +531,9 @@ function twcp_product_gather_specs(WC_Product $product): array
 	$product_id = $product->get_id();
 	$attributes = [];
 
-	// Gather all product attributes assigned to the product
-	$product_attributes = $product->get_attributes();
-	if (is_array($product_attributes)) {
-		foreach ($product_attributes as $key => $attr_obj) {
-			if (is_a($attr_obj, 'WC_Product_Attribute')) {
-				$attr_label = wc_attribute_label($attr_obj->get_name(), $product);
-				$values = [];
-				if ($attr_obj->is_taxonomy()) {
-					$terms = wp_get_post_terms($product_id, $attr_obj->get_name());
-					if (!is_wp_error($terms) and !empty($terms)) {
-						foreach ($terms as $t) {
-							$values[] = $t->name;
-						}
-					}
-				} else {
-					$opts = $attr_obj->get_options();
-					$values = is_array($opts) ? $opts : array_map('trim', explode('|', (string) $opts));
-				}
-				if (!empty($values)) {
-					$attributes[] = $attr_label . ': ' . implode(', ', array_unique($values));
-				}
-			}
+	foreach (twcp_post_attributes($product) as $attribute) {
+		if ($attribute['options']) {
+			$attributes[] = $attribute['name'] . ': ' . implode(', ', array_unique($attribute['options']));
 		}
 	}
 
@@ -1003,7 +983,7 @@ add_filter('twcp_batch_types', function(array $types): array {
 
 	$types['products_short'] = [
 		'title'       => __('Short Product Descriptions', 'twee-mcp'),
-		'description' => __('Writes 130 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
+		'description' => __('Writes 120 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
 		'button'      => __('Generate Short Descriptions', 'twee-mcp'),
 		'section'     => 'store',
 		'post_type'   => 'product',
@@ -1011,7 +991,7 @@ add_filter('twcp_batch_types', function(array $types): array {
 		'run'         => 'twcp_product_short',
 		'combine'     => true,
 		'prompts'     => ['twcp_system_prompt_product_short'],
-		'text'        => 'short product description (130 to 155 characters)',
+		'text'        => 'short product description (120 to 155 characters)',
 		'cost'        => [1, 2500],
 		'restored'    => 'wc_delete_product_transients',
 	];
@@ -1163,7 +1143,7 @@ add_filter('twcp_prompt_registry', function(array $prompts): array {
 		'twcp_system_prompt_product_short' => [
 			'group'       => 'store',
 			'label'       => __('Short Product Description', 'twee-mcp'),
-			'description' => __('Product excerpts of 130 to 155 characters that double as meta descriptions.', 'twee-mcp'),
+			'description' => __('Product excerpts of 120 to 155 characters that double as meta descriptions.', 'twee-mcp'),
 			'default'     => 'twcp_prompt_short_default',
 			'used_by'     => ['generate_product_short_description', __('Batch: Short descriptions', 'twee-mcp'), __('Bulk actions', 'twee-mcp')],
 			'rows'        => 5,

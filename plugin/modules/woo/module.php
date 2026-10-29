@@ -82,7 +82,7 @@ add_filter('twcp_tools', function(array $groups): array {
 				'annotations' => ['readOnlyHint' => false],
 			],
 			'generate_product_short_description' => [
-				'description' => 'Write and save a short description of a WooCommerce product, 130-155 characters, which is also saved as its SEO meta description. A product that has one keeps it unless regenerate is true; "generated" says which happened.',
+				'description' => 'Write and save a short description of a WooCommerce product, 120-155 characters, which is also saved as its SEO meta description. A product that has one keeps it unless regenerate is true; "generated" says which happened.',
 				'callable'    => 'twcp_product_short_tool',
 				'required'    => ['product_id'],
 				'parameters'  => [

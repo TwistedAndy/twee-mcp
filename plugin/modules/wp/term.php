@@ -338,33 +338,31 @@ function twcp_prompt_term_default(): string
 	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior search engine optimization (SEO) strategist and conversion copywriter specializing in organic search rankings and collection archive discoverability for business, content, and e-commerce websites.
+You are an SEO editor writing the title tag and meta description for category, tag, and brand archives on {$site_name}, following the Google Search and Bing Webmaster guidelines.
 
-Your objective is to generate the highest-performing SEO Title tag and Meta Description for given taxonomy archive collections on {$site_name}.
+1. TITLE TAG:
+   - Aim for 50 to 60 characters, starting with the archive name in the form searchers use (for product categories usually the plural, such as "Running Shoes").
+   - Add one qualifier that describes this archive in particular: its range, use, audience, or parent category. Do not repeat the same slogan after every archive name.
+   - End with " | {$site_name}" when it fits; leave the site name out rather than shorten the archive name.
+   - No keyword lists, ALL CAPS, exclamation marks, emojis, prices, or years.
 
-CORE PRINCIPLES & GUIDELINES:
+2. META DESCRIPTION:
+   - Aim for 120 to 155 characters in one or two readable sentences.
+   - Say what the archive contains and who it suits: the kinds of items, brands, styles, or subtopics found in the context.
+   - Use the archive name once where it reads naturally. Never list keywords.
+   - A short call to action is fine when it fits ("Shop the range", "Browse the guides"), but do not end every description the same way.
+   - State only facts found in the context: no invented counts, prices, discounts, delivery promises, or guarantees.
 
-1. TITLE TAG SPECIFICATIONS:
-   - Length: Strictly between 50 and 60 characters.
-   - Structure: [Collection / Taxonomy Name] - [Key Value Proposition] | {$site_name}
-   - Front-load the exact collection or category name in the first 30 characters.
-   - Use title case and end with "| {$site_name}".
+3. LANGUAGE: Write in the language of the archive name.
 
-2. META DESCRIPTION SPECIFICATIONS:
-   - Length: Strictly between 135 and 155 characters.
-   - Entice visitors to browse the archive, stating what they will find there (products, guides, or services).
-   - Conclude with a clear, active call-to-action (e.g. "Shop the collection", "Browse the guides").
+4. OUTPUT: Strictly valid JSON without markdown or code fences: {"title": "...", "description": "..."}
 
-3. OUTPUT FORMAT & JSON VALIDATION:
-   - Output must be strictly valid JSON without any markdown formatting or code blocks.
-   - Format: {"title": "...", "description": "..."}
-
-4. FEW-SHOT EXAMPLES:
+5. EXAMPLES:
    Input: Taxonomy: Product Category, Term Name: Running Shoes
-   Output: {"title": "Running Shoes for Road and Trail | {$site_name}", "description": "Browse cushioned, lightweight running shoes for road and trail in every size. Compare fit and support, then find your pair. Shop the collection."}
+   Output: {"title": "Running Shoes for Road and Trail | {$site_name}", "description": "Cushioned and lightweight running shoes for road and trail, with neutral and stability models in every size. Compare fit and support to find your pair."}
 
    Input: Taxonomy: Category, Term Name: Email Marketing
-   Output: {"title": "Email Marketing Guides and Tips | {$site_name}", "description": "Learn to grow your list, write emails people open, and automate campaigns with practical email marketing guides and examples. Browse the guides."}
+   Output: {"title": "Email Marketing Guides and Tips | {$site_name}", "description": "Practical guides to growing an email list, writing emails people open, and automating campaigns, with examples for small teams. Browse the guides."}
 PROMPT;
 }
 
@@ -408,7 +406,7 @@ function twcp_term_generate_seo(int $term_id, string $taxonomy, bool $force = fa
 
 	$site_name = twcp_site_name();
 
-	$prompt = "Generate an SEO Title and Meta Description for the following taxonomy archive on {$site_name} store.\n";
+	$prompt = "Generate an SEO Title and Meta Description for the following taxonomy archive on {$site_name}.\n";
 	$prompt .= "Taxonomy: {$tax_label}\n";
 	$prompt .= "Term Name: {$term->name}\n";
 	$prompt .= twcp_focus_note($term_id, 'term');
@@ -419,12 +417,9 @@ function twcp_term_generate_seo(int $term_id, string $taxonomy, bool $force = fa
 	if (!empty($existing_title) or !empty($existing_desc)) {
 		$current = !empty($existing_title) ? "- Title: \"{$existing_title}\"\n" : '';
 		$current .= !empty($existing_desc) ? "- Description: \"{$existing_desc}\"\n" : '';
-		$prompt .= twcp_rewrite_note('SEO tags', rtrim($current), 'Improve these SEO tags to maximize CTR and search performance.');
+		$prompt .= twcp_rewrite_note('SEO tags', rtrim($current), 'Improve these SEO tags so they describe the archive more accurately and specifically.');
 	}
 
-	$prompt .= "Requirements:\n";
-	$prompt .= "1. SEO Title: 50 to 60 characters, captivating, contains primary keywords, ends with \"| {$site_name}\".\n";
-	$prompt .= "2. SEO Meta Description: 140 to 160 characters, enticing shoppers to explore the collection.\n";
 	$prompt .= "Output strictly valid JSON with this format and NO surrounding markdown:\n";
 	$prompt .= '{"title": "...", "description": "..."}';
 
@@ -466,14 +461,14 @@ function twcp_prompt_term_description_default(): string
 	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior copywriter writing the short introductions shown at the top of category, tag, and brand archives on {$site_name}.
+You are a senior copywriter writing the short introductions shown at the top of category, tag, and brand archives on {$site_name}, above the list of items.
 
 Guidelines:
-* Length: 1 to 3 sentences, 150 to 300 characters.
-* Say what the archive covers and who it helps, based on the term name, its parent, and the items in it.
-* Use the archive name naturally once, in plain and specific language. No keyword stuffing.
+* Length: 1 to 3 sentences, 150 to 300 characters, so the items stay near the top of the page.
+* Say what the archive covers and who it helps, based on the term name, its parent, and the items in it. Name the specific kinds of items, styles, or subtopics from the context, so the text could not fit any other archive.
+* Use the archive name naturally once, in plain and specific language. No keyword stuffing, hype, or calls to action.
 * Never invent facts, numbers, brands, or claims that are not in the context.
-* Plain text only: no HTML, markdown, quotes around the text, emojis, or links.
+* Plain text only: no HTML, markdown, quotes around the text, emojis, or links. Write in the language of the term name.
 
 Examples:
 Input: Taxonomy: Product Category, Term Name: Running Shoes
@@ -612,17 +607,18 @@ function twcp_prompt_term_content_default(): string
 	$site_name = twcp_site_name();
 
 	return <<<PROMPT
-You are a senior content writer creating the full descriptions shown on category, tag, and brand archives of {$site_name}.
+You are a senior content writer creating the full descriptions shown on category, tag, and brand archives of {$site_name}, below the list of items.
 
 Requirements:
-* Length: 250 to 500 words, in 2 to 4 sections.
-* Start each section with an H2 heading; use H3 headings only where a section has distinct subtopics. Never use an H1.
-* Explain what the archive covers, who it is for, how to choose between the items in it, and what to look for.
+* Length: 250 to 500 words, in 2 to 4 sections. Stop when the reader has what they need; never pad to reach a length.
+* Write it as a short guide to the archive: what it covers, who it is for, how to choose between the items in it, and what to look for.
+* Start each section with an H2 heading that states its topic, such as "How to Choose Running Shoes", never a vague label. Use H3 headings only where a section has distinct subtopics. Never use an H1.
+* Keep paragraphs short and each sentence on one point, so a passage still makes sense when quoted on its own.
 * Include one unordered list (UL/LI) with 3 to 6 practical points.
 * Use the archive name and closely related search terms naturally, without keyword stuffing.
-* Ground the text in the term name, its parent, its short description, and the items listed in the request. Never invent facts, numbers, brands, or claims.
+* Ground the text in the term name, its parent, its short description, and the items listed in the request, and name specific items, styles, or subtopics from them. Never invent facts, numbers, brands, or claims.
 * Do not add links unless the request lists them.
-* Output strictly valid WordPress HTML without wrapper tags or markdown code fences.
+* Output strictly valid WordPress HTML without wrapper tags or markdown code fences, in the language of the term name.
 PROMPT;
 }
 
@@ -641,12 +637,13 @@ You are a senior content writer creating the FAQ sections shown on category, tag
 
 Requirements:
 * Write 4 to 6 questions people search for about the topic of this archive, the kind they ask before choosing, buying, or learning more.
-* Questions: natural wording a person would type into a search engine, 5 to 12 words, each ending with a question mark. Ask about the topic itself, never about the website, the archive, or what to read.
-* Answers: 2 to 4 sentences (40 to 90 words). Answer the question directly in the first sentence, then add a practical detail, example, or tip.
+* Questions: natural wording a person would type into a search engine or ask an assistant, 5 to 12 words, each ending with a question mark. Ask about the topic itself, never about the website, the archive, or what to read.
+* Answers: 2 to 4 sentences (40 to 90 words). Answer the question directly in the first sentence, so it works on its own in a search result or AI answer, then add a practical detail, example, or tip. Where the answer depends on something, say what.
 * Write each answer as standalone expert advice. Never mention the archive, category, page, articles, posts, guides, or this website, and never tell the reader to read something.
 * Use the item titles and excerpts in the request to pick relevant questions and details, and use general expert knowledge for the answers.
 * Never invent facts about the business itself: prices, numbers, policies, guarantees, locations, or services it offers.
 * Cover different intents: choosing, comparing, using, caring for, or learning. Do not repeat a question.
+* Write in the language of the term name.
 * Output strictly valid JSON with NO surrounding markdown: [{"question": "...", "answer": "..."}]
 PROMPT;
 }
