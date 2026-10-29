@@ -5,7 +5,7 @@
  * Content and shop managers see what needs attention and the batch jobs their role can run.
  *
  * @var array  $overview         [ label, count, url ] items that need attention
- * @var array  $sections         Section => [ label, description ]
+ * @var array  $sections         Section => [ label, description, position ]
  * @var array  $batch_cards      Section => batch cards
  * @var bool   $rank_math_active
  * @var bool   $yoast_active
@@ -13,12 +13,14 @@
  * @var bool   $can_manage       Whether the user can set up the AI provider
  * @var string $model_missing    Why AI generation cannot run yet, empty when it can
  * @var string $model_url
- * @var array  $post_links       [ max, sources ] internal links of generated post content
+ * @var array  $prompt_groups    Group => [ label, description, section, prompts ] for administrators
  *
  * @package Twee_MCP
  */
 
 defined('ABSPATH') or exit;
+
+$prompts = $prompt_groups ? array_merge(...array_values(array_column($prompt_groups, 'prompts'))) : [];
 ?>
 
 <?php if ($model_missing and $batch_cards) { ?>
@@ -42,6 +44,20 @@ defined('ABSPATH') or exit;
 		<?php } ?>
 	</div>
 <?php } ?>
+
+<?php foreach ($prompt_groups as $group => $info) {
+	if (empty($info['section'])) { ?>
+		<div class="item">
+			<div class="header">
+				<h2 class="heading"><?php echo esc_html($info['label']); ?></h2>
+			</div>
+			<p class="text text_muted"><?php echo esc_html($info['description']); ?></p>
+			<?php foreach ($info['prompts'] ?? [] as $option => $prompt) {
+				echo twcp_template('prompt', ['option' => $option, 'prompt' => $prompt]);
+			} ?>
+		</div>
+	<?php }
+} ?>
 
 <?php if ($overview) { ?>
 	<div class="item">
@@ -76,48 +92,18 @@ defined('ABSPATH') or exit;
 		</div>
 		<p class="text text_muted"><?php echo esc_html($sections[$section]['description']); ?></p>
 
-		<?php if ($section === 'content') {
-			$link_sources = [
-				'terms'    => __('The post\'s categories and tags', 'twee-mcp'),
-				'posts'    => __('Related posts in the same categories', 'twee-mcp'),
-				'pages'    => __('Top-level pages', 'twee-mcp'),
-				'products' => __('Store categories with the most products', 'twee-mcp'),
-				'lookup'   => __('Let the model search other posts and terms (uses more tokens)', 'twee-mcp'),
-			];
-			if (!$woo_active) {
-				unset($link_sources['products']);
+		<?php // Prompts no job of the section runs with, such as those of agent tools, stay with the section
+		$on_cards = array_merge(...array_values(array_column($cards, 'prompts')));
+		foreach ($prompts as $option => $prompt) {
+			if ($prompt['section'] === $section and !in_array($option, $on_cards, true)) {
+				echo twcp_template('prompt', ['option' => $option, 'prompt' => $prompt]);
 			}
-			?>
-			<details class="prompt post_links">
-				<summary class="prompt_summary">
-					<span class="prompt_label"><?php echo esc_html__('Internal Links', 'twee-mcp'); ?></span>
-					<span class="badge <?php echo $post_links['max'] ? 'badge_success' : ''; ?>"><?php echo $post_links['max'] ? esc_html(sprintf(_n('Up to %d link', 'Up to %d links', $post_links['max'], 'twee-mcp'), $post_links['max'])) : esc_html__('Off', 'twee-mcp'); ?></span>
-				</summary>
-				<p class="text text_muted"><?php echo esc_html__('Links that full content and similar posts may use. The model only gets the links from the sources below, and any other link it writes is removed, keeping its text.', 'twee-mcp'); ?></p>
-				<form method="post" action="options.php">
-					<?php settings_fields('twcp_content_group'); ?>
-					<div class="field">
-						<span class="label"><?php echo esc_html__('Link Sources', 'twee-mcp'); ?></span>
-						<div class="checks">
-							<?php foreach ($link_sources as $value => $label) { ?>
-								<label><input type="checkbox" name="twcp_post_links[sources][]" value="<?php echo esc_attr($value); ?>" <?php checked(in_array($value, (array) $post_links['sources'], true)); ?> /> <?php echo esc_html($label); ?></label>
-							<?php } ?>
-						</div>
-					</div>
-					<div class="field">
-						<label class="label" for="twcp_post_links_max"><?php echo esc_html__('Max Links per Article', 'twee-mcp'); ?></label>
-						<input type="number" id="twcp_post_links_max" name="twcp_post_links[max]" value="<?php echo esc_attr($post_links['max']); ?>" min="0" max="15" class="small-text" />
-						<span class="text text_muted"><?php echo esc_html__('0 turns links off.', 'twee-mcp'); ?></span>
-					</div>
-					<div class="buttons">
-						<button type="submit" class="button button_primary"><?php echo esc_html__('Save Link Settings', 'twee-mcp'); ?></button>
-					</div>
-				</form>
-			</details>
-		<?php } ?>
+		} ?>
+
+		<?php do_action('twcp_batch_section', $section); ?>
 
 		<?php foreach ($cards as $card) { ?>
-			<div class="batch_card" data-type="<?php echo esc_attr($card['type']); ?>" data-calls="<?php echo (int) $card['cost'][0]; ?>" data-tokens="<?php echo (int) $card['cost'][1]; ?>" data-slice="<?php echo (int) $card['slice']; ?>"<?php echo $model_missing ? ' data-locked="1"' : ''; ?>>
+			<div class="batch_card" data-type="<?php echo esc_attr($card['type']); ?>" data-calls="<?php echo (int) $card['cost'][0]; ?>" data-tokens="<?php echo (int) $card['cost'][1]; ?>" data-slice="<?php echo (int) $card['slice']; ?>"<?php echo $card['combine'] ? ' data-combine="1"' : ''; ?><?php echo $model_missing ? ' data-locked="1"' : ''; ?>>
 				<div class="batch_header">
 					<div class="batch_title">
 						<strong><?php echo esc_html($card['title']); ?></strong>
@@ -147,13 +133,11 @@ defined('ABSPATH') or exit;
 								<?php } ?>
 							</select>
 						<?php } ?>
-						<button type="button" class="button button_primary btn_start" <?php disabled((bool) $model_missing); ?>><?php echo esc_html($card['btn_text']); ?></button>
-						<?php if ($card['has_pause']) { ?>
-							<button type="button" class="button btn_pause" style="display:none;"><?php echo esc_html__('Stop', 'twee-mcp'); ?></button>
-							<button type="button" class="button btn_resume" style="display:none;"><?php echo esc_html__('Resume', 'twee-mcp'); ?></button>
-						<?php } ?>
+						<button type="button" class="button button_primary btn_start" <?php disabled((bool) $model_missing); ?>><?php echo esc_html($card['button']); ?></button>
+						<button type="button" class="button btn_pause" style="display:none;"><?php echo esc_html__('Stop', 'twee-mcp'); ?></button>
+						<button type="button" class="button btn_resume" style="display:none;"><?php echo esc_html__('Resume', 'twee-mcp'); ?></button>
 						<button type="button" class="button btn_reset"><?php echo esc_html__('Reset', 'twee-mcp'); ?></button>
-						<?php if ($card['type'] !== 'blocks') { ?>
+						<?php if ($card['undo']) { ?>
 							<button type="button" class="button btn_undo" title="<?php echo esc_attr__('Restore the values the last run changed', 'twee-mcp'); ?>" <?php echo $card['data']['undo'] ? '' : 'style="display:none;"'; ?>><?php echo esc_html__('Undo Last Run', 'twee-mcp'); ?></button>
 						<?php } ?>
 					</div>
@@ -165,6 +149,36 @@ defined('ABSPATH') or exit;
 						<span class="percent_text">0%</span>
 					</div>
 				</div>
+
+				<?php $card_prompts = array_intersect_key($prompts, array_flip($card['prompts']));
+				if ($card_prompts) { ?>
+					<div class="batch_prompts">
+						<?php foreach ($card_prompts as $option => $prompt) {
+							echo twcp_template('prompt', ['option' => $option, 'prompt' => $prompt]);
+						} ?>
+
+						<details class="prompt batch_preview">
+							<summary class="prompt_summary">
+								<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+								<span class="prompt_label"><?php echo esc_html__('Preview', 'twee-mcp'); ?></span>
+								<span class="text text_muted"><?php echo esc_html__('Try the instructions on one item, unsaved edits included. Nothing is saved.', 'twee-mcp'); ?></span>
+								<span class="prompt_toggle">
+									<span class="prompt_edit"><?php echo esc_html__('Open', 'twee-mcp'); ?></span>
+									<span class="prompt_close"><?php echo esc_html__('Close', 'twee-mcp'); ?></span>
+									<span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+								</span>
+							</summary>
+							<div class="batch_preview_controls">
+								<input type="search" class="twcp_preview_search" placeholder="<?php echo esc_attr__('Search items', 'twee-mcp'); ?>" aria-label="<?php echo esc_attr__('Search items', 'twee-mcp'); ?>">
+								<select class="twcp_preview_item" aria-label="<?php echo esc_attr__('Item to preview', 'twee-mcp'); ?>">
+									<option value=""><?php echo esc_html__('Loading items…', 'twee-mcp'); ?></option>
+								</select>
+								<button type="button" class="button button_primary twcp_preview_run"><?php echo esc_html__('Run Preview', 'twee-mcp'); ?></button>
+							</div>
+							<div class="batch_preview_result" hidden></div>
+						</details>
+					</div>
+				<?php } ?>
 
 				<div class="batch_log_wrapper" style="display: none;">
 					<div class="batch_log_header">

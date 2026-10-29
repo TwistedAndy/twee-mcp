@@ -1,6 +1,6 @@
 <?php
 /**
- * Template part: Product copy rules in the store group of the Prompts screen
+ * Template part: Product copy rules below the full product description prompt, saved with it
  *
  * @var array $product_settings
  *

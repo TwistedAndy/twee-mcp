@@ -103,4 +103,57 @@ abstract class TWCP_TestCase extends WP_UnitTestCase {
 
 		return $requests;
 	}
-}
+
+	/**
+	 * Responses API reply with one text message
+	 *
+	 * @param string $text
+	 *
+	 * @return array
+	 */
+	protected function model_reply(string $text): array
+	{
+		return ['id' => 'resp_1', 'output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => $text]]]]];
+	}
+
+	/**
+	 * Prompt text of a captured Responses API request
+	 *
+	 * @param array $body
+	 *
+	 * @return string
+	 */
+	protected function model_prompt(array $body): string
+	{
+		return $body['input'][0]['content'][0]['text'];
+	}
+
+	/**
+	 * Run an admin AJAX handler with a valid nonce and return its decoded JSON reply
+	 *
+	 * @param callable $handler
+	 * @param array    $post
+	 *
+	 * @return array
+	 */
+	protected function ajax(callable $handler, array $post): array
+	{
+		$_POST = $_REQUEST = $post + ['nonce' => wp_create_nonce('twcp_admin_nonce')];
+
+		add_filter('wp_doing_ajax', '__return_true');
+		add_filter('wp_die_ajax_handler', fn() => function() {
+			throw new RuntimeException('wp_die');
+		});
+
+		ob_start();
+		try {
+			$handler();
+		} catch (RuntimeException $e) {
+			// wp_send_json() ends the request through wp_die()
+		}
+		$output = (string) ob_get_clean();
+
+		$_POST = $_REQUEST = [];
+
+		return (array) json_decode($output, true);
+	}}

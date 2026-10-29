@@ -291,14 +291,18 @@ class ChatGPTTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * Lookup calls run read-only tools and resend the conversation, since nothing is stored between rounds.
+	 * Lookup calls run read-only tools and resend the conversation with its reasoning, since nothing is stored
+	 * between rounds.
 	 */
 	public function test_request_runs_lookups(): void
 	{
 		$this->connect();
 		self::factory()->post->create(['post_title' => 'Newest Strap Guide']);
 		$requests = $this->mock_openai([
-			[200, $this->stream([['type' => 'function_call', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'get_posts', 'arguments' => '{"post_type":"post","limit":1}']])],
+			[200, $this->stream([
+				['type' => 'reasoning', 'id' => 'rs_1', 'summary' => [], 'encrypted_content' => 'sealed'],
+				['type' => 'function_call', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'get_posts', 'arguments' => '{"post_type":"post","limit":1}'],
+			])],
 			[200, $this->stream([['type' => 'message', 'content' => [['type' => 'output_text', 'text' => 'Newest Strap Guide']]]])],
 		]);
 
@@ -306,8 +310,10 @@ class ChatGPTTest extends TWCP_TestCase {
 
 		$this->assertSame('Newest Strap Guide', $text);
 		$this->assertSame(['get_posts'], array_column($requests[0]['body']['tools'], 'name'));
+		$this->assertSame(['reasoning.encrypted_content'], $requests[0]['body']['include']);
 
 		$input = $requests[1]['body']['input'];
+		$this->assertSame(['type' => 'reasoning', 'summary' => [], 'encrypted_content' => 'sealed'], $input[count($input) - 3]);
 		$call = $input[count($input) - 2];
 		$output = $input[count($input) - 1];
 		$this->assertSame('function_call', $call['type']);

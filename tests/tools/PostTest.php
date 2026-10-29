@@ -107,11 +107,42 @@ class PostTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * The schema lists post types and taxonomies with access flags.
+	 * Focus keywords come from Rank Math, or else Yoast SEO, for posts and terms; generators get them in their
+	 * prompts, and get_terms returns them.
+	 */
+	public function test_focus_keywords(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$requests = $this->mock_model($this->model_reply('A fresh excerpt.'));
+
+		$post = self::factory()->post->create(['post_excerpt' => '']);
+		$this->assertSame('', twcp_focus_note($post));
+		update_post_meta($post, '_yoast_wpseo_focuskw', 'nato straps');
+		$this->assertSame('nato straps', twcp_focus_keywords($post));
+		update_post_meta($post, 'rank_math_focus_keyword', 'leather straps,watch bands');
+
+		$this->assertTrue(twcp_post_generate_excerpt($post));
+		$this->assertStringContainsString('Focus Keywords: leather straps,watch bands (the first is the main one', $this->model_prompt($requests[0]['body']));
+
+		$term = self::factory()->category->create(['name' => 'Strap Guides']);
+		update_option('wpseo_taxonomy_meta', ['category' => [$term => ['wpseo_focuskw' => 'strap guide']]]);
+		$this->assertSame('strap guide', twcp_focus_keywords($term, 'term'));
+		update_term_meta($term, 'rank_math_focus_keyword', 'leather strap guide');
+		$found = $this->call('get_terms', ['taxonomy' => 'category', 'search' => 'Strap Guides']);
+		$this->assertSame('leather strap guide', $found['terms'][0]['seo']['focus_keyword']);
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * The schema lists post types and taxonomies with access flags, and the site context with its target keywords.
 	 */
 	public function test_get_schema(): void
 	{
+		update_option('twcp_target_keywords', "leather watch straps\r\n\r\nnato straps\n");
 		$schema = $this->call('get_schema');
+		$this->assertSame(['leather watch straps', 'nato straps'], $schema['target_keywords']);
 
 		$this->assertTrue($schema['post_types']['post']['can_create']);
 		$this->assertContains('category', $schema['post_types']['post']['taxonomies']);
@@ -136,13 +167,12 @@ class PostTest extends TWCP_TestCase {
 		$this->assertStringContainsString(get_permalink($related), $links['note']);
 		$this->assertStringNotContainsString(get_permalink($other), $links['note']);
 		$this->assertStringNotContainsString(get_permalink($post), $links['note']);
-		$this->assertFalse($links['read_tools']);
+		$this->assertSame(['get_products', 'get_terms', 'get_posts'], $links['read_tools'], 'Lookups are offered for facts even without lookup links');
 
 		update_option('twcp_post_links', ['max' => 2, 'sources' => ['posts', 'lookup']]);
 		$links = twcp_post_links($post);
 		$this->assertStringContainsString('add 1 to 2 links', $links['note']);
 		$this->assertStringNotContainsString(get_term_link($category), $links['note']);
-		$this->assertSame(['get_posts', 'get_terms'], $links['read_tools']);
 
 		update_option('twcp_post_links', ['max' => 0, 'sources' => ['terms', 'posts']]);
 		$this->assertSame("\nDo not add links.\n", twcp_post_links($post)['note']);
@@ -184,10 +214,10 @@ class PostTest extends TWCP_TestCase {
 		$category = self::factory()->category->create();
 		$post = self::factory()->post->create(['post_content' => '', 'post_category' => [$category]]);
 
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => '<h2>Care</h2><p>See <a href="' . get_term_link($category) . '">the guide</a> and <a href="https://fake.example/">this</a>.</p>']]]]);
+		$requests = $this->mock_model($this->model_reply('<h2>Care</h2><p>See <a href="' . get_term_link($category) . '">the guide</a> and <a href="https://fake.example/">this</a>.</p>'));
 		$this->assertTrue(twcp_post_generate_content($post, true));
 
-		$this->assertStringContainsString(get_term_link($category), end($requests[0]['body']['messages'])['content']);
+		$this->assertStringContainsString(get_term_link($category), $this->model_prompt($requests[0]['body']));
 		$content = get_post_field('post_content', $post);
 		$this->assertStringContainsString('">the guide</a>', $content);
 		$this->assertStringNotContainsString('fake.example', $content);

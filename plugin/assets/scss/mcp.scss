@@ -344,17 +344,6 @@
 		line-height: 26px;
 	}
 
-	.section_nav {
-		display: flex;
-		flex-wrap: wrap;
-		margin-top: 12px;
-		gap: 6px;
-	}
-
-	.prompt_group_inactive {
-		opacity: 0.7;
-	}
-
 	.prompt_group_title {
 		display: flex;
 		align-items: center;
@@ -367,12 +356,13 @@
 	.prompt {
 		padding: 10px 14px;
 		margin-top: 10px;
-		border: 1px solid #e2e4e7;
+		border: 1px solid #c3c4c7;
 		border-radius: 6px;
-		background: #f8f9fa;
+		background: #ffffff;
 
+		&:hover,
 		&[open] {
-			background: #ffffff;
+			border-color: #2271b1;
 		}
 
 		.prompt_summary {
@@ -380,11 +370,20 @@
 			flex-wrap: wrap;
 			align-items: center;
 			cursor: pointer;
-			gap: 8px;
+			list-style: none;
+			gap: 4px 8px;
+
+			&::-webkit-details-marker {
+				display: none;
+			}
 
 			// The token count sits centered with the badges, without the margins of paragraph text
 			.text {
 				margin: 0;
+			}
+
+			.dashicons-edit {
+				color: #2271b1;
 			}
 		}
 
@@ -393,8 +392,126 @@
 			font-weight: 600;
 		}
 
+		.prompt_toggle {
+			display: inline-flex;
+			align-items: center;
+			margin-left: auto;
+			color: #2271b1;
+			font-weight: 500;
+			gap: 2px;
+
+			.dashicons {
+				transition: transform 0.15s;
+			}
+		}
+
+		.prompt_close {
+			display: none;
+		}
+
+		// One line of the prompt text, so its instructions show without opening it
+		.prompt_preview {
+			overflow: hidden;
+			flex-basis: 100%;
+			color: #646970;
+			font-size: 12px;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		&[open] {
+			.prompt_edit,
+			.prompt_preview {
+				display: none;
+			}
+
+			.prompt_close {
+				display: inline;
+			}
+
+			.prompt_toggle .dashicons {
+				transform: rotate(180deg);
+			}
+		}
+
 		.field {
 			margin-top: 10px;
+		}
+	}
+
+	.prompt .buttons {
+		margin-top: 10px;
+	}
+
+	.batch_prompts {
+		margin-top: 12px;
+
+		.prompt {
+			margin-top: 8px;
+		}
+	}
+
+	.batch_preview {
+		.dashicons-visibility {
+			color: #2271b1;
+		}
+
+		.batch_preview_controls {
+			display: flex;
+			flex-wrap: wrap;
+			margin-top: 10px;
+			gap: 8px;
+
+			// A long item title would otherwise push the button to a line of its own
+			select {
+				flex: 1 1 240px;
+				min-width: 0;
+				max-width: none;
+			}
+		}
+
+		.batch_preview_result {
+			margin-top: 12px;
+		}
+
+		.preview_columns {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+			gap: 12px;
+		}
+
+		.preview_text {
+			overflow: auto;
+			max-height: 360px;
+			padding: 10px;
+			margin-top: 6px;
+			border: 1px solid #e2e4e7;
+			border-radius: 4px;
+			background: #f8f9fa;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+
+		.preview_error {
+			border-color: #d63638;
+			color: #d63638;
+		}
+
+		.preview_prompt {
+			margin-top: 10px;
+
+			summary {
+				color: #2271b1;
+				cursor: pointer;
+			}
+
+			pre {
+				overflow: auto;
+				max-height: 300px;
+				padding: 10px;
+				background: #f8f9fa;
+				white-space: pre-wrap;
+			}
 		}
 	}
 
@@ -427,12 +544,6 @@
 			background: #f0f0f1;
 			font-size: 11px;
 		}
-	}
-
-	.prompt_save {
-		position: sticky;
-		z-index: 10;
-		bottom: 0;
 	}
 
 	.overview {
@@ -714,124 +825,9 @@
 		}
 	}
 
-	.search_bar {
-		margin-bottom: 16px;
-
-		input {
-			width: 100%;
-			max-width: 360px;
-			padding: 6px 10px;
-			border: 1px solid #c3c4c7;
-			border-radius: 4px;
-		}
-	}
-
-	.block_desc_item {
-		padding-bottom: 12px;
-		margin-bottom: 12px;
-		border-bottom: 1px solid #f0f0f1;
-
-		&:last-child {
-			padding-bottom: 0;
-			margin-bottom: 0;
-			border-bottom: none;
-		}
-
-		.label {
-			display: block;
-			margin-bottom: 4px;
-			font-weight: 600;
-		}
-
-		textarea {
-			width: 100%;
-			font-size: 13px;
-			transition: background-color 0.3s ease;
-		}
-	}
-
 	.buttons {
 		display: flex;
 		margin-top: 15px;
 		gap: 10px;
-	}
-	.stock_grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-		gap: 14px;
-	}
-
-	.stock_card {
-		display: flex;
-		flex-direction: column;
-		border: 1px solid #dcdcde;
-		border-radius: 6px;
-		background: #fff;
-		overflow: hidden;
-
-		.stock_thumb_wrap {
-			position: relative;
-			height: 140px;
-			overflow: hidden;
-			background: #f0f0f1;
-
-			.stock_thumb {
-				width: 100%;
-				height: 100%;
-				object-fit: cover;
-			}
-
-			.stock_badge {
-				position: absolute;
-				top: 6px;
-				left: 6px;
-				font-size: 10px;
-				background: rgba(0, 0, 0, 0.7);
-				color: #fff;
-			}
-		}
-
-		.stock_content {
-			display: flex;
-			flex-direction: column;
-			justify-content: space-between;
-			flex: 1;
-			padding: 10px;
-
-			.stock_title {
-				font-size: 12px;
-				font-weight: 600;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
-			}
-
-			.stock_author {
-				font-size: 11px;
-				color: #646970;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
-			}
-
-			.stock_dims {
-				margin-top: 2px;
-				color: #8c8f94;
-				font-size: 10px;
-			}
-
-			.stock_actions {
-				margin-top: 10px;
-
-				.twcp_import_image_btn {
-					width: 100%;
-				}
-
-				.import_status {
-					margin-top: 4px;
-					font-size: 11px;
-				}
-			}
-		}
 	}
 }

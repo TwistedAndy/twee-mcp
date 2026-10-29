@@ -159,21 +159,28 @@ class ModelTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * OpenAI uses low detail for economy-sized images.
+	 * OpenAI requests go to the Responses API, stored and cached per site, with low detail for economy-sized images.
 	 */
-	public function test_openai_image_detail(): void
+	public function test_openai_request(): void
 	{
 		update_option('twcp_model_provider', 'openai');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'Alt']]]]);
+		$requests = $this->mock_model($this->model_reply('Alt'));
 		$id = $this->create_image(1200, 800);
 
-		twcp_model_vision('Describe', '', [$id], ['image_size' => 512]);
-		$image = $requests[0]['body']['messages'][0]['content'][1]['image_url'];
+		$this->assertSame('Alt', twcp_model_vision('Describe', 'System rules', [$id], ['image_size' => 512, 'temperature' => 0.2, 'max_tokens' => 50]));
+		$body = $requests[0]['body'];
+		$this->assertSame('https://api.openai.com/v1/responses', $requests[0]['url']);
+		$this->assertTrue($body['store']);
+		$this->assertSame('System rules', $body['instructions']);
+		$this->assertSame('twcp_' . md5(home_url()), $body['prompt_cache_key']);
+		$this->assertSame(50, $body['max_output_tokens']);
+		$image = $body['input'][0]['content'][1];
 		$this->assertSame('low', $image['detail']);
-		$this->assertStringStartsWith('data:image/jpeg;base64,', $image['url']);
+		$this->assertStringStartsWith('data:image/jpeg;base64,', $image['image_url']);
 
-		twcp_model_vision('Describe', '', [$id], ['image_size' => 1024]);
-		$this->assertSame('auto', $requests[1]['body']['messages'][0]['content'][1]['image_url']['detail']);
+		twcp_model_vision('Describe', '', [$id], ['image_size' => 1024, 'model' => 'gpt-5-mini', 'temperature' => 0.2]);
+		$this->assertSame('auto', $requests[1]['body']['input'][0]['content'][1]['detail']);
+		$this->assertArrayNotHasKey('temperature', $requests[1]['body'], 'Reasoning models reject a temperature');
 	}
 
 	/**
@@ -221,6 +228,33 @@ class ModelTest extends TWCP_TestCase {
 		$result = end($bodies[1]['messages'])['content'][0];
 		$this->assertSame('tool_result', $result['type']);
 		$this->assertSame('Looked up', json_decode($result['content'], true)['title']);
+	}
+
+	/**
+	 * Stored OpenAI responses continue by ID, so a lookup round sends only the tool results.
+	 */
+	public function test_openai_lookup_continues_response(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		$post_id = self::factory()->post->create(['post_title' => 'Looked up']);
+		$replies = [
+			['id' => 'resp_1', 'output' => [['type' => 'reasoning', 'summary' => []], ['type' => 'function_call', 'id' => 'fc_1', 'call_id' => 'call_1', 'name' => 'get_posts', 'arguments' => wp_json_encode(['id' => $post_id])]]],
+			$this->model_reply('Final'),
+		];
+		$bodies = [];
+		add_filter('pre_http_request', function($response, $args) use (&$replies, &$bodies) {
+			$bodies[] = json_decode($args['body'], true);
+
+			return ['response' => ['code' => 200, 'message' => 'OK'], 'headers' => [], 'body' => wp_json_encode(array_shift($replies)), 'cookies' => []];
+		}, 10, 2);
+
+		$this->assertSame('Final', twcp_model_request('Check', '', [], ['read_tools' => ['get_posts']]));
+
+		$this->assertStringContainsString('get_posts', end($bodies[0]['input'])['content']);
+		$this->assertSame('resp_1', $bodies[1]['previous_response_id']);
+		$this->assertCount(1, $bodies[1]['input']);
+		$this->assertSame('call_1', $bodies[1]['input'][0]['call_id']);
+		$this->assertSame('Looked up', json_decode($bodies[1]['input'][0]['output'], true)['title']);
 	}
 
 	/**

@@ -38,7 +38,8 @@ The **AI Provider** screen sets up the AI service the plugin itself uses to writ
 - Providers: **OpenAI**, **OpenRouter**, **Anthropic**, and **ChatGPT Plan (Experimental)**.
 - Separate text and vision models. Images are scaled down to a chosen edge size before they are sent, to keep vision costs low.
 - Model lists load from the provider's API and are cached for a day.
-- During generation, the model can call read-only tools such as `get_posts` to look up internal links, products, and terms. Private tools are never offered to it.
+- During generation, the model can call the read-only tools `get_products`, `get_terms`, and `get_posts` to look up products, categories, posts, and links the prompt does not give. The prompt names them, and the content, similar post, term, and full product description generators offer them. Private tools are never offered to it.
+- OpenAI and ChatGPT Plan requests use the Responses API, and the system prompts open with the shared context, so it stays in the provider's prompt cache across jobs. OpenAI responses are stored, so each lookup round continues the previous response with only the tool results and the model keeps its reasoning. Plan responses cannot be stored, so their encrypted reasoning is sent back instead. OpenRouter uses Chat Completions, and Anthropic the Messages API with cached system prompts and tools.
 - **ChatGPT Plan** signs in with a ChatGPT account and spends that account's plan limits instead of an API key. OpenAI only returns the sign-in to `http://127.0.0.1:1455/auth/callback`. The page there does not load, which is expected: copy its full address from the browser and paste it into the plugin. No local server is needed. OpenAI offers plan usage to open-source tools and local personal projects. A public or client site needs approval through the [OpenAI interest form](https://openai.com/form/sign-in-with-chatgpt-interest/).
 
 ### 5. Batch Automation
@@ -53,6 +54,8 @@ The **Automation** screen lists what needs attention and runs batch jobs in smal
 All modes fill empty items. Jobs that assign images, categories, cross-sells, or block descriptions only offer **Fill empty** and **Redo all**. Until an API key is added or a ChatGPT account is connected, the screen shows a setup notice and the jobs and AI bulk actions stay locked.
 
 - **Estimate:** each card shows a rough number of AI requests and tokens for the items left in the chosen mode.
+- **Preview:** below the instructions of a card, **Preview** runs the job on one item of its scope and mode, with the instructions and the Shared Context as they are on the screen, unsaved edits included. It shows the current value, the model's reply, and the prompt sent, and saves nothing, so prompts can be tuned before a run.
+- **Combined requests:** Short Excerpts, SEO Titles & Meta Descriptions, term SEO tags, and short product descriptions write the 5 items of a slice with one request that returns JSON keyed by ID. An item the reply misses sends its own request.
 - **Undo Last Run:** before a job changes an item, it saves the item's current values. Undo puts them back. Starting a new run replaces the saved values.
 - **Background runs:** when Action Scheduler is available (it ships with WooCommerce), jobs run on the server as the user who started them, so the page can be closed. The screen follows their progress. Without it, jobs run while the page stays open, and a running job carries on when the screen is opened again. The `twcp_batch_background` filter turns background runs off.
 
@@ -68,9 +71,11 @@ Users with `edit_others_posts` can run the content jobs, `upload_files` the medi
 
 ### 6. Prompts & Block Conventions
 
-- The **Prompts** screen holds the instructions for every generator, grouped into site context, content, store, terms, and media. Each prompt can be reset to its default.
-- The default site context is built from the site name, tagline, main categories, and whether WooCommerce is active. It's added to every prompt, so describe the business, audience, and tone there. **Generate from website** drafts a 5 to 6 sentence profile from the site name, tagline, home page, main categories, and recent posts or products; review it, then save.
-- The **Library** screen keeps the block conventions that `get_block_types` hands to agents. The conventions explain page structure, layout options, query layouts, repeaters, and text formats of the theme's ACF blocks.
+- Administrators edit the instructions for every generator on the **Automation** screen, below the progress of the job that runs with them, such as the excerpt prompt on the Short Excerpts card and the copy rules with the full product description prompt. Prompts no job uses, such as the similar post prompt of `create_similar_post`, stay in their section. Each prompt saves on its own and can be reset to its default.
+- The **Shared Context** at the top of the Automation screen is built by default from the site name, tagline, main categories, and whether WooCommerce is active. It's added to every prompt, so describe the business, audience, and tone there. **Generate from website** drafts a 5 to 6 sentence profile from the site name, tagline, home page, main categories, and recent posts or products; review it, then save.
+- **Target Keywords** in the Shared Context list the search phrases the site wants to rank for, one per line. They follow the site context in every prompt, which asks the model to work them in where they fit, and `get_schema` hands them to agents.
+- The focus keywords of a post, product, or term, from Rank Math or else Yoast SEO, go into the prompts that write its excerpt, content, SEO tags, descriptions, and FAQ, with the main one first. `get_posts` and `get_terms` return them as `focus_keyword`.
+- The **Blocks** screen keeps the block conventions that `get_block_types` hands to agents. The conventions explain page structure, layout options, query layouts, repeaters, and text formats of the theme's ACF blocks.
 
 ## Tools
 
@@ -238,10 +243,46 @@ add_filter('twcp_modules', function(array $modules): array {
 
 Tool groups with that `module` are available while it is active. The core and the `wp` module check a module with `twcp_module_active()` and never call its functions directly. Modules add the rest with hooks:
 
-- `twcp_admin_tabs` and `twcp_admin_data` - Admin tab parts and the data of their templates.
-- `twcp_batch_types`, `twcp_batch_overview`, and `twcp_batch_actions` - Batch jobs, overview items, and bulk actions.
-- `twcp_prompt_groups`, `twcp_prompt_registry`, and the `twcp_prompt_group` action - Prompt groups, prompts, and extra settings shown in a group.
+- `twcp_admin_tabs` and `twcp_admin_data` - Tabs of the AI Tools menu, or parts of other tabs, and the data of their templates. A tab sets its `position` among the tabs of the plugin, which are at 10, 20, 40, 50, and 60; the Blocks tab of the `blocks` module is at 30 and the Images tab of the `images` module at 35. A module ships the scripts and styles of its tab in its own folder.
+- `twcp_batch_types`, `twcp_batch_sections`, `twcp_batch_overview`, and `twcp_batch_actions` - Batch jobs, sections of the Automation screen, overview items, and bulk actions. The `twcp_batch_section` action adds settings below the cards of a section, such as the Internal Links form under Content Automation. The sections of the plugin are at 10 (content) and 20 (media); the `woo` module adds Store Automation at 30 and the `blocks` module Site Setup at 40.
+- `twcp_prompt_groups`, `twcp_prompt_registry`, and the `twcp_prompt_fields` action - Prompt groups, prompts, and extra settings saved with a prompt. A prompt shows on the cards of the jobs that list it in `prompts`, or else in the `section` of its group; the shared context has no section and shows above the sections. Each prompt saves in its own form, so a setting a module shows with a prompt is registered in the settings group named after the prompt's option. Groups are at 10 (shared context), 20 (posts and pages), 30 (categories and tags), and 40 (images); the store group of the `woo` module is at 25.
+- `twcp_prompt_examples` - Groups of the copy-ready Agent Prompts on the Agent Access tab, at 10 (posts and pages) and 20 (categories and media); the store prompts of the `woo` module are at 30. The filter also gets the site name and URL for the prompt texts.
 - `twcp_media_assign`, `twcp_post_blocks`, and `twcp_post_featured_image` - Image targets of `assign_media_image`, page builder blocks of posts and terms, and featured images found outside the Media Library.
+
+### Adding Batch Jobs
+
+A module declares a job with its card, the post type and field it fills, and the function that fills one item, as the jobs of the plugin do. The plugin does the rest: the capability and unit come from the post type; the query finds the published items whose field is empty, or all of them when rewriting; and the field is backed up for Undo and shown in the log. `field` is `post:` with a column of the posts table, or `meta:` with a meta key:
+
+```php
+add_filter('twcp_batch_types', function(array $types): array {
+	$types['review_summary'] = [
+		'title'       => __('Review Summaries', 'twee-mcp'),
+		'description' => __('Sums up the reviews of products without a summary.', 'twee-mcp'),
+		'button'      => __('Summarize Reviews', 'twee-mcp'),
+		'section'     => 'store',                  // Content when left out
+		'post_type'   => 'product',
+		'field'       => 'meta:_review_summary',
+		'run'         => 'my_review_summary',      // Gets the post ID; returns the new text, or false
+		'cost'        => [1, 3000],                // Model requests and tokens per item, for the estimate
+	];
+
+	return $types;
+});
+```
+
+`run` can also return `['success' => bool, 'message' => string]` for its own log line, and `prompts` lists the options of the system prompts it runs with, whose editors its card shows. Without `post_type`, the job fills the post type chosen on its card, which offers every post type, or those listed in `scopes`. A job can set `combine` (send the model requests of a slice as one request; for jobs that make one text request per item), `slice` (items per slice, 5 by default), `cost` (`[1, 2000]` by default), `capability`, `unit`, `text` (what it writes, which enables the refine and rewrite modes), `restored` (called after Undo), or its own `args`, `query`, `total`, `fields`, and `current` when it does not fill one field of a post type. A job for a section of its own adds the section with `twcp_batch_sections`:
+
+```php
+add_filter('twcp_batch_sections', function(array $sections): array {
+	$sections['reviews'] = [
+		'label'       => __('Review Automation', 'twee-mcp'),
+		'description' => __('Summaries and replies for product reviews.', 'twee-mcp'),
+		'position'    => 35,
+	];
+
+	return $sections;
+});
+```
 
 ### Tests
 

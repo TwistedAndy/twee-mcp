@@ -137,7 +137,7 @@ class BatchTest extends TWCP_TestCase {
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => '"Guides to pruning and planting <b>trees</b>."']]]]);
+		$requests = $this->mock_model($this->model_reply('"Guides to pruning and planting <b>trees</b>."'));
 
 		$tag = self::factory()->tag->create(['name' => 'Orchard', 'description' => 'old']);
 		self::factory()->post->create(['post_title' => 'Pruning Apple Trees', 'tags_input' => ['Orchard']]);
@@ -147,7 +147,7 @@ class BatchTest extends TWCP_TestCase {
 		twcp_batch_save('term_description', $state);
 		twcp_batch_slice('term_description');
 
-		$prompt = end($requests[0]['body']['messages'])['content'];
+		$prompt = $this->model_prompt($requests[0]['body']);
 		$this->assertStringContainsString('Term Name: Orchard', $prompt);
 		$this->assertStringContainsString('Pruning Apple Trees', $prompt);
 		$this->assertSame('Guides to pruning and planting trees.', get_term_field('description', $tag, '', 'raw'));
@@ -176,13 +176,66 @@ class BatchTest extends TWCP_TestCase {
 			foreach ($items as $card) {
 				$this->assertArrayHasKey($card['type'], twcp_batch_types());
 				$this->assertArrayHasKey('badge', $card);
-				$this->assertArrayHasKey('btn_text', $card);
+				$this->assertArrayHasKey('button', $card);
 			}
 		}
 		$this->assertContains('blocks', array_column($cards['site'], 'type'));
 
 		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
 		$this->assertArrayNotHasKey('site', twcp_batch_cards());
+	}
+
+	/**
+	 * A module job declared with a post type, a field, and a function gets its query, card, log, and Undo from the
+	 * base plugin, in a section the module adds.
+	 */
+	public function test_simple_module_job(): void
+	{
+		add_filter('twcp_batch_sections', function(array $sections): array {
+			$sections['pages'] = ['label' => 'Page Automation', 'position' => 15];
+
+			return $sections;
+		});
+		add_filter('twcp_batch_types', function(array $types): array {
+			$types['page_summary'] = [
+				'title'     => 'Page Summaries',
+				'button'    => 'Summarize Pages',
+				'section'   => 'pages',
+				'post_type' => 'page',
+				'field'     => 'post:post_excerpt',
+				'run'       => function(int $id): string {
+					wp_update_post(['ID' => $id, 'post_excerpt' => 'A new summary.']);
+
+					return 'A new summary.';
+				},
+			];
+
+			return $types;
+		});
+
+		$job = twcp_batch_types()['page_summary'];
+		$this->assertSame('edit_others_pages', $job['capability']);
+		$this->assertSame('Pages', $job['unit']);
+		$this->assertSame(['post:post_excerpt'], $job['fields']);
+		$this->assertSame(['content', 'pages', 'media'], array_slice(array_keys(twcp_batch_sections()), 0, 3));
+
+		$card = twcp_batch_cards()['pages'][0];
+		$this->assertSame(['page_summary', 'Summarize Pages', true], [$card['type'], $card['button'], $card['undo']]);
+
+		$page = self::factory()->post->create(['post_type' => 'page', 'post_excerpt' => '']);
+		self::factory()->post->create(['post_type' => 'page', 'post_excerpt' => 'Has one.']);
+		self::factory()->post->create(['post_type' => 'page', 'post_excerpt' => '', 'post_status' => 'draft']);
+		$this->assertSame(1, twcp_batch_total('page_summary'));
+
+		$state = twcp_batch_restart('page_summary', 'fill', 'all');
+		$state['status'] = 'running';
+		twcp_batch_save('page_summary', $state);
+		$state = twcp_batch_slice('page_summary');
+		$this->assertSame('A new summary.', get_post_field('post_excerpt', $page));
+		$this->assertStringStartsWith('Updated "', $state['logs'][0]['message']);
+
+		twcp_batch_undo('page_summary');
+		$this->assertSame('', get_post_field('post_excerpt', $page));
 	}
 
 	/**
@@ -301,13 +354,12 @@ class BatchTest extends TWCP_TestCase {
 		$bad = self::factory()->post->create(['post_excerpt' => 'asdf']);
 
 		$replies = [
-			['choices' => [['message' => ['content' => wp_json_encode([(string) $good => false, (string) $bad => true])]]]],
-			['choices' => [['message' => ['content' => 'A fresh excerpt.']]]],
+			$this->model_reply(wp_json_encode([(string) $good => false, (string) $bad => true])),
+			$this->model_reply('A fresh excerpt.'),
 		];
 		$prompts = [];
 		add_filter('pre_http_request', function($response, $args) use (&$replies, &$prompts) {
-			$messages = json_decode($args['body'], true)['messages'];
-			$prompts[] = end($messages)['content'];
+			$prompts[] = $this->model_prompt(json_decode($args['body'], true));
 
 			return ['response' => ['code' => 200, 'message' => 'OK'], 'headers' => [], 'body' => wp_json_encode(array_shift($replies)), 'cookies' => []];
 		}, 10, 2);
@@ -340,7 +392,7 @@ class BatchTest extends TWCP_TestCase {
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$this->mock_model($this->model_reply('A fresh excerpt.'));
 
 		$post = self::factory()->post->create(['post_excerpt' => 'The old excerpt.']);
 
@@ -375,7 +427,7 @@ class BatchTest extends TWCP_TestCase {
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$requests = $this->mock_model($this->model_reply('A fresh excerpt.'));
 		$post = self::factory()->post->create(['post_excerpt' => '']);
 
 		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
@@ -399,13 +451,113 @@ class BatchTest extends TWCP_TestCase {
 	}
 
 	/**
+	 * A combined job generates its slice with one request, and an item the reply misses sends its own.
+	 */
+	public function test_combined_slice(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		[$first, $second, $missed] = self::factory()->post->create_many(3, ['post_excerpt' => '']);
+		$replies = [
+			$this->model_reply(wp_json_encode([(string) $first => 'First excerpt.', (string) $second => 'Second excerpt.'])),
+			$this->model_reply('Own excerpt.'),
+		];
+		$prompts = [];
+		add_filter('pre_http_request', function($response, $args) use (&$replies, &$prompts) {
+			$prompts[] = $this->model_prompt(json_decode($args['body'], true));
+
+			return ['response' => ['code' => 200, 'message' => 'OK'], 'headers' => [], 'body' => wp_json_encode(array_shift($replies)), 'cookies' => []];
+		}, 10, 2);
+
+		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
+		$state['status'] = 'running';
+		twcp_batch_save('post_excerpt', $state);
+		$state = twcp_batch_slice('post_excerpt');
+
+		$this->assertSame(3, $state['success']);
+		$this->assertCount(2, $prompts);
+		$this->assertStringContainsString("=== ID {$missed} ===", $prompts[0]);
+		$this->assertStringContainsString('Return strictly a JSON object that maps every ID', $prompts[0]);
+		$this->assertSame('First excerpt.', get_post_field('post_excerpt', $first));
+		$this->assertSame('Second excerpt.', get_post_field('post_excerpt', $second));
+		$this->assertSame('Own excerpt.', get_post_field('post_excerpt', $missed));
+		$this->assertSame([], twcp_model_combine());
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * A preview lists the items of the card, sends the item's request with the unsaved prompt text, and saves nothing.
+	 */
+	public function test_preview_saves_nothing(): void
+	{
+		wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$filled = self::factory()->post->create(['post_title' => 'Filled', 'post_excerpt' => 'The old excerpt.']);
+		$empty = self::factory()->post->create(['post_title' => 'Empty', 'post_excerpt' => '']);
+
+		$items = $this->ajax('twcp_batch_ajax_items', ['cards' => [
+			['type' => 'post_excerpt', 'post_type' => 'post', 'mode' => 'fill'],
+			['type' => 'seo', 'post_type' => 'post', 'mode' => 'all', 'search' => 'Fill'],
+		]])['data']['items'];
+		$this->assertSame([$empty], array_column($items['post_excerpt'], 'id'), 'Fill empty lists the items left');
+		$this->assertSame([$filled], array_column($items['seo'], 'id'), 'Searches titles');
+		$this->assertSame('Filled (Post)', $items['seo'][0]['label']);
+
+		$requests = $this->mock_model($this->model_reply('A previewed excerpt.'));
+		$reply = $this->ajax('twcp_batch_ajax_preview', [
+			'type'    => 'post_excerpt',
+			'id'      => $filled,
+			'mode'    => 'refine',
+			'prompts' => ['twcp_system_prompt_post_excerpt' => 'Unsaved excerpt rules.', 'twcp_system_prompt_seo' => 'Not this card.'],
+		]);
+
+		$this->assertTrue($reply['success']);
+		$this->assertSame('The old excerpt.', $reply['data']['current']);
+		$this->assertSame('A previewed excerpt.', $reply['data']['results'][0]['reply']);
+		$this->assertStringContainsString('Refine the current excerpt', $reply['data']['results'][0]['prompt']);
+		$this->assertCount(1, $requests);
+		$this->assertStringEndsWith('Unsaved excerpt rules.', $requests[0]['body']['instructions']);
+		$this->assertSame('The old excerpt.', get_post_field('post_excerpt', $filled));
+		remove_all_filters('pre_option_twcp_system_prompt_post_excerpt');
+		$this->assertSame('', (string) get_option('twcp_system_prompt_post_excerpt', ''), 'The unsaved text only lasts for the preview request');
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
+	 * Answers a combined request gives as JSON objects reach the items as the JSON they asked for.
+	 */
+	public function test_combined_json_answers(): void
+	{
+		update_option('twcp_model_provider', 'openai');
+		update_option('twcp_model_api_key', 'test-key');
+		$ids = self::factory()->post->create_many(2);
+		$seo = ['title' => 'A Fifty Character Title For Testing The Batch | Site', 'description' => str_repeat('Useful description text. ', 6)];
+		$requests = $this->mock_model($this->model_reply(wp_json_encode(array_fill_keys(array_map('strval', $ids), $seo))));
+
+		$state = twcp_batch_restart('seo', 'fill', 'post');
+		$state['status'] = 'running';
+		twcp_batch_save('seo', $state);
+		twcp_batch_slice('seo');
+
+		$this->assertCount(1, $requests);
+		foreach ($ids as $id) {
+			$this->assertSame($seo['title'], get_post_meta($id, 'rank_math_title', true));
+		}
+
+		remove_all_filters('pre_http_request');
+	}
+
+	/**
 	 * Stop pressed during a slice ends it after the current item, and every item is saved as it finishes.
 	 */
 	public function test_stop_during_slice(): void
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$this->mock_model($this->model_reply('A fresh excerpt.'));
 		self::factory()->post->create_many(3, ['post_excerpt' => '']);
 
 		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
@@ -437,7 +589,7 @@ class BatchTest extends TWCP_TestCase {
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$this->mock_model($this->model_reply('A fresh excerpt.'));
 		self::factory()->post->create(['post_excerpt' => '']);
 
 		$state = twcp_batch_restart('post_excerpt', 'fill', 'post');
@@ -464,7 +616,7 @@ class BatchTest extends TWCP_TestCase {
 	{
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$requests = $this->mock_model($this->model_reply('A fresh excerpt.'));
 		$empty = self::factory()->post->create(['post_excerpt' => '']);
 		$filled = self::factory()->post->create(['post_excerpt' => 'Already written.']);
 
@@ -536,7 +688,7 @@ class BatchTest extends TWCP_TestCase {
 		update_option('twcp_block_descriptions', ['beta' => 'Already described.']);
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => 'A described layout.']]]]);
+		$requests = $this->mock_model($this->model_reply('A described layout.'));
 
 		$this->assertSame([0, 2], twcp_batch_query('blocks', 0, 5));
 		$this->assertSame(2, twcp_batch_total('blocks'));
@@ -596,7 +748,7 @@ class BatchTest extends TWCP_TestCase {
 
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$this->mock_model(['choices' => [['message' => ['content' => 'A fresh excerpt.']]]]);
+		$this->mock_model($this->model_reply('A fresh excerpt.'));
 		self::factory()->post->create_many(6, ['post_excerpt' => '']);
 
 		$queued = [];
@@ -745,7 +897,7 @@ class BatchTest extends TWCP_TestCase {
 		$this->add_term_fields();
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => '<h2>Choosing Tools</h2><p>Text.</p><script>x</script>']]]]);
+		$requests = $this->mock_model($this->model_reply('<h2>Choosing Tools</h2><p>Text.</p><script>x</script>'));
 
 		$term = self::factory()->category->create(['name' => 'Garden Tools', 'description' => 'Hand tools for the garden.']);
 		self::factory()->post->create(['post_title' => 'Sharpening Pruners', 'post_category' => [$term]]);
@@ -755,7 +907,7 @@ class BatchTest extends TWCP_TestCase {
 		twcp_batch_save('term_content', $state);
 		twcp_batch_slice('term_content');
 
-		$prompts = array_map(fn(array $request) => end($request['body']['messages'])['content'], (array) $requests);
+		$prompts = array_map(fn(array $request) => $this->model_prompt($request['body']), (array) $requests);
 		$prompt = implode("
 ", array_filter($prompts, fn(string $text) => str_contains($text, 'Term Name: Garden Tools')));
 		$this->assertStringContainsString('Term Name: Garden Tools', $prompt);
@@ -778,7 +930,7 @@ class BatchTest extends TWCP_TestCase {
 		update_option('twcp_model_provider', 'openai');
 		update_option('twcp_model_api_key', 'test-key');
 		$faq = [['question' => 'Which pruner fits small hands?', 'answer' => '<p>A compact bypass pruner.</p>'], ['question' => 'How often to sharpen?', 'answer' => 'Every season.'], ['question' => '', 'answer' => 'Dropped.']];
-		$this->mock_model(['choices' => [['message' => ['content' => wp_json_encode($faq)]]]]);
+		$this->mock_model($this->model_reply(wp_json_encode($faq)));
 
 		$term = self::factory()->category->create();
 		$this->assertTrue(twcp_term_generate_faq($term, 'field_twcp_faq'));

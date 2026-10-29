@@ -3,7 +3,7 @@
  * Plugin Name:       Twee MCP
  * Plugin URI:        https://www.linkedin.com/in/toniievych/
  * Description:       Model Context Protocol (MCP) server for WordPress with OAuth 2.1, AI model connectivity, and batch content helpers.
- * Version:           1.1.6
+ * Version:           1.1.7
  * Author:            Twee
  * Author URI:        https://www.linkedin.com/in/toniievych/
  * License:           MIT
@@ -69,6 +69,23 @@ function twcp_template(string $template, array $data = []): string
 	}
 
 	return $content;
+}
+
+
+/**
+ * Sort tabs, sections, or groups by their position, keeping the order of those with the same one
+ *
+ * @param array $items Key => [ position, ... ], 100 when it has none
+ *
+ * @return array
+ */
+function twcp_position_sort(array $items): array
+{
+	uasort($items, function(array $a, array $b): int {
+		return ($a['position'] ?? 100) <=> ($b['position'] ?? 100);
+	});
+
+	return $items;
 }
 
 

@@ -18,22 +18,23 @@ class AdminTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * Automation is open to content managers while settings and agent tabs stay with administrators.
+	 * Tabs follow their position, and automation is open to content managers while settings and agent tabs stay with
+	 * administrators.
 	 */
 	public function test_tab_capabilities(): void
 	{
 		$tabs = twcp_admin_tabs();
 
-		$this->assertSame('automation', array_key_first($tabs));
+		$this->assertSame(['automation', 'blocks', 'images', 'model', 'connection', 'tools'], array_keys($tabs), 'Module tabs follow their position');
 		$this->assertSame('edit_others_posts', $tabs['automation']['capability']);
-		foreach (['prompts', 'library', 'model', 'connection', 'tools'] as $tab) {
+		foreach (['blocks', 'images', 'model', 'connection', 'tools'] as $tab) {
 			$this->assertSame('manage_options', $tabs[$tab]['capability'], $tab);
 		}
 
 		$editor = self::factory()->user->create(['role' => 'editor']);
 		wp_set_current_user($editor);
 		$this->assertTrue(current_user_can($tabs['automation']['capability']));
-		$this->assertFalse(current_user_can($tabs['prompts']['capability']));
+		$this->assertFalse(current_user_can($tabs['connection']['capability']));
 		$this->assertFalse(current_user_can($tabs['tools']['capability']));
 	}
 
@@ -43,7 +44,7 @@ class AdminTest extends TWCP_TestCase {
 	public function test_slugs_resolve_to_tabs(): void
 	{
 		$this->assertSame('tw-mcp', twcp_admin_slug('automation'));
-		$this->assertSame('tw-mcp-prompts', twcp_admin_slug('prompts'));
+		$this->assertSame('tw-mcp-connection', twcp_admin_slug('connection'));
 		$this->assertSame('tw-mcp-tools', twcp_admin_slug('tools'));
 
 		foreach (array_keys(twcp_admin_tabs()) as $tab) {
@@ -53,16 +54,16 @@ class AdminTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * Bookmarked slugs of removed tabs open the tab that took them over.
+	 * Bookmarked slugs of removed tabs lead to the tab that took them over, and are no slugs of tabs.
 	 */
 	public function test_legacy_slugs_open_new_tabs(): void
 	{
 		$tabs = twcp_admin_tabs();
+		$slugs = array_map('twcp_admin_slug', array_keys($tabs));
 
 		foreach (twcp_admin_legacy() as $slug => $tab) {
 			$this->assertArrayHasKey($tab, $tabs, $slug);
-			$_GET['page'] = $slug;
-			$this->assertSame($tab, twcp_admin_tab(), $slug);
+			$this->assertNotContains($slug, $slugs, $slug);
 		}
 
 		$_GET['page'] = 'unknown';
@@ -91,30 +92,48 @@ class AdminTest extends TWCP_TestCase {
 
 
 	/**
-	 * Prompt data is grouped, saved text is marked as customized, and the store group shows the product copy rules
-	 * of the WooCommerce module.
+	 * Administrators find each prompt in a form of its own on the card of the job that runs with it, prompts of no job
+	 * in their section, and the shared context above the sections; saved text is marked as customized, and the full
+	 * product description prompt brings the copy rules of the WooCommerce module. Editors run the jobs without the
+	 * prompts.
 	 */
-	public function test_prompts_data_is_grouped(): void
+	public function test_prompts_on_automation_screen(): void
 	{
 		update_option('twcp_system_prompt_post_excerpt', 'Write one sentence.');
 
-		$data = twcp_admin_data('prompts');
-		$this->assertSame(['context', 'content', 'store', 'terms', 'media'], array_keys($data['groups']));
-		$this->assertStringContainsString('twcp_product_settings[max_links]', twcp_template('prompts', $data));
-
+		$data = twcp_admin_data('automation');
+		$groups = $data['prompt_groups'];
+		$this->assertSame(['context', 'content', 'store', 'terms', 'media'], array_keys($groups));
 		foreach (twcp_prompt_registry() as $option => $prompt) {
-			$this->assertArrayHasKey($prompt['group'], $data['groups'], $option);
-			$this->assertArrayHasKey($option, $data['prompts'][$prompt['group']], $option);
+			$this->assertArrayHasKey($option, $groups[$prompt['group']]['prompts'], $option);
 		}
 
-		$excerpt = $data['prompts']['content']['twcp_system_prompt_post_excerpt'];
+		$excerpt = $groups['content']['prompts']['twcp_system_prompt_post_excerpt'];
 		$this->assertSame('Write one sentence.', $excerpt['value']);
 		$this->assertTrue($excerpt['customized']);
 		$this->assertNotSame($excerpt['value'], $excerpt['default']);
 
-		$context = $data['prompts']['context']['twcp_general_context'];
+		$context = $groups['context']['prompts']['twcp_general_context'];
 		$this->assertFalse($context['customized']);
 		$this->assertSame($context['default'], $context['value']);
+
+		$html = twcp_template('automation', $data);
+		foreach (twcp_prompt_registry() as $option => $prompt) {
+			$this->assertSame(1, substr_count($html, "name='option_page' value='{$option}'"), $option);
+		}
+		$this->assertLessThan(strpos($html, 'Needs Attention'), strpos($html, "value='twcp_target_keywords'"));
+		$excerpt = strpos($html, "value='twcp_system_prompt_post_excerpt'");
+		$this->assertLessThan($excerpt, strpos($html, 'data-type="post_excerpt"'));
+		$this->assertGreaterThan($excerpt, strpos($html, 'data-type="post_content"'));
+		$this->assertLessThan(strpos($html, 'data-type="post_excerpt"'), strpos($html, "value='twcp_system_prompt_post_similar'"));
+		$full = strpos($html, "value='twcp_system_prompt_product'");
+		$this->assertGreaterThan($full, strpos($html, 'twcp_product_settings[max_links]'));
+		$this->assertGreaterThan(strpos($html, "value='twcp_system_prompt_product_short'"), $full);
+
+		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
+		$data = twcp_admin_data('automation');
+		$this->assertSame([], $data['prompt_groups']);
+		$this->assertStringNotContainsString('twcp_system_prompt_', twcp_template('automation', $data));
 	}
 
 	/**
@@ -136,7 +155,22 @@ class AdminTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * Saving the Library form with the built-in block conventions stores nothing.
+	 * Target keywords of the Shared Context follow the site context in every system prompt, and no section is added
+	 * without them.
+	 */
+	public function test_target_keywords_join_every_prompt(): void
+	{
+		$this->assertStringNotContainsString('TARGET KEYWORDS', twcp_prompt('twcp_system_prompt_seo', 'twcp_prompt_seo_default'));
+
+		update_option('twcp_target_keywords', "leather watch straps\r\nnato straps");
+		$system = twcp_prompt('twcp_system_prompt_seo', 'twcp_prompt_seo_default');
+		$this->assertStringStartsWith("STORE PROFILE & GENERAL CONTEXT:\n" . twcp_general_context(), $system);
+		$this->assertStringContainsString("TARGET KEYWORDS (work them in where they fit the item naturally; never force or stuff them):\nleather watch straps\r\nnato straps\n\n", $system);
+		$this->assertSame('', twcp_prompt_sanitize('  ', 'twcp_target_keywords'));
+	}
+
+	/**
+	 * Saving the Blocks form with the built-in block conventions stores nothing.
 	 */
 	public function test_block_conventions_drop_default(): void
 	{
@@ -157,7 +191,7 @@ class AdminTest extends TWCP_TestCase {
 		update_option('twcp_model_api_key', 'test-key');
 		update_option('blogname', 'Leather Works');
 		self::factory()->post->create(['post_title' => 'Caring for calfskin boots', 'post_type' => twcp_product_active() ? 'product' : 'post']);
-		$requests = $this->mock_model(['choices' => [['message' => ['content' => " Leather Works makes boots. \n"]]]]);
+		$requests = $this->mock_model($this->model_reply(" Leather Works makes boots. \n"));
 
 		$this->assertSame('Leather Works makes boots.', twcp_general_context_generate());
 
@@ -189,7 +223,7 @@ class AdminTest extends TWCP_TestCase {
 	}
 
 	/**
-	 * Saving the Library form keeps the descriptions of layouts it does not list, such as those of another field.
+	 * Saving the Blocks form keeps the descriptions of layouts it does not list, such as those of another field.
 	 */
 	public function test_block_descriptions_keep_unlisted_layouts(): void
 	{
@@ -280,35 +314,5 @@ class AdminTest extends TWCP_TestCase {
 
 		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
 		$this->assertFalse($this->ajax('twcp_admin_ajax_client_id', ['callback' => $callback])['success'], 'Administrators only');
-	}
-
-	/**
-	 * Run an admin AJAX handler with a valid nonce and return its decoded JSON reply
-	 *
-	 * @param callable $handler
-	 * @param array    $post
-	 *
-	 * @return array
-	 */
-	private function ajax(callable $handler, array $post): array
-	{
-		$_POST = $_REQUEST = $post + ['nonce' => wp_create_nonce('twcp_admin_nonce')];
-
-		add_filter('wp_doing_ajax', '__return_true');
-		add_filter('wp_die_ajax_handler', fn() => function() {
-			throw new RuntimeException('wp_die');
-		});
-
-		ob_start();
-		try {
-			$handler();
-		} catch (RuntimeException $e) {
-			// wp_send_json() ends the request through wp_die()
-		}
-		$output = (string) ob_get_clean();
-
-		$_POST = $_REQUEST = [];
-
-		return (array) json_decode($output, true);
 	}
 }

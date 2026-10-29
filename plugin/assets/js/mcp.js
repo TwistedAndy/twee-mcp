@@ -387,126 +387,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 5. Live Filter for ACF Block Descriptions
-	$('#twcp_block_search').on('input', function() {
-		const q = $(this).val().toLowerCase().trim();
-		$('.block_desc_item').each(function() {
-			const layout = $(this).data('layout') || '';
-			const label = $(this).data('label') || '';
-			const desc = $(this).find('textarea').val() || '';
-			if (!q || layout.toLowerCase().indexOf(q) !== -1 || label.toLowerCase().indexOf(q) !== -1 || desc.toLowerCase().indexOf(q) !== -1) {
-				$(this).show();
-			} else {
-				$(this).hide();
-			}
-		});
-	});
-
-	// 5b. Reset to Default System Prompt Handler
-	$(document).on('click', '.twcp_restore_prompt_btn', function(e) {
-		e.preventDefault();
-		const targetId = $(this).data('target');
-		const defaultVal = $(this).data('default');
-		if (targetId && defaultVal !== undefined) {
-			$('#' + targetId).val(defaultVal);
-		}
-	});
-
-	// 5c. Generate Block Descriptions with Previews (sequential with live visual updates)
-	$('#twcp_generate_blocks_btn').on('click', function(e) {
-		e.preventDefault();
-		const $btn = $(this);
-		const originalText = $btn.text();
-		const folder = $('#twcp_block_previews_folder').val() || '';
-		const $status = $('#twcp_generate_blocks_status');
-		const $rows = $('tr[data-layout]');
-
-		if (!$rows.length) {
-			return;
-		}
-
-		$btn.prop('disabled', true).text('Generating...');
-		$status.text('Starting block descriptions generation...').css('color', '#2271b1');
-
-		const layouts = [];
-		$rows.each(function() {
-			const l = $(this).data('layout');
-			if (l) {
-				layouts.push(l);
-			}
-		});
-
-		let index = 0;
-		let successCount = 0;
-
-		function processNext() {
-			if (index >= layouts.length) {
-				$btn.prop('disabled', false).text(originalText);
-				$status.text('Completed: ' + successCount + ' / ' + layouts.length + ' block descriptions generated.').css('color', '#1e7e34');
-				return;
-			}
-
-			const layout = layouts[index];
-			index++;
-			$status.text('Generating layout ' + index + ' of ' + layouts.length + ' (' + layout + ')...').css('color', '#2271b1');
-
-			sendAjax('twcp_generate_block_descriptions', {
-				folder: folder,
-				layout: layout
-			}, function(res) {
-				if (res.success && res.data && res.data.description) {
-					successCount++;
-					const $textarea = $('#twcp_desc_' + layout);
-					$textarea.val(res.data.description);
-					$textarea.css('background-color', '#e7f5ea');
-					setTimeout(function() {
-						$textarea.css('background-color', '');
-					}, 1200);
-				}
-				processNext();
-			}, function() {
-				processNext();
-			});
-		}
-
-		processNext();
-	});
-
-	// 5d. Generate Single Block Description
-	$(document).on('click', '.twcp_generate_single_block_btn', function(e) {
-		e.preventDefault();
-		const $btn = $(this);
-		const layout = $btn.data('layout');
-		if (!layout) {
-			return;
-		}
-		const originalText = $btn.text();
-		const folder = $('#twcp_block_previews_folder').val() || '';
-		const $textarea = $('#twcp_desc_' + layout);
-
-		$btn.prop('disabled', true).text('Generating...');
-
-		sendAjax('twcp_generate_block_descriptions', {
-			folder: folder,
-			layout: layout
-		}, function(res) {
-			$btn.prop('disabled', false).text(originalText);
-			if (res.success && res.data && res.data.description) {
-				$textarea.val(res.data.description);
-				$textarea.css('background-color', '#e7f5ea');
-				setTimeout(function() {
-					$textarea.css('background-color', '');
-				}, 1200);
-			} else {
-				alert((res.data && res.data.message) || 'Failed to generate block description.');
-			}
-		}, function() {
-			$btn.prop('disabled', false).text(originalText);
-			alert('Server communication error during block description generation.');
-		});
-	});
-
-	// 6. Universal Batch Processor Engine
+	// 5. Universal Batch Processor Engine
 	const activeJobs = {};
 
 	function renderBatchLogs($card, logs) {
@@ -558,10 +439,11 @@ jQuery(function($) {
 		$card.find('.twcp_batch_mode').val(mode);
 		$card.find('.btn_undo').toggle(parseInt(state.undo, 10) > 0 && state.status !== 'running');
 
-		// Rough cost of the items left; "Rewrite if poor" adds one quality check per slice
+		// Rough cost of the items left; combined jobs send one request per slice, and "Rewrite if poor" adds one
+		// quality check per slice
 		const left = Math.max(0, total - processed);
 		const slice = parseInt($card.data('slice'), 10) || 1;
-		const calls = left * (parseInt($card.data('calls'), 10) || 1) + (mode === 'poor' ? Math.ceil(left / slice) : 0);
+		const calls = ($card.data('combine') ? Math.ceil(left / slice) : left * (parseInt($card.data('calls'), 10) || 1)) + (mode === 'poor' ? Math.ceil(left / slice) : 0);
 		const tokens = left * (parseInt($card.data('tokens'), 10) || 0) + (mode === 'poor' ? Math.ceil(left / slice) * 1500 : 0);
 		$card.find('.batch_estimate').text(left && state.status !== 'completed' ? '≈ ' + calls + ' AI request' + (calls === 1 ? '' : 's') + ', ' + (tokens >= 1000 ? Math.round(tokens / 1000) + 'k' : tokens) + ' tokens' : '');
 
@@ -795,298 +677,136 @@ jQuery(function($) {
 		sendBatchControl($card, 'undo');
 	});
 
+	// Preview: run a job on one item with the instructions as they are on the screen, and show the replies without saving
+	function loadPreviewItems($cards) {
+		const cards = $cards.map(function() {
+			const $card = $(this);
+
+			return {
+				type: $card.data('type'),
+				post_type: $card.find('.twcp_batch_post_type').val() || 'all',
+				mode: $card.find('.twcp_batch_mode').val() || 'fill',
+				search: $card.find('.twcp_preview_search').val() || ''
+			};
+		}).get();
+
+		sendAjax('twcp_batch_items', {cards: cards}, function(res) {
+			$cards.each(function() {
+				const items = res.success ? (res.data.items[$(this).data('type')] || []) : [];
+				const $select = $(this).find('.twcp_preview_item');
+				$select.empty().append($('<option>', {value: '', text: items.length ? 'Choose an item…' : 'No items found'}));
+				items.forEach(function(item) {
+					$select.append($('<option>', {value: item.id, text: item.label}));
+				});
+				$select.val(items.length ? items[0].id : '');
+			});
+		});
+	}
+
+	// One request lists the items of every card as the page loads, so a preview opens with its list ready
+	const $previewCards = $('.batch_preview').closest('.batch_card');
+	if ($previewCards.length) {
+		loadPreviewItems($previewCards);
+	}
+
+	// JSON replies, such as SEO tags, show as "Title: ..." lines like the current value
+	function previewLines(data) {
+		if (Array.isArray(data)) {
+			return data.map(previewLines).join('\n\n');
+		}
+		if (!data || typeof data !== 'object') {
+			return String(data);
+		}
+
+		return Object.keys(data).map(function(key) {
+			const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+
+			return data[key] && typeof data[key] === 'object' ? label + ':\n' + previewLines(data[key]) : label + ': ' + data[key];
+		}).join('\n');
+	}
+
+	function previewText(reply) {
+		try {
+			const data = JSON.parse(reply);
+			if (data && typeof data === 'object') {
+				return previewLines(data);
+			}
+		} catch (e) {
+		}
+
+		return reply;
+	}
+
+	function previewColumn(title, text, error) {
+		return $('<div class="preview_column">').append(
+			$('<strong>').text(title),
+			$('<div class="preview_text">').toggleClass('preview_error', !!error).text(text)
+		);
+	}
+
+	$('.batch_card').on('change', '.twcp_batch_post_type, .twcp_batch_mode', function() {
+		const $card = $(this).closest('.batch_card');
+		if ($card.find('.batch_preview').length) {
+			loadPreviewItems($card);
+		}
+	});
+
+	let previewSearch;
+	$('.batch_card').on('input', '.twcp_preview_search', function() {
+		const $card = $(this).closest('.batch_card');
+		clearTimeout(previewSearch);
+		previewSearch = setTimeout(function() {
+			loadPreviewItems($card);
+		}, 300);
+	});
+
+	$('.batch_card').on('click', '.twcp_preview_run', function() {
+		const $card = $(this).closest('.batch_card');
+		const $button = $(this);
+		const $result = $card.find('.batch_preview_result').prop('hidden', false);
+		const id = $card.find('.twcp_preview_item').val();
+		if (!id) {
+			$result.empty().append(previewColumn('Preview', 'Choose an item first.', true));
+			return;
+		}
+
+		// The card's prompts and the shared context as they are on the screen, saved or not
+		const prompts = {};
+		$card.find('.batch_prompts textarea').add('#twcp_general_context, #twcp_target_keywords').each(function() {
+			prompts[this.name] = $(this).val();
+		});
+
+		$button.prop('disabled', true).text('Generating…');
+		$result.empty().append($('<p class="text text_muted">').text('Waiting for the model…'));
+		sendAjax('twcp_batch_preview', {
+			type: $card.data('type'),
+			id: id,
+			mode: $card.find('.twcp_batch_mode').val() || 'fill',
+			prompts: prompts
+		}, function(res) {
+			$button.prop('disabled', false).text('Run Preview');
+			$result.empty();
+			if (!res.success) {
+				$result.append(previewColumn('Preview', (res.data && res.data.message) || 'The preview failed.', true));
+				return;
+			}
+			const $columns = $('<div class="preview_columns">').append(previewColumn('Current', res.data.current || 'Empty'));
+			res.data.results.forEach(function(result) {
+				$columns.append(previewColumn('Preview', result.error || previewText(result.reply), !!result.error));
+			});
+			$result.append($columns);
+			res.data.results.forEach(function(result) {
+				$result.append($('<details class="preview_prompt">').append($('<summary>').text('Prompt sent'), $('<pre>').text(result.prompt)));
+			});
+		}, function() {
+			$button.prop('disabled', false).text('Run Preview');
+			$result.empty().append(previewColumn('Preview', 'The preview request failed. Try again.', true));
+		});
+	});
+
 	$('.batch_card').on('click', '.btn_clear_log', function(e) {
 		e.preventDefault();
 		const $card = $(this).closest('.batch_card');
 		$card.find('.batch_log_box').html('<div class="log_empty" style="color: #8c8f94; font-style: italic;">Log cleared.</div>');
-	});
-
-	// 7. Interactive Stock Image Search & Sideload
-	let stockSearchState = {
-		query: '',
-		provider: 'all',
-		orientation: '',
-		perPage: 12,
-		page: 1,
-		maxKnownPage: 1,
-		loading: false
-	};
-
-	function updatePaginationUI(page, perPage, itemsCount, hasMore) {
-		const $pagination = $('#twcp_stock_pagination');
-		const $info = $('#twcp_stock_pagination_info');
-		const $controls = $('#twcp_stock_pagination_controls');
-
-		if (!itemsCount && page <= 1) {
-			$pagination.hide();
-			return;
-		}
-
-		$pagination.show();
-
-		// 1. Refined text: e.g. "Showing images 13–24 (Page 2)"
-		if (itemsCount > 0) {
-			const start = (page - 1) * perPage + 1;
-			const end = start + itemsCount - 1;
-			const label = (itemsCount === 1) ? ('Showing image ' + start + ' (Page ' + page + ')') : ('Showing images ' + start + '–' + end + ' (Page ' + page + ')');
-			$info.text(label);
-		} else {
-			$info.text('Page ' + page + ' (0 images)');
-		}
-
-		// 2. Track maximum known page
-		if (hasMore) {
-			stockSearchState.maxKnownPage = Math.max(stockSearchState.maxKnownPage || 1, page + 1);
-		} else {
-			stockSearchState.maxKnownPage = Math.max(1, page);
-		}
-
-		const maxPage = stockSearchState.maxKnownPage;
-		$controls.empty();
-
-		// « Previous button
-		const $prevBtn = $('<button>').attr('type', 'button').addClass('button twcp_prev_page_btn').html('&larr; Previous').prop('disabled', page <= 1);
-		$controls.append($prevBtn);
-
-		// Numbered pagination buttons
-		let pagesToShow = [];
-		if (maxPage <= 7) {
-			for (let p = 1; p <= maxPage; p++) {
-				pagesToShow.push(p);
-			}
-		} else {
-			pagesToShow.push(1);
-			const startPage = Math.max(2, page - 2);
-			const endPage = Math.min(maxPage - 1, page + 2);
-
-			if (startPage > 2) {
-				pagesToShow.push('...');
-			}
-			for (let p = startPage; p <= endPage; p++) {
-				pagesToShow.push(p);
-			}
-			if (endPage < maxPage - 1) {
-				pagesToShow.push('...');
-			}
-			pagesToShow.push(maxPage);
-		}
-
-		$.each(pagesToShow, function(idx, p) {
-			if (p === '...') {
-				$('<span>').addClass('twcp_page_dots').text('…').appendTo($controls);
-			} else {
-				const isCurrent = (p === page);
-				const $pageBtn = $('<button>').attr('type', 'button').addClass('button').text(p);
-
-				if (isCurrent) {
-					$pageBtn.addClass('button-primary twcp_page_current').prop('disabled', true);
-				} else {
-					$pageBtn.addClass('twcp_page_num_btn').attr('data-page', p).data('page', p);
-				}
-				$controls.append($pageBtn);
-			}
-		});
-
-		// Next » button
-		const $nextBtn = $('<button>').attr('type', 'button').addClass('button twcp_next_page_btn').html('Next &rarr;').prop('disabled', !hasMore);
-		$controls.append($nextBtn);
-	}
-
-	function executeStockSearch(targetPage) {
-		const query = $('#twcp_stock_search_query').val().trim();
-		if (!query) {
-			alert('Please enter a search query.');
-			return;
-		}
-
-		const provider = $('#twcp_stock_search_provider').val() || 'all';
-		const orientation = $('#twcp_stock_search_orientation').val() || '';
-		const perPage = parseInt($('#twcp_stock_search_per_page').val(), 10) || 12;
-		const page = Math.max(1, parseInt(targetPage, 10) || 1);
-
-		stockSearchState.query = query;
-		stockSearchState.provider = provider;
-		stockSearchState.orientation = orientation;
-		stockSearchState.perPage = perPage;
-		stockSearchState.page = page;
-		stockSearchState.loading = true;
-
-		const $btn = $('#twcp_stock_search_btn');
-		const $status = $('#twcp_stock_search_status');
-		const $grid = $('#twcp_stock_results_grid');
-
-		$btn.prop('disabled', true).text('Searching...');
-		$('#twcp_stock_pagination_controls button').prop('disabled', true);
-		$status.text('Searching ' + provider + ' (Page ' + page + ')...').css('color', '');
-		$grid.empty();
-
-		sendAjax('twcp_search_stock_images', {
-			query: query,
-			provider: provider,
-			orientation: orientation,
-			per_page: perPage,
-			page: page
-		}, function(res) {
-			stockSearchState.loading = false;
-			$btn.prop('disabled', false).text('Search Images');
-
-			if (res.success && res.data && res.data.results) {
-				const items = res.data.results;
-				const hasMore = items.length >= perPage;
-
-				if (!items.length) {
-					$status.text('No images found for "' + query + '" on page ' + page + '.').css('color', '#d63638');
-					updatePaginationUI(page, perPage, 0, false);
-					return;
-				}
-
-				const start = (page - 1) * perPage + 1;
-				const end = start + items.length - 1;
-				$status.text('Found ' + items.length + ' images (' + start + '–' + end + ').').css('color', '#1e7e34');
-
-				$.each(items, function(i, img) {
-					const thumb = img.preview_url || img.thumb_url || img.url;
-					const title = img.title || img.author || img.author_name || 'Stock Photo';
-					const author = img.author || img.author_name || '';
-					const providerName = img.provider || provider;
-					const w = img.width || '';
-					const h = img.height || '';
-					const dims = (w && h) ? (w + ' × ' + h) : '';
-
-					const $card = $('<div>').addClass('stock_card').data('image', img);
-					const $thumbWrap = $('<div>').addClass('stock_thumb_wrap');
-					const $thumbImg = $('<img>').addClass('stock_thumb').attr({
-						src: thumb,
-						alt: title,
-						loading: 'lazy'
-					});
-					const $badge = $('<span>').addClass('badge stock_badge').text(providerName);
-					$thumbWrap.append($thumbImg, $badge);
-
-					const $content = $('<div>').addClass('stock_content');
-					const $meta = $('<div>');
-					const $titleEl = $('<div>').addClass('stock_title').attr('title', title).text(title);
-					$meta.append($titleEl);
-
-					if (author) {
-						$meta.append($('<div>').addClass('stock_author').text('By ' + author));
-					}
-					if (dims) {
-						$meta.append($('<div>').addClass('stock_dims').text(dims));
-					}
-
-					const $actions = $('<div>').addClass('stock_actions');
-					const $importBtn = $('<button>').attr('type', 'button').addClass('button button-small twcp_import_image_btn').text('Import to Media Library').data('image', img);
-					const $importStatus = $('<div>').addClass('import_status');
-					$actions.append($importBtn, $importStatus);
-
-					$content.append($meta, $actions);
-					$card.append($thumbWrap, $content);
-					$grid.append($card);
-				});
-
-				updatePaginationUI(page, perPage, items.length, hasMore);
-
-				if (page > 1) {
-					$('html, body').animate({
-						scrollTop: $grid.offset().top - 80
-					}, 200);
-				}
-			} else {
-				$status.text((res.data && res.data.message) || 'Search failed.').css('color', '#d63638');
-				$('#twcp_stock_pagination').hide();
-			}
-		}, function() {
-			stockSearchState.loading = false;
-			$btn.prop('disabled', false).text('Search Images');
-			$('#twcp_stock_pagination_controls button').prop('disabled', false);
-			$status.text('Server communication error during search.').css('color', '#d63638');
-		});
-	}
-
-	$('#twcp_stock_search_btn').on('click', function(e) {
-		e.preventDefault();
-		stockSearchState.maxKnownPage = 1;
-		executeStockSearch(1);
-	});
-
-	$('#twcp_stock_search_query').on('keydown', function(e) {
-		if (e.which === 13) {
-			e.preventDefault();
-			stockSearchState.maxKnownPage = 1;
-			executeStockSearch(1);
-		}
-	});
-
-	$('#twcp_stock_search_per_page, #twcp_stock_search_provider, #twcp_stock_search_orientation').on('change', function() {
-		if ($('#twcp_stock_search_query').val().trim()) {
-			stockSearchState.maxKnownPage = 1;
-			executeStockSearch(1);
-		}
-	});
-
-	$(document).on('click', '.twcp_page_num_btn', function(e) {
-		e.preventDefault();
-		const p = parseInt($(this).attr('data-page') || $(this).data('page') || $(this).text().trim(), 10);
-		if (p && !stockSearchState.loading) {
-			executeStockSearch(p);
-		}
-	});
-
-	$(document).on('click', '.twcp_prev_page_btn', function(e) {
-		e.preventDefault();
-		if (!stockSearchState.loading && stockSearchState.page > 1) {
-			executeStockSearch(stockSearchState.page - 1);
-		}
-	});
-
-	$(document).on('click', '.twcp_next_page_btn', function(e) {
-		e.preventDefault();
-		if (!stockSearchState.loading) {
-			executeStockSearch(stockSearchState.page + 1);
-		}
-	});
-
-	$(document).on('click', '.twcp_import_image_btn', function(e) {
-		e.preventDefault();
-		const $btn = $(this);
-		const $card = $btn.closest('.stock_card');
-		const $status = $card.find('.import_status');
-		const img = $btn.data('image') || $card.data('image') || {};
-
-		const url = img.download_url || img.url || $btn.data('url') || '';
-		const title = img.title || $btn.data('title') || '';
-		const provider = img.provider || $btn.data('provider') || '';
-
-		$btn.prop('disabled', true).text('Importing...');
-		$status.text('Downloading & importing...').css('color', '');
-
-		sendAjax('twcp_import_stock_image', {
-			image: img,
-			url: url,
-			title: title,
-			provider: provider
-		}, function(res) {
-			if (res.success && res.data && res.data.attachment_id) {
-				$btn.text('Imported!').css({
-					background: '#1e7e34',
-					borderColor: '#1e7e34',
-					color: '#ffffff'
-				});
-
-				const $link = $('<a>').attr('href', res.data.edit_url).attr('target', '_blank').css({
-					color: '#1e7e34',
-					fontWeight: '600'
-				}).text('✓ View Attachment #' + res.data.attachment_id);
-
-				$status.empty().append($link);
-			} else {
-				$btn.prop('disabled', false).text('Retry Import');
-				$status.text((res.data && res.data.message) || 'Import failed.').css('color', '#d63638');
-			}
-		}, function() {
-			$btn.prop('disabled', false).text('Retry Import');
-			$status.text('Server communication error.').css('color', '#d63638');
-		});
 	});
 });

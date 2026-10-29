@@ -1292,16 +1292,35 @@ function twcp_block_describe(array $args = []): array
 
 
 /**
+ * Site setup section of the Automation screen, after the store
+ */
+add_filter('twcp_batch_sections', function(array $sections): array {
+	$sections['site'] = [
+		'label'       => __('Site Setup', 'twee-mcp'),
+		'description' => __('One-time jobs that help AI agents understand the site.', 'twee-mcp'),
+		'position'    => 40,
+	];
+
+	return $sections;
+});
+
+
+/**
  * Block descriptions job on the Automation screen. Layouts have no IDs, so their position in the layout list
  * stands in for one.
  */
 add_filter('twcp_batch_types', function(array $types): array {
 	$types['blocks'] = [
-		'slice'      => 2,
-		'run'        => 'twcp_block_batch_describe',
-		'capability' => 'manage_options',
-		'cost'       => [1, 4000],
-		'query'      => function(int $offset, int $limit, bool $override): array {
+		'title'       => __('ACF Block Descriptions', 'twee-mcp'),
+		'description' => __('Describes page builder layouts from their fields and preview screenshots.', 'twee-mcp'),
+		'button'      => __('Generate Block Descriptions', 'twee-mcp'),
+		'section'     => 'site',
+		'unit'        => __('Layouts', 'twee-mcp'),
+		'slice'       => 2,
+		'run'         => 'twcp_block_batch_describe',
+		'capability'  => 'manage_options',
+		'cost'        => [1, 4000],
+		'query'       => function(int $offset, int $limit, bool $override): array {
 			$saved = twcp_block_saved_descriptions();
 			$layouts = [];
 			foreach (twcp_block_get_layouts() as $index => $layout) {
@@ -1312,16 +1331,9 @@ add_filter('twcp_batch_types', function(array $types): array {
 
 			return array_slice($layouts, $offset, $limit);
 		},
-		'total'      => function(bool $override): int {
+		'total'       => function(bool $override): int {
 			return $override ? count(twcp_block_get_layouts()) : twcp_block_count_missing();
 		},
-		'card'       => [
-			'section'     => 'site',
-			'title'       => __('ACF Block Descriptions', 'twee-mcp'),
-			'description' => __('Describes page builder layouts from their fields and preview screenshots.', 'twee-mcp'),
-			'btn_text'    => __('Generate Block Descriptions', 'twee-mcp'),
-			'unit'        => __('Layouts', 'twee-mcp'),
-		],
 	];
 
 	return $types;
@@ -1348,12 +1360,12 @@ function twcp_block_batch_describe(int $index, bool $override = false): array
 
 
 /**
- * Register the blocks field, previews folder, conventions and descriptions of the Library
+ * Register the blocks field, previews folder, conventions and descriptions of the Blocks tab
  */
 add_action('admin_init', 'twcp_block_admin_init');
 
 /**
- * Register the settings of the blocks field, previews folder, conventions and descriptions of the Library
+ * Register the settings of the blocks field, previews folder, conventions and descriptions of the Blocks tab
  *
  * @return void
  */
@@ -1378,7 +1390,7 @@ function twcp_block_admin_init(): void
 	]);
 	register_setting('twcp_blocks_group', 'twcp_block_descriptions', [
 		'type'              => 'array',
-		// The Library lists the layouts of the current field only, so the descriptions it does not list are kept
+		// The Blocks tab lists the layouts of the current field only, so the descriptions it does not list are kept
 		'sanitize_callback' => function($input) {
 			$clean = (array) get_option('twcp_block_descriptions', []);
 			foreach ((array) $input as $layout => $description) {
@@ -1393,10 +1405,10 @@ function twcp_block_admin_init(): void
 
 
 /**
- * Show the ACF blocks in the Library
+ * Show the ACF blocks, their conventions and descriptions on the Blocks tab
  */
 add_filter('twcp_admin_tabs', function(array $tabs): array {
-	$tabs['library']['parts'][] = 'blocks';
+	$tabs['blocks'] = ['label' => __('Blocks', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 30, 'parts' => ['blocks']];
 
 	return $tabs;
 });
@@ -1527,3 +1539,13 @@ add_filter('twcp_media_assign', function($result, string $type, int $attachment_
 add_filter('twcp_post_blocks', function(array $blocks, int $id, string $meta_type): array {
 	return twcp_module_active('blocks') ? (array) get_metadata($meta_type, $id, twcp_block_field_name(), true) : $blocks;
 }, 10, 3);
+
+
+/**
+ * Load the block description generator on the Blocks tab
+ */
+add_action('admin_enqueue_scripts', function() {
+	if (sanitize_key($_GET['page'] ?? '') === twcp_admin_slug('blocks')) {
+		wp_enqueue_script('twcp_blocks', plugins_url('blocks.js', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/blocks.js'), true);
+	}
+});

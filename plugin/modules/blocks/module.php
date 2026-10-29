@@ -1,7 +1,7 @@
 <?php
 /**
  * Module: ACF Blocks
- * Description: Page builder blocks and custom fields of ACF Pro, and block descriptions for the Library.
+ * Description: Page builder blocks and custom fields of ACF Pro, and the Blocks tab with their conventions and descriptions.
  *
  * @package Twee_MCP
  */
@@ -13,7 +13,7 @@ require_once __DIR__ . '/fields.php';
 
 
 /**
- * The block tools, block descriptions, and the blocks of the Library need ACF Pro
+ * The block tools, block descriptions, and the Blocks tab need ACF Pro
  */
 add_filter('twcp_modules', function(array $modules): array {
 	$modules['blocks'] = ['plugin' => 'ACF Pro', 'active' => defined('ACF_PRO')];

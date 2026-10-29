@@ -3,15 +3,14 @@
  * Twee MCP — AI Tools Admin Interface
  *
  * Top-level "AI Tools" menu (last item of the admin menu) with one submenu page per tab:
- * - Automation   (batch jobs for content and shop managers, internal link settings)
- * - Prompts      (system prompts by area, copy-ready agent prompts)
- * - Library      (filled by modules: ACF blocks, stock image providers)
+ * - Automation   (batch jobs for content and shop managers, with the system prompts and internal link settings)
  * - AI Provider  (text & vision models, image size, API key, connection test)
- * - Agent Access (server toggle, endpoint, setup guides, OAuth sessions)
+ * - Agent Access (server toggle, endpoint, setup guides, OAuth sessions, copy-ready agent prompts)
  * - Agent Tools  (MCP tool switches)
  *
- * Every tab renders template parts from parts/{part}.php that receive only the data they need. Modules add their
- * parts with the twcp_admin_tabs filter and their data with the twcp_admin_data filter.
+ * Every tab renders template parts from parts/{part}.php that receive only the data they need. Modules add tabs,
+ * such as Blocks of the blocks module and Images of the images module, or parts of other tabs with the
+ * twcp_admin_tabs filter, and their data with the twcp_admin_data filter.
  * Automation is open to editors and shop managers; the other tabs need manage_options.
  *
  * @package Twee_MCP
@@ -21,29 +20,19 @@ defined('ABSPATH') or exit;
 
 
 /**
- * Admin tabs. Modules add their template parts with the twcp_admin_tabs filter; a tab no module adds parts to,
- * such as the Library, is left out.
+ * Admin tabs, each a page of the AI Tools menu, in the order of their position. Modules add their tabs, or template
+ * parts of other tabs, with the twcp_admin_tabs filter.
  *
- * @return array Tab => [ label, capability, template parts ]
+ * @return array Tab => [ label, capability, position, template parts ]
  */
 function twcp_admin_tabs(): array
 {
-	$tabs = (array) apply_filters('twcp_admin_tabs', [
-		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'parts' => ['automation']],
-		'prompts'    => ['label' => __('Prompts', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['prompts', 'examples']],
-		'library'    => ['label' => __('Library', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => []],
-		'model'      => ['label' => __('AI Provider', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['model']],
-		'connection' => ['label' => __('Agent Access', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['connection']],
-		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'parts' => ['modules', 'tools']],
-	]);
-
-	foreach ($tabs as $tab => $info) {
-		if (empty($info['parts'])) {
-			unset($tabs[$tab]);
-		}
-	}
-
-	return $tabs;
+	return twcp_position_sort((array) apply_filters('twcp_admin_tabs', [
+		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'position' => 10, 'parts' => ['automation']],
+		'model'      => ['label' => __('AI Provider', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 40, 'parts' => ['model']],
+		'connection' => ['label' => __('Agent Access', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 50, 'parts' => ['connection', 'examples']],
+		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 60, 'parts' => ['modules', 'tools']],
+	]));
 }
 
 
@@ -55,11 +44,23 @@ function twcp_admin_tabs(): array
 function twcp_admin_legacy(): array
 {
 	return array_intersect([
-		'tw-mcp-blocks'   => 'library',
-		'tw-mcp-images'   => 'library',
-		'tw-mcp-examples' => 'prompts',
+		'tw-mcp-library'  => 'blocks',
+		'tw-mcp-prompts'  => 'automation',
+		'tw-mcp-examples' => 'connection',
 	], array_keys(twcp_admin_tabs()));
 }
+
+
+/**
+ * Send bookmarks of removed tabs to the tab that took them over, before WordPress refuses the unknown page
+ */
+add_action('admin_page_access_denied', function() {
+	$tab = twcp_admin_legacy()[sanitize_key($_GET['page'] ?? '')] ?? '';
+	if ($tab) {
+		wp_safe_redirect(admin_url('admin.php?page=' . twcp_admin_slug($tab)));
+		exit;
+	}
+});
 
 
 /**
@@ -90,7 +91,7 @@ function twcp_admin_tab(): string
 		}
 	}
 
-	return twcp_admin_legacy()[$page] ?? array_key_first(twcp_admin_tabs());
+	return array_key_first(twcp_admin_tabs());
 }
 
 
@@ -123,9 +124,9 @@ function twcp_admin_init(): void
 	register_setting('twcp_model_group', 'twcp_vision_model', $text);
 	register_setting('twcp_model_group', 'twcp_vision_size', ['type' => 'integer', 'sanitize_callback' => 'absint', 'default' => 768]);
 
-	// Prompts, and the settings modules save with them
+	// Prompts, each saved from its own form on the Automation screen; modules save their settings of a prompt with it
 	foreach (array_keys(twcp_prompt_registry()) as $option) {
-		register_setting('twcp_prompts_group', $option, [
+		register_setting($option, $option, [
 			'type'              => 'string',
 			'sanitize_callback' => fn($input): string => twcp_prompt_sanitize($input, $option),
 			'default'           => '',
@@ -173,13 +174,6 @@ function twcp_admin_menu(): void
 
 	foreach ($tabs as $tab => $info) {
 		add_submenu_page(twcp_admin_slug($first), sprintf(__('%s ‹ AI Tools', 'twee-mcp'), $info['label']), $info['label'], $info['capability'], twcp_admin_slug($tab), 'twcp_admin_page');
-	}
-
-	// Hidden pages for old bookmarks
-	foreach (twcp_admin_legacy() as $slug => $tab) {
-		if (!in_array($slug, array_map('twcp_admin_slug', array_keys($tabs)), true)) {
-			add_submenu_page('', $tabs[$tab]['label'], $tabs[$tab]['label'], $tabs[$tab]['capability'], $slug, 'twcp_admin_page');
-		}
 	}
 }
 
@@ -369,7 +363,7 @@ function twcp_admin_ajax_test(): void
 add_action('wp_ajax_twcp_generate_context', 'twcp_admin_ajax_context');
 
 /**
- * Generate the Store Profile & Website Context text for the Prompts screen.
+ * Generate the Store Profile & Website Context text for the Shared Context of the Automation screen.
  *
  * @return void Sends a JSON response.
  */
@@ -432,7 +426,23 @@ function twcp_admin_data(string $part): array
 			break;
 
 		case 'automation':
+			// Administrators edit the system prompts next to the jobs that use them
+			$prompt_groups = current_user_can('manage_options') ? twcp_prompt_groups() : [];
+			foreach (twcp_prompt_registry() as $option => $prompt) {
+				if (isset($prompt_groups[$prompt['group']])) {
+					$saved = trim((string) get_option($option, ''));
+					$default = call_user_func($prompt['default']);
+					$prompt_groups[$prompt['group']]['prompts'][$option] = [
+							'value'      => $saved !== '' ? $saved : $default,
+							'default'    => $default,
+							'customized' => $saved !== '' and $saved !== $default,
+							'section'    => $prompt_groups[$prompt['group']]['section'] ?? '',
+						] + $prompt;
+				}
+			}
+
 			$data = [
+				'prompt_groups'    => $prompt_groups,
 				'overview'         => twcp_batch_overview(),
 				'sections'         => twcp_batch_sections(),
 				'batch_cards'      => twcp_batch_cards(),
@@ -442,7 +452,6 @@ function twcp_admin_data(string $part): array
 				'can_manage'       => current_user_can('manage_options'),
 				'model_missing'    => twcp_model_missing(),
 				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('model')),
-				'post_links'       => array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', [])),
 			];
 			break;
 
@@ -460,24 +469,6 @@ function twcp_admin_data(string $part): array
 				'tool_groups'      => twcp_tools_groups(),
 				'disabled_tools'   => twcp_tools_disabled(),
 				'enabled_count'    => count(twcp_tools_enabled()),
-			];
-			break;
-
-		case 'prompts':
-			$prompts = [];
-			foreach (twcp_prompt_registry() as $option => $prompt) {
-				$saved = trim((string) get_option($option, ''));
-				$default = call_user_func($prompt['default']);
-				$prompts[$prompt['group']][$option] = [
-						'value'      => $saved !== '' ? $saved : $default,
-						'default'    => $default,
-						'customized' => $saved !== '' and $saved !== $default,
-					] + $prompt;
-			}
-
-			$data = [
-				'groups'  => twcp_prompt_groups(),
-				'prompts' => $prompts,
 			];
 			break;
 

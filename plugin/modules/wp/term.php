@@ -85,8 +85,9 @@ function twcp_term_format(WP_Term $term, string $taxonomy): array
 			'alt' => get_post_meta($thumb_id, '_wp_attachment_image_alt', true),
 		] : null,
 		'seo'         => [
-			'title'       => get_term_meta($term->term_id, 'rank_math_title', true) ? : '',
-			'description' => get_term_meta($term->term_id, 'rank_math_description', true) ? : '',
+			'title'         => get_term_meta($term->term_id, 'rank_math_title', true) ? : '',
+			'description'   => get_term_meta($term->term_id, 'rank_math_description', true) ? : '',
+			'focus_keyword' => twcp_focus_keywords($term->term_id, 'term'),
 		],
 		'blocks'      => $blocks ? twcp_block_format_list($blocks) : [],  // Only the blocks module finds blocks
 	];
@@ -417,6 +418,7 @@ function twcp_term_generate_seo(int $term_id, string $taxonomy, bool $force = fa
 	$prompt = "Generate an SEO Title and Meta Description for the following taxonomy archive on {$site_name} store.\n";
 	$prompt .= "Taxonomy: {$tax_label}\n";
 	$prompt .= "Term Name: {$term->name}\n";
+	$prompt .= twcp_focus_note($term_id, 'term');
 	if ($summary) {
 		$prompt .= "Context Summary:\n{$summary}\n";
 	}
@@ -523,6 +525,7 @@ function twcp_term_generate_description(int $term_id, string $taxonomy, bool $fo
 	$prompt = "Write the archive description for this term:\n";
 	$prompt .= 'Taxonomy: ' . ($tax_object ? $tax_object->labels->singular_name : $taxonomy) . "\n";
 	$prompt .= "Term Name: {$term->name}\n";
+	$prompt .= twcp_focus_note($term_id, 'term');
 	if ($parent and !is_wp_error($parent)) {
 		$prompt .= "Parent: {$parent->name}\n";
 	}
@@ -542,7 +545,7 @@ function twcp_term_generate_description(int $term_id, string $taxonomy, bool $fo
 	}
 	$prompt .= "\nOutput only the description text.";
 
-	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_description', 'twcp_prompt_term_description_default'), [], ['temperature' => 0.5]);
+	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_description', 'twcp_prompt_term_description_default'), [], ['temperature' => 0.5, 'read_tools' => ['get_products', 'get_terms', 'get_posts']]);
 	$description = trim(sanitize_textarea_field($response), " \n\"'");
 	if ($description === '') {
 		return false;
@@ -677,6 +680,7 @@ function twcp_term_context(WP_Term $term): string
 
 	$context = 'Taxonomy: ' . ($tax_object ? $tax_object->labels->singular_name : $term->taxonomy) . "\n";
 	$context .= "Term Name: {$term->name}\n";
+	$context .= twcp_focus_note($term->term_id, 'term');
 	if ($parent and !is_wp_error($parent)) {
 		$context .= "Parent: {$parent->name}\n";
 	}
@@ -727,7 +731,7 @@ function twcp_term_generate_content(int $term_id, string $field_key, bool $force
 	}
 	$prompt .= "\nOutput strictly HTML content.";
 
-	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_content', 'twcp_prompt_term_content_default'), [], ['temperature' => 0.5, 'max_tokens' => 2500]);
+	$response = twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_content', 'twcp_prompt_term_content_default'), [], ['temperature' => 0.5, 'max_tokens' => 2500, 'read_tools' => ['get_products', 'get_terms', 'get_posts']]);
 	$html = trim(str_replace(['```html', '```'], '', $response));
 	if ($html === '') {
 		return false;
@@ -772,7 +776,7 @@ function twcp_term_generate_faq(int $term_id, string $field_key, bool $force = f
 	}
 	$prompt .= $field['type'] === 'wysiwyg' ? "\nAnswers may use <p>, <strong>, and <ul> tags." : "\nAnswers must be plain text.";
 
-	$response = twcp_model_response(twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_faq', 'twcp_prompt_term_faq_default'), [], ['temperature' => 0.5, 'max_tokens' => 2000]));
+	$response = twcp_model_response(twcp_model_request($prompt, twcp_prompt('twcp_system_prompt_term_faq', 'twcp_prompt_term_faq_default'), [], ['temperature' => 0.5, 'max_tokens' => 2000, 'read_tools' => ['get_products', 'get_terms', 'get_posts']]));
 
 	$faq = [];
 	foreach (is_array($response) ? $response : [] as $item) {

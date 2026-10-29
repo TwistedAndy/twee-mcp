@@ -1,6 +1,8 @@
 <?php
 /**
- * Tab Template: ACF Blocks
+ * Tab Template: Blocks
+ *
+ * The blocks field, preview screenshots, conventions for agents, and descriptions of the page builder layouts.
  *
  * @var array  $available_blocks_fields
  * @var string $current_blocks_field
@@ -69,7 +71,7 @@ defined('ABSPATH') or exit;
 			<label class="label" for="twcp_block_conventions"><?php echo esc_html__('Block Conventions for AI Agents', 'twee-mcp'); ?></label>
 			<textarea id="twcp_block_conventions" name="twcp_block_conventions" rows="14" class="large-text" style="font-family: monospace; font-size: 12px; line-height: 1.5;" data-default="<?php echo esc_attr($conventions_default); ?>"><?php echo esc_textarea($saved_conventions !== '' ? $saved_conventions : $conventions_default); ?></textarea>
 			<div style="margin-top: 6px;">
-				<button type="button" class="button twcp_reset_prompt twcp_restore_prompt_btn" data-target="twcp_block_conventions" data-default="<?php echo esc_attr($conventions_default); ?>" aria-label="<?php echo esc_attr__('Reset block conventions to default', 'twee-mcp'); ?>"><?php echo esc_html__('Reset to default', 'twee-mcp'); ?></button>
+				<button type="button" class="button twcp_reset_prompt" data-target="twcp_block_conventions" aria-label="<?php echo esc_attr__('Reset block conventions to default', 'twee-mcp'); ?>"><?php echo esc_html__('Reset to default', 'twee-mcp'); ?></button>
 			</div>
 			<div class="text text_muted" style="margin-top: 6px;">
 				<?php echo esc_html__('Explains the shared fields (contents, settings, items), media rules (SVG icons vs. raster images), custom product/post selection, and text formats. Sent once with get_block_types, so keep it short.', 'twee-mcp'); ?>

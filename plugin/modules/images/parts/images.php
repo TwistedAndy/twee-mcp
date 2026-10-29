@@ -1,6 +1,8 @@
 <?php
 /**
- * Tab Template: Stock Images & Media Integration
+ * Tab Template: Images
+ *
+ * Stock photo provider keys and a search that imports photos into the Media Library.
  *
  * @var array $keys
  * @var bool  $instant_active

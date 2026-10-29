@@ -29,11 +29,9 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 	// 1. Current SEO metadata (Rank Math and Yoast SEO support)
 	$rm_title = (string) get_post_meta($post_id, 'rank_math_title', true);
 	$rm_desc = (string) get_post_meta($post_id, 'rank_math_description', true);
-	$rm_kw = (string) get_post_meta($post_id, 'rank_math_focus_keyword', true);
 
 	$yoast_title = (string) get_post_meta($post_id, '_yoast_wpseo_title', true);
 	$yoast_desc = (string) get_post_meta($post_id, '_yoast_wpseo_metadesc', true);
-	$yoast_kw = (string) get_post_meta($post_id, '_yoast_wpseo_focuskw', true);
 
 	$seo_title = $rm_title ? : ($yoast_title ? : $post->post_title);
 	$seo_description = $rm_desc ? : ($yoast_desc ? : $post->post_excerpt);
@@ -41,7 +39,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 	$seo = [
 		'title'           => $seo_title,
 		'description'     => $seo_description,
-		'focus_keyword'   => $rm_kw ? : ($yoast_kw ? : ''),
+		'focus_keyword'   => twcp_focus_keywords($post_id),
 		'rank_math_title' => $rm_title ? : null,
 		'rank_math_desc'  => $rm_desc ? : null,
 		'yoast_title'     => $yoast_title ? : null,
@@ -461,6 +459,7 @@ function twcp_post_schema(array $args): array
 	}
 
 	$result['site_context'] = twcp_general_context();
+	$result['target_keywords'] = array_values(array_filter(array_map('trim', explode("\n", (string) get_option('twcp_target_keywords', '')))));
 	$result['gallery'] = [
 		'shortcode'    => '[gallery ids="12,34" columns="3" size="large" link="file"]',
 		'instructions' => 'Use build_gallery_shortcode with Media Library IDs, then insert the result ' . 'in post content or an ACF rich-text field. Use edit_product.gallery_image_ids for product galleries.',
@@ -591,6 +590,47 @@ function twcp_post_context($post): ?array
 
 
 /**
+ * Focus keywords of a post or term from Rank Math, or else Yoast SEO, the main one first
+ *
+ * @param int    $id
+ * @param string $meta_type "post" or "term"
+ *
+ * @return string Comma-separated keywords, empty without any
+ */
+function twcp_focus_keywords(int $id, string $meta_type = 'post'): string
+{
+	$keywords = trim((string) get_metadata($meta_type, $id, 'rank_math_focus_keyword', true));
+	if ($keywords !== '') {
+		return $keywords;
+	}
+	if ($meta_type === 'post') {
+		return trim((string) get_post_meta($id, '_yoast_wpseo_focuskw', true));
+	}
+
+	// Yoast SEO keeps the settings of terms in one option, by taxonomy and term
+	$term = get_term($id);
+
+	return $term instanceof WP_Term ? trim((string) (get_option('wpseo_taxonomy_meta')[$term->taxonomy][$id]['wpseo_focuskw'] ?? '')) : '';
+}
+
+
+/**
+ * Focus keywords line of a generator prompt
+ *
+ * @param int    $id
+ * @param string $meta_type "post" or "term"
+ *
+ * @return string Empty without focus keywords
+ */
+function twcp_focus_note(int $id, string $meta_type = 'post'): string
+{
+	$keywords = twcp_focus_keywords($id, $meta_type);
+
+	return $keywords !== '' ? "Focus Keywords: {$keywords} (the first is the main one: use it naturally and early; work in the others where they fit)\n" : '';
+}
+
+
+/**
  * Parse SEO JSON response with regex fallback
  *
  * @param string $response
@@ -710,6 +750,7 @@ function twcp_post_generate_seo(int $post_id, bool $force = false): bool
 	$prompt = "Generate an SEO Title and Meta Description for the following content on {$site_name} store.\n";
 	$prompt .= "Title: {$title}\n";
 	$prompt .= "Post Type: {$post->post_type}\n";
+	$prompt .= twcp_focus_note($post_id);
 	if ($summary) {
 		$prompt .= "Content Summary:\n{$summary}\n";
 	}
@@ -812,6 +853,7 @@ function twcp_post_generate_excerpt(int $post_id, bool $force = false): bool
 	$prompt = "Write a concise, engaging short excerpt for this post:\n";
 	$prompt .= "Title: \"{$title}\"\n";
 	$prompt .= "Post Type: {$post->post_type}\n";
+	$prompt .= twcp_focus_note($post_id);
 	if ($summary) {
 		$prompt .= "Context Summary:\n{$summary}\n";
 	}
@@ -881,7 +923,7 @@ PROMPT;
  * @param int         $post_id Post the content is written for, or the source of a similar post
  * @param string|null $html    Generated HTML to check
  *
- * @return array|string [ note => prompt text, read_tools => lookups to offer ], or the checked HTML
+ * @return array|string [ note => prompt text, read_tools => lookups to offer for facts and links ], or the checked HTML
  */
 function twcp_post_links(int $post_id, ?string $html = null)
 {
@@ -954,7 +996,7 @@ function twcp_post_links(int $post_id, ?string $html = null)
 			$note = "\nDo not add links.\n";
 		}
 
-		return ['note' => $note, 'read_tools' => $lookup ? ['get_posts', 'get_terms'] : false];
+		return ['note' => $note, 'read_tools' => ['get_products', 'get_terms', 'get_posts']];
 	}
 
 	// Keep approved links, links the post already had, in-page anchors, and site URLs found by lookups
@@ -1016,6 +1058,7 @@ function twcp_post_generate_content(int $post_id, bool $force = false): bool
 	$prompt = "Write the complete, comprehensive article content for the following post:\n";
 	$prompt .= "Title: \"{$title}\"\n";
 	$prompt .= "Post Type: {$post->post_type}\n";
+	$prompt .= twcp_focus_note($post_id);
 	if (!empty($stripped)) {
 		$prompt .= twcp_rewrite_note('content', substr($stripped, 0, 2500), 'Review, improve, and expand it.');
 	}

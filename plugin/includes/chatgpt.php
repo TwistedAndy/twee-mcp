@@ -467,7 +467,8 @@ function twcp_chatgpt_models(): array
  * Send a request to the Responses API on the ChatGPT plan
  *
  * Plan requests must stream, cannot be stored, and reject temperature and output limits,
- * so those options are dropped. The whole conversation is sent with every lookup round.
+ * so those options are dropped. The whole conversation is sent with every lookup round, with the
+ * encrypted reasoning of earlier rounds.
  *
  * @param string $prompt
  * @param string $system
@@ -489,89 +490,24 @@ function twcp_chatgpt_request(string $prompt, string $system, array $images, str
 		return '';
 	}
 
-	$content = [['type' => 'input_text', 'text' => $prompt]];
-	$max_edge = (int) ($options['image_size'] ?? 0) ? : twcp_model_settings()['vision_size'];
-	foreach ($images as $image) {
-		$payload = twcp_model_image_payload($image, $max_edge);
-		if ($payload) {
-			$content[] = ['type' => 'input_image', 'image_url' => $payload['url'], 'detail' => $max_edge <= 512 ? 'low' : 'auto'];
-		}
-	}
-
 	$body = [
-		'model'  => $model,
-		'input'  => [['role' => 'user', 'content' => $content]],
-		'store'  => false,
-		'stream' => true,
+		'model'   => $model,
+		'store'   => false,
+		'stream'  => true,
+		'include' => ['reasoning.encrypted_content'],
 	];
-	if ($system !== '') {
-		$body['instructions'] = $system;
-	}
 
-	$read_tools = $options['read_tools'] ?? false;
-	foreach (twcp_model_lookup_tools($read_tools) as $tool) {
-		$body['tools'][] = ['type' => 'function', 'name' => $tool['name'], 'description' => $tool['description'], 'parameters' => $tool['schema']];
-	}
-	if (!empty($body['tools'])) {
-		$body['input'][] = ['role' => 'user', 'content' => twcp_model_lookup_note()];
-	}
-
-	$deadline = time() + 180;
-	$tool_count = 0;
-
-	for ($round = 0; $round <= (isset($body['tools']) ? 3 : 0); $round++) {
-		if ($round === 3 or $tool_count >= 8) {
-			unset($body['tools']);
-		}
-		if ($deadline <= time()) {
-			break;
-		}
-
-		$output = twcp_chatgpt_send($body, $deadline);
-		if ($output === null) {
-			return '';
-		}
-
-		$text = '';
-		$calls = [];
-		foreach ($output as $item) {
-			if (($item['type'] ?? '') === 'message') {
-				foreach ($item['content'] ?? [] as $part) {
-					$text .= ($part['type'] ?? '') === 'output_text' ? $part['text'] : '';
-				}
-			} elseif (($item['type'] ?? '') === 'function_call') {
-				$calls[] = $item;
-			}
-		}
-
-		if (!$calls or !isset($body['tools'])) {
-			return trim(str_replace(['```html', '```json', '```'], '', $text));
-		}
-
-		foreach ($calls as $call) {
-			// Unstored responses cannot be referenced by item ID, so the call is sent back without it
-			$body['input'][] = ['type' => 'function_call', 'call_id' => $call['call_id'], 'name' => $call['name'], 'arguments' => $call['arguments']];
-			$body['input'][] = [
-				'type'    => 'function_call_output',
-				'call_id' => $call['call_id'],
-				'output'  => twcp_model_lookup_call($call['name'], json_decode($call['arguments'] ?? '', true), $tool_count),
-			];
-		}
-	}
-
-	twcp_model_last_error('Model lookup budget exhausted without a final response.');
-
-	return '';
+	return twcp_model_responses($body, $prompt, $system, $images, $options, 'twcp_chatgpt_send');
 }
 
 
 /**
- * POST one streamed Responses request and return the output items of the completed response
+ * POST one streamed Responses request and return the completed response
  *
  * @param array $body
  * @param int   $deadline
  *
- * @return array|null Output items, or null with the last error set
+ * @return array|null Response with its output items, or null with the last error set
  */
 function twcp_chatgpt_send(array $body, int $deadline): ?array
 {
@@ -609,7 +545,7 @@ function twcp_chatgpt_send(array $body, int $deadline): ?array
 					$output[] = $event['item'];
 				}
 				if ($type === 'response.completed') {
-					return $output ? : (array) ($event['response']['output'] ?? []);
+					return ['output' => $output ? : (array) ($event['response']['output'] ?? [])] + (array) ($event['response'] ?? []);
 				}
 				if ($type === 'response.failed' or $type === 'error') {
 					$error = $event['response']['error'] ?? $event['error'] ?? $event;

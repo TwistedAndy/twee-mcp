@@ -171,13 +171,14 @@ function twcp_image_admin_init(): void
 
 
 /**
- * Show the stock image providers in the Library
+ * Show the stock image providers and search on the Images tab
  */
 add_filter('twcp_admin_tabs', function(array $tabs): array {
-	$tabs['library']['parts'][] = 'images';
+	$tabs['images'] = ['label' => __('Images', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 35, 'parts' => ['images']];
 
 	return $tabs;
-}, 20);
+});
+
 
 add_filter('twcp_admin_data', function(array $data, string $part): array {
 	if ($part !== 'images') {
@@ -285,3 +286,16 @@ add_filter('twcp_post_featured_image', function(int $image_id, string $query, WP
 
 	return (int) ($import['attachment_id'] ?? 0);
 }, 10, 3);
+
+
+/**
+ * Load the stock image search on the Images tab
+ */
+add_action('admin_enqueue_scripts', function() {
+	if (sanitize_key($_GET['page'] ?? '') !== twcp_admin_slug('images')) {
+		return;
+	}
+
+	wp_enqueue_style('twcp_images', plugins_url('images.css', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.css'));
+	wp_enqueue_script('twcp_images', plugins_url('images.js', __FILE__), ['twcp_mcp'], (string) filemtime(__DIR__ . '/images.js'), true);
+});

@@ -633,7 +633,8 @@ function twcp_product_full(int $product_id, bool $regenerate = false): bool
 	}
 
 	$user_prompt = "Generate a full HTML product description for the following item:\n\n";
-	$user_prompt .= "Product Title: {$name}\n\n";
+	$user_prompt .= "Product Title: {$name}\n";
+	$user_prompt .= twcp_focus_note($product_id) . "\n";
 
 	if ($attributes) {
 		$user_prompt .= "Product Technical Specifications:\n" . implode("\n", $attributes) . "\n\n";
@@ -699,6 +700,7 @@ function twcp_product_short(int $product_id, bool $regenerate = false): bool
 	$attributes = twcp_product_gather_specs($product);
 
 	$short_user_prompt = "Product Name: {$name}\n";
+	$short_user_prompt .= twcp_focus_note($product_id);
 	if (!empty($current_short)) {
 		$short_user_prompt .= twcp_rewrite_note('short description', "\"{$current_short}\"");
 	}
@@ -962,6 +964,20 @@ function twcp_product_select_related(array $args): array
 
 
 /**
+ * Store section of the Automation screen, after content and media
+ */
+add_filter('twcp_batch_sections', function(array $sections): array {
+	$sections['store'] = [
+		'label'       => __('Store Automation', 'twee-mcp'),
+		'description' => __('Product copy and merchandising for WooCommerce.', 'twee-mcp'),
+		'position'    => 30,
+	];
+
+	return $sections;
+});
+
+
+/**
  * Product copy and cross-sell jobs on the Automation screen
  */
 add_filter('twcp_batch_types', function(array $types): array {
@@ -969,86 +985,47 @@ add_filter('twcp_batch_types', function(array $types): array {
 		return $types;
 	}
 
-	// Published products, those without the text unless overriding
-	$products = function(string $empty): callable {
-		return function(bool $override) use ($empty): array {
-			$args = ['post_type' => 'product', 'post_status' => 'publish'];
-			if (!$override) {
-				$args[$empty] = true;
-			}
-
-			return $args;
-		};
-	};
-
 	$types['products_short'] = [
-		'slice'      => 5,
-		'run'        => 'twcp_product_batch_short',
-		'capability' => 'edit_others_products',
-		'text'       => 'short product description (130 to 155 characters)',
-		'cost'       => [1, 2500],
-		'fields'     => ['post:post_excerpt'],
-		'args'       => $products('twcp_empty_excerpt'),
-		'current'    => function(int $id): string {
-			return trim(wp_strip_all_tags((string) get_post_field('post_excerpt', $id)));
-		},
-		'restored'   => 'wc_delete_product_transients',
-		'card'       => [
-			'section'     => 'store',
-			'title'       => __('Short Product Descriptions', 'twee-mcp'),
-			'description' => __('Writes 130 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
-			'btn_text'    => __('Generate Short Descriptions', 'twee-mcp'),
-			'unit'        => __('Products', 'twee-mcp'),
-		],
+		'title'       => __('Short Product Descriptions', 'twee-mcp'),
+		'description' => __('Writes 130 to 155 character summaries that double as meta descriptions.', 'twee-mcp'),
+		'button'      => __('Generate Short Descriptions', 'twee-mcp'),
+		'section'     => 'store',
+		'post_type'   => 'product',
+		'field'       => 'post:post_excerpt',
+		'run'         => 'twcp_product_short',
+		'combine'     => true,
+		'prompts'     => ['twcp_system_prompt_product_short'],
+		'text'        => 'short product description (130 to 155 characters)',
+		'cost'        => [1, 2500],
+		'restored'    => 'wc_delete_product_transients',
 	];
 
 	$types['products'] = [
-		'slice'      => 3,
-		'run'        => 'twcp_product_batch_full',
-		'capability' => 'edit_others_products',
-		'text'       => 'full product description',
-		'cost'       => [2, 9000],
-		'fields'     => ['post:post_content'],
-		'args'       => $products('twcp_empty_content'),
-		'current'    => function(int $id): string {
-			return mb_substr(trim(wp_strip_all_tags((string) get_post_field('post_content', $id))), 0, 1200);
-		},
-		'restored'   => 'wc_delete_product_transients',
-		'card'       => [
-			'section'     => 'store',
-			'title'       => __('Full Product Descriptions', 'twee-mcp'),
-			'description' => __('Writes HTML descriptions with specifications and internal links.', 'twee-mcp'),
-			'btn_text'    => __('Generate Full Descriptions', 'twee-mcp'),
-			'unit'        => __('Products', 'twee-mcp'),
-		],
+		'title'       => __('Full Product Descriptions', 'twee-mcp'),
+		'description' => __('Writes HTML descriptions with specifications and internal links.', 'twee-mcp'),
+		'button'      => __('Generate Full Descriptions', 'twee-mcp'),
+		'section'     => 'store',
+		'post_type'   => 'product',
+		'field'       => 'post:post_content',
+		'run'         => 'twcp_product_full',
+		'prompts'     => ['twcp_system_prompt_product'],
+		'text'        => 'full product description',
+		'slice'       => 3,
+		'cost'        => [2, 9000],
+		'restored'    => 'wc_delete_product_transients',
 	];
 
 	$types['cross_sells'] = [
-		'slice'      => 3,
-		'run'        => 'twcp_product_batch_cross_sells',
-		'capability' => 'edit_others_products',
-		'cost'       => [1, 3000],
-		'fields'     => ['meta:_crosssell_ids'],
-		'args'       => function(bool $override): array {
-			$args = ['post_type' => 'product', 'post_status' => 'publish'];
-			if (!$override) {
-				$args['meta_query'] = [
-					'relation' => 'OR',
-					['key' => '_crosssell_ids', 'compare' => 'NOT EXISTS'],
-					['key' => '_crosssell_ids', 'value' => ['', 'a:0:{}'], 'compare' => 'IN'],
-				];
-			}
-
-			return $args;
-		},
-		'restored'   => 'wc_delete_product_transients',
-		'card'       => [
-			'section'     => 'store',
-			'title'       => __('Cross-sells', 'twee-mcp'),
-			'description' => __('Links up to 4 complementary products from the same category or brand to products without cross-sells.', 'twee-mcp'),
-			'btn_text'    => __('Link Cross-sells', 'twee-mcp'),
-			'unit'        => __('Products', 'twee-mcp'),
-		],
+		'title'       => __('Cross-sells', 'twee-mcp'),
+		'description' => __('Links up to 4 complementary products from the same category or brand to products without cross-sells.', 'twee-mcp'),
+		'button'      => __('Link Cross-sells', 'twee-mcp'),
+		'section'     => 'store',
+		'post_type'   => 'product',
+		'field'       => 'meta:_crosssell_ids',
+		'run'         => 'twcp_product_batch_cross_sells',
+		'slice'       => 3,
+		'cost'        => [1, 3000],
+		'restored'    => 'wc_delete_product_transients',
 	];
 
 	return $types;
@@ -1119,24 +1096,6 @@ add_filter('twcp_batch_actions', function(array $screens): array {
 
 
 /**
- * Process a single product for full description generation with log output
- */
-function twcp_product_batch_full(int $id, bool $override = false): array
-{
-	return twcp_batch_run_item($id, 'full description', 'twcp_product_full', $override);
-}
-
-
-/**
- * Process a single product for short description generation with log output
- */
-function twcp_product_batch_short(int $id, bool $override = false): array
-{
-	return twcp_batch_run_item($id, 'short description', 'twcp_product_short', $override);
-}
-
-
-/**
  * Process a single product for AI-selected cross-sells
  */
 function twcp_product_batch_cross_sells(int $id, bool $override = false): array
@@ -1162,20 +1121,17 @@ function twcp_product_batch_cross_sells(int $id, bool $override = false): array
 
 
 /**
- * Store prompts on the Prompts screen, after those of posts and pages
+ * Store prompts in the Store Automation section
  */
 add_filter('twcp_prompt_groups', function(array $groups): array {
-	$store = [
-		'store'   => [
-			'label'       => __('WooCommerce Store', 'twee-mcp'),
-			'description' => __('Product copy and the store rules appended to full product descriptions.', 'twee-mcp'),
-			'plugin'      => 'WooCommerce',
-			'active'      => twcp_product_active(),
-		],
+	$groups['store'] = [
+		'label'       => __('WooCommerce Store', 'twee-mcp'),
+		'description' => __('Product copy and the store rules appended to full product descriptions.', 'twee-mcp'),
+		'position'    => 25,
+		'section'     => 'store',
 	];
-	$position = (int) array_search('content', array_keys($groups), true) + 1;
 
-	return array_slice($groups, 0, $position, true) + $store + array_slice($groups, $position, null, true);
+	return $groups;
 });
 
 add_filter('twcp_prompt_registry', function(array $prompts): array {
@@ -1201,10 +1157,10 @@ add_filter('twcp_prompt_registry', function(array $prompts): array {
 
 
 /**
- * Product copy rules in the store group of the Prompts screen
+ * Product copy rules below the full product description prompt, saved with it
  */
-add_action('twcp_prompt_group', function(string $group) {
-	if ($group === 'store') {
+add_action('twcp_prompt_fields', function(string $option) {
+	if ($option === 'twcp_system_prompt_product') {
 		echo twcp_template('product_rules', ['product_settings' => twcp_product_settings()]);
 	}
 });
@@ -1222,7 +1178,7 @@ add_action('admin_init', 'twcp_product_admin_init');
  */
 function twcp_product_admin_init(): void
 {
-	register_setting('twcp_prompts_group', 'twcp_product_settings', [
+	register_setting('twcp_system_prompt_product', 'twcp_product_settings', [
 		'type'              => 'array',
 		'sanitize_callback' => function($input) {
 			$input = is_array($input) ? $input : [];
