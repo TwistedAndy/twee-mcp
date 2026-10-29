@@ -519,7 +519,7 @@ function twcp_tools_public(array $body): bool
 function twcp_tools_unauthorized(): WP_REST_Response
 {
 	$response = new WP_REST_Response(twcp_tools_error(null, -32001, 'Authentication required for content management tools.'), 401);
-	$response->header('WWW-Authenticate', 'Bearer realm="straps", resource_metadata="' . home_url('/.well-known/oauth-protected-resource') . '"');
+	$response->header('WWW-Authenticate', 'Bearer realm="straps", resource_metadata="' . set_url_scheme(rest_url('straps/v1/.well-known/oauth-protected-resource')) . '"');
 
 	return $response;
 }

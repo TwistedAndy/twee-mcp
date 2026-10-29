@@ -17,9 +17,9 @@ The plugin also connects the site to an AI model of its own (OpenAI, OpenRouter,
 
 ### 2. OAuth 2.1 Authorization
 
-- Discovery metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`.
+- Discovery metadata at `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, and `/.well-known/openid-configuration`. Many hosts answer `/.well-known/` themselves, so the same documents are served under `/wp-json/straps/v1/` and after the MCP URL, and the issuer is `/wp-json/straps/v1`. The 401 reply of the MCP endpoint points there.
 - Dynamic client registration (RFC 7591) at `/register`, a WordPress consent screen at `/authorize`, and token exchange at `/token`.
-- Authorization code flow with PKCE (`S256`) and rotating refresh tokens.
+- Authorization code flow with PKCE (`S256`) and rotating refresh tokens. The `offline_access` scope is advertised, so ChatGPT keeps its refresh token and stays connected.
 - Client IDs are stateless signed payloads. Tokens are stored hashed in the `twcp_sessions` user meta.
 - Access tokens last 1 hour, refresh tokens 90 days, and authorization codes 5 minutes.
 - Redirect hosts are limited to an allowlist. The default list is `claude.ai`, `claude.com`, `anthropic.com`, `chatgpt.com`, and `openai.com`.
@@ -126,8 +126,7 @@ Let the people you track know about it.
 - New releases appear under **Dashboard → Updates** like any other plugin update. The `Update URI` header sends the update check to the GitHub releases, which are checked at most every 12 hours.
 - Open **AI Tools → AI Provider**, choose a provider, and enter an API key or sign in with ChatGPT. Keys come from the [OpenAI](https://platform.openai.com/api-keys), [Anthropic](https://platform.claude.com/settings/keys), or [OpenRouter](https://openrouter.ai/settings/keys) API keys page; the screen links each provider's page and getting started guide.
 - Open **AI Tools → Agent Access** for the server URL and the steps for each client.
-- If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/mcp`, `/.well-known/oauth-*`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen has the exact expression.
-- The `/.well-known/oauth-*` addresses must reach WordPress. Some nginx configurations answer every `/.well-known/` path themselves; the **Agent Access** screen has a `location` block that passes them through.
+- If the site runs behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/`, `/.well-known/`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen has the exact expression.
 
 ## Connecting AI Clients
 
@@ -147,12 +146,12 @@ Then run `/mcp` inside Claude Code and choose to authenticate.
 
 ### ChatGPT
 
-- Open **Plugins** from the ChatGPT sidebar, then **Add → Add custom MCP server**.
-- Paste the server URL, keep **OAuth** as the authentication method, and set **Advanced OAuth settings → Registration method** to **User-Defined OAuth Client**.
-- Paste the **Callback URL** that ChatGPT shows into **Create Client ID** on the **Agent Access** screen, and paste the client ID back into ChatGPT. The screen lists the endpoints, scope, and PKCE settings for the rest of the form.
-- Confirm the trust warning, click **Create as a plugin** and then **Connect**, sign in to WordPress, and click **Allow**.
+- Open [chatgpt.com/plugins](https://chatgpt.com/plugins) in a browser (the apps cannot add servers) and click **Add → Add custom MCP server**.
+- Enter a name, paste the server URL, and leave **OAuth** and the advanced settings as they are.
+- Tick **I understand and want to continue**, click **Create as a plugin** and then **Connect**, sign in to WordPress, and click **Allow**.
+- In a chat, type `@` and pick the plugin.
 
-ChatGPT only registers itself after it discovers the OAuth settings at `/.well-known/`, so the client ID stands in for that step on servers that block those addresses.
+ChatGPT discovers the OAuth settings and registers itself. Business and Enterprise workspaces need an admin to allow plugins with MCP servers.
 
 The `search` and `fetch` tools follow the ChatGPT connector format.
 

@@ -140,4 +140,26 @@ class OAuthTest extends TWCP_TestCase {
 		$request->set_body('not json');
 		$this->assertSame(400, twcp_tools_rest_handler($request)->get_status());
 	}
+
+	/**
+	 * The discovery metadata is served under the REST API too, and the issuer leads clients to it there.
+	 */
+	public function test_metadata_under_rest(): void
+	{
+		update_option('permalink_structure', '/%postname%/');
+		$server = rest_get_server();
+
+		$resource = $server->dispatch(new WP_REST_Request('GET', '/straps/v1/.well-known/oauth-protected-resource'))->get_data();
+		$this->assertSame(twcp_mcp_url(), $resource['resource']);
+		$this->assertContains('offline_access', $resource['scopes_supported']);
+
+		$issuer = $resource['authorization_servers'][0];
+		$this->assertSame(rest_url('straps/v1/.well-known/openid-configuration'), $issuer . '/.well-known/openid-configuration');
+
+		$config = $server->dispatch(new WP_REST_Request('GET', '/straps/v1/.well-known/openid-configuration'))->get_data();
+		$this->assertSame($issuer, $config['issuer']);
+		$this->assertSame(home_url('/register'), $config['registration_endpoint']);
+
+		$this->assertStringContainsString(rest_url('straps/v1/.well-known/oauth-protected-resource'), twcp_tools_unauthorized()->get_headers()['WWW-Authenticate']);
+	}
 }

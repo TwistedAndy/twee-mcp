@@ -285,34 +285,15 @@ class AdminTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * The ChatGPT steps use a user-defined client and offer the client ID generator.
+	 * The ChatGPT steps leave the OAuth settings to discovery, with no client ID to create.
 	 */
-	public function test_connection_offers_client_id(): void
+	public function test_connection_chatgpt_steps(): void
 	{
 		$html = twcp_template('connection', twcp_admin_data('connection'));
 
-		$this->assertStringContainsString('User-Defined OAuth Client', $html);
-		$this->assertStringContainsString('id="twcp_client_callback"', $html);
-		$this->assertStringContainsString('id="twcp_client_create"', $html);
-		$this->assertStringNotContainsString('Dynamic Client Registration', $html);
-	}
-
-	/**
-	 * The generator signs a client ID for an allowed callback and refuses other addresses.
-	 */
-	public function test_client_id_ajax(): void
-	{
-		$callback = 'https://chatgpt.com/connector/oauth/abc123';
-
-		$reply = $this->ajax('twcp_admin_ajax_client_id', ['callback' => '  ' . $callback . ' ']);
-		$this->assertTrue($reply['success']);
-		$this->assertSame(['n' => 'ChatGPT', 'r' => [$callback]], twcp_oauth_client($reply['data']['client_id']));
-
-		foreach (['', 'https://evil.example.com/cb', 'http://chatgpt.com/cb'] as $address) {
-			$this->assertFalse($this->ajax('twcp_admin_ajax_client_id', ['callback' => $address])['success'], $address);
-		}
-
-		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
-		$this->assertFalse($this->ajax('twcp_admin_ajax_client_id', ['callback' => $callback])['success'], 'Administrators only');
+		$this->assertStringContainsString('Add custom MCP server', $html);
+		$this->assertStringContainsString(rest_url('straps/v1/.well-known/oauth-protected-resource'), $html);
+		$this->assertStringNotContainsString('User-Defined OAuth Client', $html);
+		$this->assertStringNotContainsString('twcp_client_create', $html);
 	}
 }

@@ -12,6 +12,8 @@
  * Endpoints:
  * - Discovery:             /.well-known/oauth-protected-resource
  *                          /.well-known/oauth-authorization-server
+ *                          /.well-known/openid-configuration
+ *                          The same under /wp-json/straps/v1/, for hosts that keep /.well-known/ from WordPress
  * - Dynamic Registration:  /register
  * - Authorization Consent: /authorize
  * - Token Exchange:        /token
@@ -43,33 +45,11 @@ function twcp_oauth_init(): void
 
 	$trimmed_path = untrailingslashit($path);
 	$method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper($_SERVER['REQUEST_METHOD']) : 'GET';
-	$home = home_url();
 
-	// 1. Protected Resource Metadata (RFC 9728)
-	if ($trimmed_path === '/.well-known/oauth-protected-resource' or str_starts_with($trimmed_path, '/.well-known/oauth-protected-resource/')) {
+	// 1-2. Protected Resource and Authorization Server Metadata, with the path of the resource or issuer appended or not
+	if (preg_match('#^/\.well-known/(oauth-protected-resource|oauth-authorization-server|openid-configuration)(/|$)#', $trimmed_path, $matches)) {
 
-		twcp_oauth_send([
-			'resource'                 => twcp_mcp_url(),
-			'resource_name'            => get_bloginfo('name'),
-			'authorization_servers'    => [$home],
-			'bearer_methods_supported' => ['header'],
-			'scopes_supported'         => ['straps:manage'],
-		]);
-
-		// 2. Authorization Server Metadata (RFC 8414 & OpenID Connect Discovery)
-	} elseif ($trimmed_path === '/.well-known/oauth-authorization-server') {
-
-		twcp_oauth_send([
-			'issuer'                                => $home,
-			'authorization_endpoint'                => $home . '/authorize',
-			'token_endpoint'                        => $home . '/token',
-			'registration_endpoint'                 => $home . '/register',
-			'response_types_supported'              => ['code'],
-			'grant_types_supported'                 => ['authorization_code', 'refresh_token'],
-			'code_challenge_methods_supported'      => ['S256'],
-			'token_endpoint_auth_methods_supported' => ['none'],
-			'scopes_supported'                      => ['straps:manage'],
-		]);
+		twcp_oauth_send(twcp_oauth_metadata($matches[1]));
 
 		// 3. Authorization Screen (Authorize Consent)
 	} elseif ($trimmed_path === '/authorize') {
@@ -122,6 +102,73 @@ function twcp_oauth_init(): void
 		twcp_oauth_send($response->get_data());
 
 	}
+}
+
+
+/**
+ * Serve the discovery metadata under the REST API too, which reaches WordPress on hosts that answer /.well-known/
+ * themselves. ChatGPT looks for it after the MCP URL, and the issuer is the REST base, so clients find its metadata
+ * at {issuer}/.well-known/openid-configuration.
+ */
+add_action('rest_api_init', function() {
+	register_rest_route('straps/v1', '/(?:mcp/)?\.well-known/(?P<document>oauth-protected-resource|oauth-authorization-server|openid-configuration)', [
+		'methods'             => 'GET',
+		'permission_callback' => '__return_true',
+		'callback'            => function(WP_REST_Request $request) {
+			return new WP_REST_Response(twcp_oauth_metadata($request['document']));
+		},
+	]);
+});
+
+
+/**
+ * OAuth discovery metadata
+ *
+ * @param string $document oauth-protected-resource (RFC 9728), or oauth-authorization-server (RFC 8414) and
+ *                         openid-configuration, which share the authorization server metadata
+ *
+ * @return array
+ */
+function twcp_oauth_metadata(string $document): array
+{
+	// offline_access tells ChatGPT to keep the refresh token, without which it drops the connection when the access token expires
+	$scopes = ['straps:manage', 'offline_access'];
+
+	if ($document === 'oauth-protected-resource') {
+		return [
+			'resource'                 => twcp_mcp_url(),
+			'resource_name'            => get_bloginfo('name'),
+			'authorization_servers'    => [twcp_oauth_issuer()],
+			'bearer_methods_supported' => ['header'],
+			'scopes_supported'         => $scopes,
+		];
+	}
+
+	$home = home_url();
+
+	return [
+		'issuer'                                => twcp_oauth_issuer(),
+		'authorization_endpoint'                => $home . '/authorize',
+		'token_endpoint'                        => $home . '/token',
+		'registration_endpoint'                 => $home . '/register',
+		'response_types_supported'              => ['code'],
+		'grant_types_supported'                 => ['authorization_code', 'refresh_token'],
+		'code_challenge_methods_supported'      => ['S256'],
+		'token_endpoint_auth_methods_supported' => ['none'],
+		'scopes_supported'                      => $scopes,
+	];
+}
+
+
+/**
+ * Authorization server issuer: the REST base with pretty permalinks, so its metadata has an address under /wp-json/,
+ * and the home URL without them, as an issuer cannot have a query
+ *
+ * @return string
+ */
+function twcp_oauth_issuer(): string
+{
+	return get_option('permalink_structure') ? untrailingslashit(set_url_scheme(rest_url('straps/v1'))) : home_url();
 }
 
 
@@ -662,7 +709,7 @@ function twcp_oauth_token(WP_REST_Request $request): WP_REST_Response
 		'token_type'    => 'Bearer',
 		'expires_in'    => TWCP_ACCESS_TTL,
 		'refresh_token' => $tokens['refresh'],
-		'scope'         => 'straps:manage',
+		'scope'         => 'straps:manage offline_access',
 	]);
 }
 
