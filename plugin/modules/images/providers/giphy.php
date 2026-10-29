@@ -1,6 +1,6 @@
 <?php
 /**
- * Giphy Driver
+ * Giphy Stock Image Provider
  *
  * @package Twee_MCP
  */
@@ -8,45 +8,53 @@
 defined('ABSPATH') or exit;
 
 
+add_filter('twcp_image_providers', function(array $providers): array {
+	$providers['giphy'] = [
+		'name'        => 'Giphy',
+		'description' => __('Short-form animated GIF search and stickers library.', 'twee-mcp'),
+		'position'    => 60,
+		'search'      => 'twcp_giphy_search',
+		'all'         => false,
+		'key'         => [
+			'label' => __('Giphy API Key', 'twee-mcp'),
+			'url'   => 'https://developers.giphy.com/',
+			'link'  => __('Get a GIPHY API Key', 'twee-mcp'),
+			'help'  => __('Sign in to GIPHY Developers, create an app with the API option, and copy its API key into this field.', 'twee-mcp'),
+		],
+	];
+
+	return $providers;
+});
+
+
 /**
- * Search Giphy GIFs
+ * Search Giphy GIFs, which needs a key
  *
  * @param string $query
- * @param array  $args
+ * @param array  $args per_page, page, orientation
+ * @param string $key
  *
  * @return array
  */
-function twcp_giphy_search(string $query, array $args = []): array
+function twcp_giphy_search(string $query, array $args, string $key): array
 {
-	$keys = twcp_image_keys();
-	$api_key = $keys['giphy'];
-
-	if (empty($api_key)) {
+	if (!$key) {
 		return [];
 	}
 
-	$per_page = isset($args['per_page']) ? min(30, max(1, (int) $args['per_page'])) : 10;
-	$page = isset($args['page']) ? max(1, (int) $args['page']) : 1;
-	$offset = ($page - 1) * $per_page;
+	$per_page = min(30, $args['per_page']);
 
-	$url = add_query_arg([
-		'api_key' => $api_key,
+	$data = twcp_image_get(add_query_arg([
+		'api_key' => $key,
 		'q'       => $query,
 		'limit'   => $per_page,
-		'offset'  => $offset,
+		'offset'  => ($args['page'] - 1) * $per_page,
 		'rating'  => 'g',
-	], 'https://api.giphy.com/v1/gifs/search');
+	], 'https://api.giphy.com/v1/gifs/search'));
 
-	$response = wp_remote_get($url, ['timeout' => 15, 'sslverify' => true]);
-	if (is_wp_error($response) or wp_remote_retrieve_response_code($response) !== 200) {
-		return [];
-	}
-
-	$data = json_decode(wp_remote_retrieve_body($response), true);
-	$raw_items = $data['data'] ?? [];
 	$results = [];
 
-	foreach ($raw_items as $item) {
+	foreach ($data['data'] ?? [] as $item) {
 		$title = !empty($item['title']) ? $item['title'] : $query;
 		$author = !empty($item['username']) ? $item['username'] : 'Giphy Creator';
 

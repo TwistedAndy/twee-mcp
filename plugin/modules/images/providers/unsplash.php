@@ -1,6 +1,6 @@
 <?php
 /**
- * Unsplash Stock Image Driver
+ * Unsplash Stock Image Provider
  *
  * @package Twee_MCP
  */
@@ -8,63 +8,55 @@
 defined('ABSPATH') or exit;
 
 
+add_filter('twcp_image_providers', function(array $providers): array {
+	$providers['unsplash'] = [
+		'name'        => 'Unsplash',
+		'description' => __('High-resolution photography with generous API limits.', 'twee-mcp'),
+		'position'    => 10,
+		'search'      => 'twcp_unsplash_search',
+		'key'         => [
+			'label' => __('Unsplash Access Key', 'twee-mcp'),
+			'url'   => 'https://unsplash.com/developers',
+			'link'  => __('Get an Unsplash Access Key', 'twee-mcp'),
+			'help'  => __('Sign in, register a new application, and copy its Access Key (not the Secret Key) into this field.', 'twee-mcp'),
+		],
+	];
+
+	return $providers;
+});
+
+
 /**
- * Search Unsplash photos
+ * Search Unsplash photos, through the Instant Images proxy without a key
  *
  * @param string $query
- * @param array  $args
+ * @param array  $args per_page, page, orientation
+ * @param string $key
  *
  * @return array
  */
-function twcp_unsplash_search(string $query, array $args = []): array
+function twcp_unsplash_search(string $query, array $args, string $key): array
 {
-	$keys = twcp_image_keys();
-	$api_key = $keys['unsplash'];
-
-	$per_page = isset($args['per_page']) ? min(30, max(1, (int) $args['per_page'])) : 10;
-	$page = isset($args['page']) ? max(1, (int) $args['page']) : 1;
-	$orientation = !empty($args['orientation']) ? sanitize_key($args['orientation']) : '';
-	$orientation = $orientation === 'square' ? 'squarish' : $orientation;
+	$orientation = $args['orientation'] === 'square' ? 'squarish' : $args['orientation'];
 
 	$params = [
 		'query'    => $query,
-		'page'     => $page,
-		'per_page' => $per_page,
+		'page'     => $args['page'],
+		'per_page' => min(30, $args['per_page']),
 	];
 	if (in_array($orientation, ['landscape', 'portrait', 'squarish'], true)) {
 		$params['orientation'] = $orientation;
 	}
 
-	if (!empty($api_key)) {
-		$url = add_query_arg($params, 'https://api.unsplash.com/search/photos');
-		$response = wp_remote_get($url, [
-			'timeout'   => 15,
-			'sslverify' => true,
-			'headers'   => [
-				'Authorization' => 'Client-ID ' . $api_key,
-				'Accept'        => 'application/json',
-			],
-		]);
+	if ($key) {
+		$data = twcp_image_get(add_query_arg($params, 'https://api.unsplash.com/search/photos'), ['Authorization' => 'Client-ID ' . $key]);
 	} else {
-		$proxy_params = [
-			'type'    => 'search',
-			'term'    => $query,
-			'page'    => $page,
-			'version' => '7.2.0',
-		];
-		$url = add_query_arg($proxy_params, 'https://proxy.getinstantimages.com/api/unsplash');
-		$response = wp_remote_get($url, ['timeout' => 15, 'sslverify' => true]);
+		$data = twcp_image_proxy('unsplash', $query, $args['page']);
 	}
 
-	if (is_wp_error($response) or wp_remote_retrieve_response_code($response) !== 200) {
-		return [];
-	}
-
-	$data = json_decode(wp_remote_retrieve_body($response), true);
-	$raw_items = $data['results'] ?? [];
 	$results = [];
 
-	foreach ($raw_items as $item) {
+	foreach ($data['results'] ?? [] as $item) {
 		$desc = !empty($item['description']) ? $item['description'] : (!empty($item['alt_description']) ? $item['alt_description'] : $query);
 		$author_name = $item['user']['name'] ?? 'Unsplash Creator';
 		$author_link = $item['user']['links']['html'] ?? 'https://unsplash.com';

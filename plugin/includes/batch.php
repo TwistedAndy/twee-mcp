@@ -1624,7 +1624,7 @@ function twcp_batch_sections(): array
  */
 add_action('twcp_batch_section', function(string $section) {
 	if ($section === 'content') {
-		echo twcp_template('post_links', [
+		echo twcp_template('links', [
 			'post_links' => array_merge(['max' => 4, 'sources' => ['terms', 'posts', 'products']], (array) get_option('twcp_post_links', [])),
 			'woo_active' => class_exists('WooCommerce'),
 		]);

@@ -248,6 +248,31 @@ Tool groups with that `module` are available while it is active. The core and th
 - `twcp_prompt_examples` - Groups of the copy-ready Agent Prompts on the Agent Access tab, at 10 (posts and pages) and 20 (categories and media); the store prompts of the `woo` module are at 30. The filter also gets the site name and URL for the prompt texts.
 - `twcp_media_assign`, `twcp_post_blocks`, and `twcp_post_featured_image` - Image targets of `assign_media_image`, page builder blocks of posts and terms, and featured images found outside the Media Library.
 
+### Adding Stock Image Providers
+
+Each stock photo provider is a file in `plugin/modules/images/providers/`, which the `images` module loads, and adds itself with the `twcp_image_providers` filter. The search tool, the Images screen, and the API key settings list the providers from that filter, so a provider can be added or removed on its own, from the folder or from another plugin:
+
+```php
+add_filter('twcp_image_providers', function(array $providers): array {
+	$providers['example'] = [
+		'name'        => 'Example Photos',
+		'description' => 'Photos from the Example library.',
+		'position'    => 70,
+		'search'      => 'example_search',
+		'key'         => [
+			'label' => 'Example API Key',
+			'url'   => 'https://example.com/api',
+			'link'  => 'Get an Example API Key',
+			'help'  => 'Create an app and copy its key into this field.',
+		],
+	];
+
+	return $providers;
+});
+```
+
+`search` gets the query, `['per_page' => int, 'page' => int, 'orientation' => 'landscape'|'portrait'|'square'|'']`, and the key, and returns the images in the format of `search_stock_images`. `twcp_image_get()` gets the JSON reply of an API, and `twcp_image_proxy()` searches the Instant Images proxy, which serves Unsplash, Pixabay, Pexels, and Openverse without a key. Without `key`, the provider needs none. A search of all providers takes the results of each in turn and includes a provider with a key only when it has one. `all` set to `false` leaves a provider out of it, as Giphy is, and `'fallback'` includes it only when the providers before it found too few images, as Wikimedia Commons is. Providers are at 10 (Unsplash), 20 (Pixabay), 30 (Pexels), 40 (Openverse), 50 (Wikimedia Commons), and 60 (Giphy).
+
 ### Adding Batch Jobs
 
 A module declares a job with its card, the post type and field it fills, and the function that fills one item, as the jobs of the plugin do. The plugin does the rest: the capability and unit come from the post type; the query finds the published items whose field is empty, or all of them when rewriting; and the field is backed up for Undo and shown in the log. `field` is `post:` with a column of the posts table, or `meta:` with a meta key:

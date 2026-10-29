@@ -4,7 +4,8 @@
  *
  * Stock photo provider keys and a search that imports photos into the Media Library.
  *
- * @var array $keys
+ * @var array $providers Provider => [ name, description, key, ... ]
+ * @var array $keys      Provider => key, for the providers that take one
  * @var bool  $instant_active
  *
  * @package Twee_MCP
@@ -12,44 +13,7 @@
 
 defined('ABSPATH') or exit;
 
-$providers = [
-	'unsplash'  => [
-		'name'        => 'Unsplash',
-		'status'      => !empty($keys['unsplash']),
-		'description' => __('High-resolution photography with generous API limits.', 'twee-mcp'),
-		'needs_key'   => true,
-	],
-	'pixabay'   => [
-		'name'        => 'Pixabay',
-		'status'      => !empty($keys['pixabay']),
-		'description' => __('Over 4 million royalty-free photos, illustrations, and vectors.', 'twee-mcp'),
-		'needs_key'   => true,
-	],
-	'pexels'    => [
-		'name'        => 'Pexels',
-		'status'      => !empty($keys['pexels']),
-		'description' => __('Curated authentic photography licensed under Pexels license.', 'twee-mcp'),
-		'needs_key'   => true,
-	],
-	'openverse' => [
-		'name'        => 'Openverse',
-		'status'      => true,
-		'description' => __('WordPress Foundation search engine for 700M+ Creative Commons works (No API key required).', 'twee-mcp'),
-		'needs_key'   => false,
-	],
-	'wikimedia' => [
-		'name'        => 'Wikimedia Commons',
-		'status'      => true,
-		'description' => __('Millions of freely usable educational & historical media files (No API key required).', 'twee-mcp'),
-		'needs_key'   => false,
-	],
-	'giphy'     => [
-		'name'        => 'Giphy',
-		'status'      => !empty($keys['giphy']),
-		'description' => __('Short-form animated GIF search and stickers library.', 'twee-mcp'),
-		'needs_key'   => true,
-	],
-];
+$keyless = array_column(array_diff_key($providers, $keys), 'name');
 ?>
 
 <div class="item">
@@ -59,7 +23,9 @@ $providers = [
 			<?php if (!empty($instant_active)) { ?>
 				<span class="badge badge_success"><?php echo esc_html__('Instant Images Connected', 'twee-mcp'); ?></span>
 			<?php } ?>
-			<span class="badge badge_success"><?php echo esc_html__('Openverse & Wikimedia Ready', 'twee-mcp'); ?></span>
+			<?php if ($keyless) { ?>
+				<span class="badge badge_success"><?php echo esc_html(sprintf(__('%s Ready', 'twee-mcp'), implode(' & ', $keyless))); ?></span>
+			<?php } ?>
 		</div>
 	</div>
 	<p class="text text_muted">
@@ -68,18 +34,19 @@ $providers = [
 
 	<!-- Provider Status Grid -->
 	<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; margin-bottom: 24px;">
-		<?php foreach ($providers as $pid => $pinfo) { ?>
+		<?php foreach ($providers as $pid => $pinfo) {
+			$active = !isset($keys[$pid]) || $keys[$pid] !== ''; ?>
 			<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px;">
 				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
 					<strong><?php echo esc_html($pinfo['name']); ?></strong>
-					<?php if ($pinfo['status']) { ?>
+					<?php if ($active) { ?>
 						<span class="badge badge_success" style="font-size: 11px;"><?php echo esc_html__('Active', 'twee-mcp'); ?></span>
 					<?php } else { ?>
 						<span class="badge" style="font-size: 11px; opacity: 0.7;"><?php echo esc_html__('No API Key', 'twee-mcp'); ?></span>
 					<?php } ?>
 				</div>
 				<p class="text text_muted" style="margin: 0; font-size: 12px; line-height: 1.4;">
-					<?php echo esc_html($pinfo['description']); ?>
+					<?php echo esc_html($pinfo['description'] ?? ''); ?>
 				</p>
 			</div>
 		<?php } ?>
@@ -92,7 +59,7 @@ $providers = [
 			<?php if (!empty($instant_active)) { ?>
 				<?php echo esc_html__('Keys configured in Instant Images are inherited automatically. Use the provider links below to obtain your own keys.', 'twee-mcp'); ?>
 			<?php } else { ?>
-				<?php echo esc_html__('Configure API keys for Unsplash, Pixabay, Pexels, or Giphy below.', 'twee-mcp'); ?>
+				<?php echo esc_html__('Add the API keys of the providers below.', 'twee-mcp'); ?>
 			<?php } ?>
 		</p>
 
@@ -101,89 +68,31 @@ $providers = [
 			<?php $saved_twcp_keys = (array) get_option('twcp_stock_api_keys', []); ?>
 
 			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px;">
-				<div class="field" style="margin-bottom: 0;">
-					<label class="label" for="twcp_key_unsplash"><?php echo esc_html__('Unsplash Access Key', 'twee-mcp'); ?></label>
-					<input
-						type="text"
-						id="twcp_key_unsplash"
-						name="twcp_stock_api_keys[unsplash]"
-						class="regular-text masked"
-						value="<?php echo esc_attr($saved_twcp_keys['unsplash'] ?? ''); ?>"
-						placeholder="<?php echo !empty($keys['unsplash']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'Access Key'; ?>"
-						autocomplete="off"
-						spellcheck="false"
-						data-1p-ignore
-						data-lpignore="true"
-						data-bwignore
-					/>
-					<p class="text text_muted">
-						<a href="https://unsplash.com/developers" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get an Unsplash Access Key', 'twee-mcp'); ?></a>
-						<?php echo esc_html__('Sign in, register a new application, and copy its Access Key (not the Secret Key) into this field.', 'twee-mcp'); ?>
-					</p>
-				</div>
-
-				<div class="field" style="margin-bottom: 0;">
-					<label class="label" for="twcp_key_pexels"><?php echo esc_html__('Pexels API Key', 'twee-mcp'); ?></label>
-					<input
-						type="text"
-						id="twcp_key_pexels"
-						name="twcp_stock_api_keys[pexels]"
-						class="regular-text masked"
-						value="<?php echo esc_attr($saved_twcp_keys['pexels'] ?? ''); ?>"
-						placeholder="<?php echo !empty($keys['pexels']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
-						autocomplete="off"
-						spellcheck="false"
-						data-1p-ignore
-						data-lpignore="true"
-						data-bwignore
-					/>
-					<p class="text text_muted">
-						<a href="https://www.pexels.com/join-consumer/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a Pexels API Key', 'twee-mcp'); ?></a>
-						<?php echo esc_html__('Create or sign in to a Pexels account, request API access, and copy your API key into this field.', 'twee-mcp'); ?>
-					</p>
-				</div>
-
-				<div class="field" style="margin-bottom: 0;">
-					<label class="label" for="twcp_key_pixabay"><?php echo esc_html__('Pixabay API Key', 'twee-mcp'); ?></label>
-					<input
-						type="text"
-						id="twcp_key_pixabay"
-						name="twcp_stock_api_keys[pixabay]"
-						class="regular-text masked"
-						value="<?php echo esc_attr($saved_twcp_keys['pixabay'] ?? ''); ?>"
-						placeholder="<?php echo !empty($keys['pixabay']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
-						autocomplete="off"
-						spellcheck="false"
-						data-1p-ignore
-						data-lpignore="true"
-						data-bwignore
-					/>
-					<p class="text text_muted">
-						<a href="https://pixabay.com/service/about/api/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a Pixabay API Key', 'twee-mcp'); ?></a>
-						<?php echo esc_html__('Sign in to Pixabay, open the API documentation, and copy the key shown for your account into this field.', 'twee-mcp'); ?>
-					</p>
-				</div>
-
-				<div class="field" style="margin-bottom: 0;">
-					<label class="label" for="twcp_key_giphy"><?php echo esc_html__('Giphy API Key', 'twee-mcp'); ?></label>
-					<input
-						type="text"
-						id="twcp_key_giphy"
-						name="twcp_stock_api_keys[giphy]"
-						class="regular-text masked"
-						value="<?php echo esc_attr($saved_twcp_keys['giphy'] ?? ''); ?>"
-						placeholder="<?php echo !empty($keys['giphy']) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : 'API Key'; ?>"
-						autocomplete="off"
-						spellcheck="false"
-						data-1p-ignore
-						data-lpignore="true"
-						data-bwignore
-					/>
-					<p class="text text_muted">
-						<a href="https://developers.giphy.com/" target="_blank" rel="noopener noreferrer"><?php echo esc_html__('Get a GIPHY API Key', 'twee-mcp'); ?></a>
-						<?php echo esc_html__('Sign in to GIPHY Developers, create an app with the API option, and copy its API key into this field.', 'twee-mcp'); ?>
-					</p>
-				</div>
+				<?php foreach ($providers as $pid => $pinfo) {
+					if (empty($pinfo['key'])) {
+						continue;
+					} ?>
+					<div class="field" style="margin-bottom: 0;">
+						<label class="label" for="twcp_key_<?php echo esc_attr($pid); ?>"><?php echo esc_html($pinfo['key']['label']); ?></label>
+						<input
+							type="text"
+							id="twcp_key_<?php echo esc_attr($pid); ?>"
+							name="twcp_stock_api_keys[<?php echo esc_attr($pid); ?>]"
+							class="regular-text masked"
+							value="<?php echo esc_attr($saved_twcp_keys[$pid] ?? ''); ?>"
+							placeholder="<?php echo !empty($keys[$pid]) ? esc_attr__('Inherited from Instant Images', 'twee-mcp') : ''; ?>"
+							autocomplete="off"
+							spellcheck="false"
+							data-1p-ignore
+							data-lpignore="true"
+							data-bwignore
+						/>
+						<p class="text text_muted">
+							<a href="<?php echo esc_url($pinfo['key']['url']); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($pinfo['key']['link']); ?></a>
+							<?php echo esc_html($pinfo['key']['help'] ?? ''); ?>
+						</p>
+					</div>
+				<?php } ?>
 			</div>
 
 			<div class="buttons" style="margin-top: 16px;">
@@ -216,12 +125,9 @@ $providers = [
 
 		<select id="twcp_stock_search_provider" style="flex: 1; min-width: 150px;">
 			<option value="all"><?php echo esc_html__('All Configured Providers', 'twee-mcp'); ?></option>
-			<option value="unsplash"><?php echo esc_html__('Unsplash', 'twee-mcp'); ?></option>
-			<option value="pixabay"><?php echo esc_html__('Pixabay', 'twee-mcp'); ?></option>
-			<option value="pexels"><?php echo esc_html__('Pexels', 'twee-mcp'); ?></option>
-			<option value="openverse"><?php echo esc_html__('Openverse (Creative Commons)', 'twee-mcp'); ?></option>
-			<option value="wikimedia"><?php echo esc_html__('Wikimedia Commons', 'twee-mcp'); ?></option>
-			<option value="giphy"><?php echo esc_html__('Giphy (Animated GIFs)', 'twee-mcp'); ?></option>
+			<?php foreach ($providers as $pid => $pinfo) { ?>
+				<option value="<?php echo esc_attr($pid); ?>"><?php echo esc_html($pinfo['name']); ?></option>
+			<?php } ?>
 		</select>
 
 		<select id="twcp_stock_search_orientation" style="width: 130px;">

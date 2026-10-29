@@ -12,17 +12,39 @@ defined('ABSPATH') or exit;
 
 
 /**
- * Retrieve configured stock photo API keys
+ * Stock image providers, which each file in the providers folder adds with the twcp_image_providers filter
  *
- * @return array
+ * @return array Provider => [
+ *     name        string
+ *     description string   Optional
+ *     position    int      Order on the screen and in searches of all providers
+ *     search      callable Gets the query, [ per_page, page, orientation ], and the key, and returns the images
+ *     key         array    [ label, url, link, help ] of its API key field, when it takes one; help is optional
+ *     all         bool|string Whether a search of all providers includes it, true by default, or "fallback" to
+ *                          include it only when the others found too few. A provider with a key joins only with one.
+ * ]
+ */
+function twcp_image_providers(): array
+{
+	return twcp_position_sort((array) apply_filters('twcp_image_providers', []));
+}
+
+
+/**
+ * API keys of the providers that take one: the saved key, then the constant or setting of the Instant Images plugin
+ *
+ * @return array Provider => key, empty when it has none
  */
 function twcp_image_keys(): array
 {
 	$instant_api = (array) get_option('instant_img_api_settings', []);
 	$twcp_keys = (array) get_option('twcp_stock_api_keys', []);
 
-	$keys = ['openverse' => '', 'wikimedia' => ''];
-	foreach (['unsplash', 'pixabay', 'pexels', 'giphy'] as $provider) {
+	$keys = [];
+	foreach (twcp_image_providers() as $provider => $info) {
+		if (empty($info['key'])) {
+			continue;
+		}
 		$constant = 'INSTANT_IMAGES_' . strtoupper($provider) . '_KEY';
 		$keys[$provider] = trim((string) ($twcp_keys[$provider] ?? ''));
 		if ($keys[$provider] === '') {
@@ -38,7 +60,54 @@ function twcp_image_keys(): array
 
 
 /**
- * Unified Stock Photo Search across all providers
+ * Get the JSON reply of a provider API
+ *
+ * @param string $url
+ * @param array  $headers
+ *
+ * @return array Empty when the request fails
+ */
+function twcp_image_get(string $url, array $headers = []): array
+{
+	$response = wp_remote_get($url, [
+		'timeout' => 15,
+		'headers' => $headers + [
+				'User-Agent' => 'WordPress-Twee-MCP/1.0 (' . home_url() . ')',
+				'Accept'     => 'application/json',
+			],
+	]);
+
+	if (is_wp_error($response) or wp_remote_retrieve_response_code($response) !== 200) {
+		return [];
+	}
+
+	return (array) json_decode(wp_remote_retrieve_body($response), true);
+}
+
+
+/**
+ * Search a provider through the Instant Images proxy, which needs no API key
+ *
+ * @param string $provider
+ * @param string $query
+ * @param int    $page
+ * @param array  $params Extra parameters
+ *
+ * @return array
+ */
+function twcp_image_proxy(string $provider, string $query, int $page, array $params = []): array
+{
+	return twcp_image_get(add_query_arg($params + [
+			'type'    => 'search',
+			'term'    => $query,
+			'page'    => $page,
+			'version' => '7.2.0',
+		], 'https://proxy.getinstantimages.com/api/' . $provider));
+}
+
+
+/**
+ * Search one stock photo provider, or all of them with their results taken in turns
  *
  * @param string|array $query_or_args
  * @param array        $args
@@ -65,14 +134,17 @@ function twcp_image_search($query_or_args, array $args = []): array
 
 	$provider = !empty($args['provider']) ? sanitize_key($args['provider']) : 'all';
 	$per_page = isset($args['per_page']) ? min(50, max(1, (int) $args['per_page'])) : 10;
+	$providers = twcp_image_providers();
 	$keys = twcp_image_keys();
-	if ($provider !== 'all' and !array_key_exists($provider, $keys)) {
+	if ($provider !== 'all' and !isset($providers[$provider])) {
 		return ['error' => 'Unknown stock image provider.'];
 	}
-	$args['per_page'] = $per_page;
-	$args['page'] = max(1, (int) ($args['page'] ?? 1));
-	$args['orientation'] = ($args['orientation'] ?? '') === 'squarish' ? 'square' : sanitize_key($args['orientation'] ?? '');
-	$cache_key = 'twcp_images_' . hash('sha256', wp_json_encode([$query, $provider, $per_page, $args['page'], $args['orientation'], $keys]));
+	$args = [
+		'per_page'    => $per_page,
+		'page'        => max(1, (int) ($args['page'] ?? 1)),
+		'orientation' => ($args['orientation'] ?? '') === 'squarish' ? 'square' : sanitize_key($args['orientation'] ?? ''),
+	];
+	$cache_key = 'twcp_images_' . hash('sha256', wp_json_encode([$query, $provider, $args, $keys]));
 	$cached = get_transient($cache_key);
 	if (is_array($cached)) {
 		return $cached;
@@ -81,24 +153,17 @@ function twcp_image_search($query_or_args, array $args = []): array
 	$results = [];
 
 	if ($provider !== 'all') {
-		$search = 'twcp_' . $provider . '_search';
-		$results = $search($query, $args);
+		$results = call_user_func($providers[$provider]['search'], $query, $args, $keys[$provider] ?? '');
 	} else {
 		$sub_args = array_merge($args, ['per_page' => max(2, (int) ceil($per_page / 3))]);
 		$p_results = [];
-		foreach (['unsplash', 'pixabay', 'pexels'] as $name) {
-			if (empty($keys[$name])) {
+		foreach ($providers as $name => $info) {
+			$all = $info['all'] ?? true;
+			if (!$all or (!empty($info['key']) and empty($keys[$name])) or ($all === 'fallback' and array_sum(array_map('count', $p_results)) >= $per_page)) {
 				continue;
 			}
 
-			$search = 'twcp_' . $name . '_search';
-			$p_results[$name] = $search($query, $sub_args);
-		}
-		$p_results['openverse'] = twcp_openverse_search($query, $sub_args);
-
-		$total_so_far = array_sum(array_map('count', $p_results));
-		if ($total_so_far < $per_page) {
-			$p_results['wikimedia'] = twcp_wikimedia_search($query, $sub_args);
+			$p_results[$name] = call_user_func($info['search'], $query, $sub_args, $keys[$name] ?? '');
 		}
 
 		$max_len = 0;
@@ -126,12 +191,7 @@ function twcp_image_search($query_or_args, array $args = []): array
 		'total'           => count($results),
 		'count'           => count($results),
 		'has_more'        => count($results) >= $per_page,
-		'configured_keys' => [
-			'unsplash' => !empty($keys['unsplash']),
-			'pixabay'  => !empty($keys['pixabay']),
-			'pexels'   => !empty($keys['pexels']),
-			'giphy'    => !empty($keys['giphy']),
-		],
+		'configured_keys' => array_map('boolval', $keys),
 		'results'         => $results,
 	];
 	if ($results) {
@@ -159,8 +219,10 @@ function twcp_image_admin_init(): void
 		'sanitize_callback' => function($input) {
 			$input = is_array($input) ? $input : [];
 			$clean = [];
-			foreach (['unsplash', 'pexels', 'pixabay', 'giphy'] as $provider) {
-				$clean[$provider] = !empty($input[$provider]) ? sanitize_text_field($input[$provider]) : '';
+			foreach (twcp_image_providers() as $provider => $info) {
+				if (!empty($info['key'])) {
+					$clean[$provider] = !empty($input[$provider]) ? sanitize_text_field($input[$provider]) : '';
+				}
 			}
 
 			return $clean;
@@ -186,6 +248,7 @@ add_filter('twcp_admin_data', function(array $data, string $part): array {
 	}
 
 	return [
+		'providers'      => twcp_image_providers(),
 		'keys'           => twcp_image_keys(),
 		'instant_active' => defined('INSTANT_IMAGES_VERSION') || class_exists('Instant_Images'),
 	];
