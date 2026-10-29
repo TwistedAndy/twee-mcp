@@ -55,26 +55,26 @@ function twcp_block_previews_dir(?string $folder = null): string
 		return '';
 	}
 
-	// 1. Check if already an absolute filesystem path
+	// A full path on disk
 	if (preg_match('#^([a-zA-Z]:[\\\\/]|/)#', $dir)) {
 		if (is_dir($dir)) {
 			return rtrim(wp_normalize_path($dir), '/') . '/';
 		}
 	}
 
-	// 2. Relative to child theme directory
+	// A path in the child theme
 	$child = wp_normalize_path(get_stylesheet_directory() . '/' . ltrim($dir, '/\\'));
 	if (is_dir($child)) {
 		return rtrim($child, '/') . '/';
 	}
 
-	// 3. Relative to parent theme directory
+	// A path in the parent theme
 	$parent = wp_normalize_path(get_template_directory() . '/' . ltrim($dir, '/\\'));
 	if (is_dir($parent)) {
 		return rtrim($parent, '/') . '/';
 	}
 
-	// 4. Relative to WordPress ABSPATH
+	// A path in the WordPress folder
 	$abs = wp_normalize_path(ABSPATH . ltrim($dir, '/\\'));
 	if (is_dir($abs)) {
 		return rtrim($abs, '/') . '/';
@@ -228,7 +228,7 @@ function twcp_block_local_groups(): array
  */
 function twcp_block_available_fields(): array
 {
-	// 1. Theme & child theme local JSON files, 2. field groups registered in ACF
+	// Field groups saved as JSON in the theme and child theme, then those registered in ACF
 	$sources = [];
 	foreach (twcp_block_local_groups() as $data) {
 		$sources[] = [$data['title'] ?? 'ACF', $data['fields']];
@@ -306,7 +306,7 @@ function twcp_block_get_layouts(?string $field_name = null): array
 {
 	$field_name = !empty($field_name) ? sanitize_key($field_name) : twcp_block_field_name();
 
-	// 1. Check acf_get_field if ACF is initialized
+	// Ask ACF first, once it has loaded
 	if (function_exists('acf_get_field')) {
 		$f = acf_get_field($field_name);
 		if ($f && !empty($f['layouts']) && is_array($f['layouts'])) {
@@ -314,7 +314,7 @@ function twcp_block_get_layouts(?string $field_name = null): array
 		}
 	}
 
-	// 2. Scan local JSON files in theme & child theme
+	// Then look in the JSON files of the theme and child theme
 	foreach (twcp_block_local_groups() as $data) {
 		foreach ($data['fields'] as $f) {
 			if (isset($f['name']) && $f['name'] === $field_name && isset($f['type']) && $f['type'] === 'flexible_content' && !empty($f['layouts'])) {

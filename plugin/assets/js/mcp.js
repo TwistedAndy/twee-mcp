@@ -96,7 +96,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 1. Copy the Server URL, client ID or example prompt named by data-target, with visual feedback
+	// Copy the server URL, client ID, or example prompt named by data-target, and show that it was copied
 	$('.twcp_copy_prompt').on('click', function(e) {
 		e.preventDefault();
 		const input = document.getElementById(this.dataset.target);
@@ -107,14 +107,14 @@ jQuery(function($) {
 		copyText(input.value, $(this), input);
 	});
 
-	// 2. Show / Hide API Key
+	// Show or hide the API key
 	$('#twcp_toggle_key_btn').on('click', function(e) {
 		e.preventDefault();
 		const masked = $('#twcp_model_api_key').toggleClass('masked').hasClass('masked');
 		$(this).text(masked ? 'Show' : 'Hide');
 	});
 
-	// 3. Dynamic Model Dropdown Filter based on Provider Dropdown
+	// Show only the models of the chosen provider
 	function syncModelDropdown(provider) {
 		const $modelSelect = $('#twcp_model_name');
 		const $groups = $modelSelect.find('optgroup');
@@ -186,7 +186,7 @@ jQuery(function($) {
 	syncModelDropdown($('#twcp_model_provider').val() || 'openai');
 	syncProviderPanels($('#twcp_model_provider').val() || 'openai');
 
-	// 3a. ChatGPT plan sign-in with a pasted callback address
+	// Sign in with a ChatGPT plan, using the callback address the user pastes
 	function chatgptStatus(text, success) {
 		$('#twcp_chatgpt_status').text(text).css('color', success ? '#1e7e34' : '#d63638');
 	}
@@ -261,7 +261,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 3b. Load Models from API dynamically
+	// Load the list of models from the provider
 	$('#twcp_fetch_models_btn').on('click', function(e) {
 		e.preventDefault();
 		const $btn = $(this);
@@ -335,7 +335,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 4. Test Model Connection via AJAX
+	// Test the connection to the model
 	$('#twcp_test_btn').on('click', function(e) {
 		e.preventDefault();
 		const $btn = $(this);
@@ -357,7 +357,7 @@ jQuery(function($) {
 		});
 	});
 
-	// 5. Universal Batch Processor Engine
+	// Batch jobs of the Automation screen
 	const activeJobs = {};
 
 	function renderBatchLogs($card, logs) {
@@ -576,7 +576,7 @@ jQuery(function($) {
 		});
 	}
 
-	// Batch Button & Override Event Handlers
+	// Buttons and options of the batch cards
 	$('.batch_card').on('change', '.twcp_batch_post_type', function() {
 		const $card = $(this).closest('.batch_card');
 		sendBatchControl($card, 'change_post_type', {

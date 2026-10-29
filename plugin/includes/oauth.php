@@ -46,12 +46,12 @@ function twcp_oauth_init(): void
 	$trimmed_path = untrailingslashit($path);
 	$method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper($_SERVER['REQUEST_METHOD']) : 'GET';
 
-	// 1-2. Protected Resource and Authorization Server Metadata, with the path of the resource or issuer appended or not
+	// Metadata of the resource and the authorization server, with or without the resource or issuer path at the end
 	if (preg_match('#^/\.well-known/(oauth-protected-resource|oauth-authorization-server|openid-configuration)(/|$)#', $trimmed_path, $matches)) {
 
 		twcp_oauth_send(twcp_oauth_metadata($matches[1]));
 
-		// 3. Authorization Screen (Authorize Consent)
+		// The screen where the user allows access
 	} elseif ($trimmed_path === '/authorize') {
 
 		if (!twcp_is_enabled()) {
@@ -60,7 +60,7 @@ function twcp_oauth_init(): void
 
 		twcp_oauth_authorize();
 
-		// 4. Dynamic Client Registration
+		// Clients register themselves here
 	} elseif ($method === 'POST' and $trimmed_path === '/register') {
 
 		$request = new WP_REST_Request('POST', '/register');
@@ -79,7 +79,7 @@ function twcp_oauth_init(): void
 		}
 		twcp_oauth_send($response->get_data());
 
-		// 5. Token Endpoint
+		// Clients get access tokens here for a code or a refresh token
 	} elseif ($method === 'POST' and $trimmed_path === '/token') {
 
 		$request = new WP_REST_Request('POST', '/token');

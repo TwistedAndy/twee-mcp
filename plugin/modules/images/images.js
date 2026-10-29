@@ -38,7 +38,7 @@ jQuery(function($) {
 
 		$pagination.show();
 
-		// 1. Refined text: e.g. "Showing images 13–24 (Page 2)"
+		// Text such as "Showing images 13–24 (Page 2)"
 		if (itemsCount > 0) {
 			const start = (page - 1) * perPage + 1;
 			const end = start + itemsCount - 1;
@@ -48,7 +48,7 @@ jQuery(function($) {
 			$info.text('Page ' + page + ' (0 images)');
 		}
 
-		// 2. Track maximum known page
+		// Remember the highest page seen so far
 		if (hasMore) {
 			stockSearchState.maxKnownPage = Math.max(stockSearchState.maxKnownPage || 1, page + 1);
 		} else {

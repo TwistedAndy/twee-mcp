@@ -479,21 +479,21 @@ function twcp_tools_public(array $body): bool
 
 		$method = isset($message['method']) ? (string) $message['method'] : '';
 
-		// Safe protocol discovery methods
+		// Methods that start the session or list what the server offers
 		if (in_array($method, ['initialize', 'notifications/initialized', 'notifications/cancelled', 'ping', 'tools/list', 'prompts/list'], true)) {
 			continue;
 		}
 
 		if ($method === 'tools/call') {
 			$tool_name = $message['params']['name'] ?? '';
-			// Public connector search/fetch only. An annotation is not an authorization rule.
+			// Only the public search and fetch tools; the annotations of a tool do not grant access
 			if (!in_array($tool_name, ['search', 'fetch'], true)) {
 				return false;
 			}
 			continue;
 		}
 
-		// Any unknown or unhandled method requires auth
+		// Any other method needs a signed-in user
 		return false;
 	}
 

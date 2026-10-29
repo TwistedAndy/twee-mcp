@@ -1390,7 +1390,7 @@ function twcp_prompt_registry(): array
  */
 function twcp_prompt_sanitize($input, string $option): string
 {
-	// Preserve literal HTML examples in prompt text; escape when rendering.
+	// Keep HTML examples in the prompt as they are; they are escaped when shown
 	$text = is_string($input) ? trim(wp_check_invalid_utf8($input)) : '';
 	$default = twcp_prompt_registry()[$option]['default'] ?? null;
 
@@ -1533,7 +1533,7 @@ function twcp_model_response(string $response): ?array
 		return null;
 	}
 
-	// Remove markdown code fence if present
+	// Strip the Markdown code fence around the reply
 	$clean = preg_replace('/^```(?:json)?\s*/i', '', $clean);
 	$clean = preg_replace('/\s*```$/', '', $clean);
 
@@ -1542,7 +1542,7 @@ function twcp_model_response(string $response): ?array
 		return $data;
 	}
 
-	// Regex fallback to find outermost JSON object or array
+	// Otherwise, take the outermost JSON object or array in the text
 	if (preg_match('/(\{|\[)[\s\S]*(\}|\])/', $clean, $matches)) {
 		$data = json_decode($matches[0], true);
 		if (is_array($data)) {

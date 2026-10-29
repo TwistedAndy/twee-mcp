@@ -26,7 +26,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 {
 	$post_id = $post->ID;
 
-	// 1. Current SEO metadata (Rank Math and Yoast SEO support)
+	// SEO title and description from Rank Math or Yoast SEO
 	$rm_title = (string) get_post_meta($post_id, 'rank_math_title', true);
 	$rm_desc = (string) get_post_meta($post_id, 'rank_math_description', true);
 
@@ -46,7 +46,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 		'yoast_desc'      => $yoast_desc ? : null,
 	];
 
-	// 2. Featured Image Details
+	// The featured image
 	$thumb_id = (int) get_post_thumbnail_id($post_id);
 	$featured_image = null;
 	if ($thumb_id > 0) {
@@ -60,7 +60,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 		];
 	}
 
-	// 3. Gallery Images (WooCommerce product gallery or meta)
+	// Gallery images of a WooCommerce product
 	$gallery_images = [];
 	$raw_gallery = (string) get_post_meta($post_id, '_product_image_gallery', true);
 	if (!empty($raw_gallery)) {
@@ -80,7 +80,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 		}
 	}
 
-	// 4. Object Taxonomies & Terms
+	// Terms of each taxonomy
 	$taxonomies = get_object_taxonomies($post->post_type, 'names');
 	$terms = [];
 	foreach ($taxonomies as $tax) {
@@ -113,7 +113,7 @@ function twcp_post_format_details(WP_Post $post, bool $full_content = true): arr
 		$data['content'] = $post->post_content;
 	}
 
-	// 5. WooCommerce Product details (if post_type is product or WooCommerce is active)
+	// Product details, when WooCommerce is active
 	if (in_array($post->post_type, ['product', 'product_variation'], true) and class_exists('WooCommerce')) {
 		$product = wc_get_product($post_id);
 		if ($product) {
@@ -1179,7 +1179,7 @@ function twcp_post_assign_image(int $post_id, ?string $search_query = null): boo
 		return true;
 	}
 
-	// 1. Search media library for direct attachment or matching title
+	// An image in the media library with this ID or title
 	$attached = get_posts([
 		'post_type'      => 'attachment',
 		'post_mime_type' => 'image',
@@ -1208,7 +1208,7 @@ function twcp_post_assign_image(int $post_id, ?string $search_query = null): boo
 		return true;
 	}
 
-	// 2. An image found by a module, such as a stock photo of the images module
+	// Otherwise, an image found by a module, such as a stock photo of the images module
 	$img_id = (int) apply_filters('twcp_post_assign_image', 0, $clean_title, $post);
 	if ($img_id) {
 		set_post_thumbnail($post_id, $img_id);
@@ -1382,7 +1382,7 @@ function twcp_post_create_similar(int $source_id)
 	$post_type = $source->post_type;
 	$site_name = twcp_site_name();
 
-	// 1. Gather context from source post
+	// Details of the source post
 	$source_title = $source->post_title;
 	$source_excerpt = trim($source->post_excerpt);
 	$source_content = trim(wp_strip_all_tags($source->post_content));
@@ -1406,7 +1406,7 @@ function twcp_post_create_similar(int $source_id)
 	}
 	$category_context = !empty($term_names) ? implode(', ', array_unique($term_names)) : '';
 
-	// 2. Request similar post generation via AI model
+	// Ask the model for a similar post
 	$prompt = "Create a new SIMILAR post based on the following existing content on {$site_name}:\n\n";
 	$prompt .= "Original Title: \"{$source_title}\"\n";
 	$prompt .= "Post Type: {$post_type}\n";
@@ -1446,7 +1446,7 @@ function twcp_post_create_similar(int $source_id)
 		$new_title = $source_title . ' - ' . __('Similar', 'twee-mcp');
 	}
 
-	// 3. Insert the new duplicate post (as draft for review)
+	// Save the new post as a draft to review
 	$new_post_id = wp_insert_post([
 		'post_title'   => $new_title,
 		'post_name'    => sanitize_title($new_title),
@@ -1461,12 +1461,12 @@ function twcp_post_create_similar(int $source_id)
 		return false;
 	}
 
-	// 4. Assign categories and taxonomy terms from source post
+	// Copy the terms of the source post
 	foreach ($assigned_terms as $tax => $term_ids) {
 		wp_set_object_terms($new_post_id, $term_ids, $tax, false);
 	}
 
-	// 5. If content or excerpt was not in JSON, generate sequentially
+	// Write the content or excerpt one by one when the reply left them out
 	if (empty($new_content)) {
 		twcp_post_generate_content($new_post_id, true);
 	}
@@ -1474,10 +1474,10 @@ function twcp_post_create_similar(int $source_id)
 		twcp_post_generate_excerpt($new_post_id, true);
 	}
 
-	// 6. Select and assign featured image
+	// Choose and set the featured image
 	twcp_post_assign_image($new_post_id, $image_query ?: $new_title);
 
-	// 7. Save SEO Meta Tags (Rank Math & Yoast SEO)
+	// Save the SEO title and description for Rank Math and Yoast SEO
 	twcp_post_update_seo($new_post_id, [
 		'seo_title'       => $new_seo_title,
 		'seo_description' => $new_seo_desc,
@@ -1486,7 +1486,7 @@ function twcp_post_create_similar(int $source_id)
 		twcp_post_generate_seo($new_post_id, true);
 	}
 
-	// 8. WooCommerce Product specifics
+	// Product details of WooCommerce
 	if ($post_type === 'product' and class_exists('WooCommerce')) {
 		$price = get_post_meta($source_id, '_price', true);
 		$reg_price = get_post_meta($source_id, '_regular_price', true);

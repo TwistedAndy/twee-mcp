@@ -845,7 +845,7 @@ function twcp_product_select_related(array $args): array
 
 	$limit = isset($args['limit']) ? min(10, max(1, (int) $args['limit'])) : 4;
 
-	// Get categories & brands
+	// Categories and brands of the product
 	$cat_ids = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'ids']);
 	$brand_ids = wp_get_post_terms($product_id, 'product_brand', ['fields' => 'ids']);
 

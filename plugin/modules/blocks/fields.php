@@ -134,7 +134,7 @@ function twcp_block_set_usages(int $set_id): array
 		return $usages;
 	}
 
-	// 1. Check theme options (e.g. options_set_post, options_set_404, options_set_product)
+	// Theme options, such as options_set_post, options_set_404, or options_set_product
 	$opts = $wpdb->get_results("SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE 'options_set_%' OR option_name LIKE 'set_%'");
 	if (is_array($opts)) {
 		foreach ($opts as $o) {
@@ -145,7 +145,7 @@ function twcp_block_set_usages(int $set_id): array
 		}
 	}
 
-	// 2. Check posts with layout 'set' in postmeta
+	// Posts that use the set layout
 	$posts = $wpdb->get_results($wpdb->prepare("SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = 'blocks' AND meta_value LIKE %s LIMIT 50", '%' . $set_id . '%'));
 	if (is_array($posts)) {
 		foreach ($posts as $p) {
@@ -171,7 +171,7 @@ function twcp_block_set_usages(int $set_id): array
 		}
 	}
 
-	// 3. Check terms with layout 'set' in termmeta
+	// Terms that use the set layout
 	$terms = $wpdb->get_results($wpdb->prepare("SELECT term_id, meta_value FROM {$wpdb->termmeta} WHERE meta_key = 'blocks' AND meta_value LIKE %s LIMIT 50", '%' . $set_id . '%'));
 	if (is_array($terms)) {
 		foreach ($terms as $t) {
@@ -393,7 +393,7 @@ function twcp_custom_fields_get(array $args): array
 		];
 	}
 
-	// 1. Discover ACF field groups for this object
+	// The ACF field groups of this object
 	$field_groups = [];
 	if (function_exists('acf_get_field_groups')) {
 		if ($object_type === 'term') {
@@ -420,7 +420,7 @@ function twcp_custom_fields_get(array $args): array
 		$field_groups = array_values($keyed_groups);
 	}
 
-	// 2. Discover fields and inspect values
+	// Their fields and values
 	$fields_flat = [];
 	$groups_formatted = [];
 	$seen_field_keys = [];
@@ -442,7 +442,7 @@ function twcp_custom_fields_get(array $args): array
 			$seen_field_keys[$field['key']] = true;
 			$field_def = twcp_format_acf_field($field);
 
-			// Retrieve field value
+			// The value of the field, or its meta when ACF has none
 			$value = function_exists('get_field') ? get_field($field['name'], $acf_target) : null;
 			if ($value === null or $value === false) {
 				$stored_meta = ($object_type === 'term') ? get_term_meta($object_id, $field['name'], true) : get_post_meta($object_id, $field['name'], true);
@@ -451,7 +451,7 @@ function twcp_custom_fields_get(array $args): array
 				}
 			}
 
-			// Special handling for Block Sets within Flexible Content (e.g. layout 'set')
+			// Block sets in flexible content, which use the set layout
 			if ($field_def['type'] === 'flexible_content' and is_array($value)) {
 				foreach ($value as $b_idx => &$block_item) {
 					if (!is_array($block_item)) {
@@ -526,7 +526,7 @@ function twcp_custom_fields_get(array $args): array
 		];
 	}
 
-	// 3. Check for any fields registered in _acf_map not covered above
+	// Fields in _acf_map that the groups above left out
 	$acf_map = ($object_type === 'term') ? get_term_meta($object_id, '_acf_map', true) : get_post_meta($object_id, '_acf_map', true);
 
 	if (is_array($acf_map) and function_exists('acf_get_field')) {
@@ -553,7 +553,7 @@ function twcp_custom_fields_get(array $args): array
 		}
 	}
 
-	// 4. Resolve Block Sets special handling
+	// Block sets of the object
 	$block_sets_response = [
 		'is_block_set'         => !empty($entity_info['is_block_set']),
 		'referenced_sets'      => [],
@@ -563,7 +563,7 @@ function twcp_custom_fields_get(array $args): array
 		'available_block_sets' => twcp_block_sets_catalog(),
 	];
 
-	// A. Expand referenced block sets from layouts or fields
+	// Block sets its layouts or fields refer to
 	if (!empty($referenced_set_ids)) {
 		foreach ($referenced_set_ids as $set_info) {
 			$sid = $set_info['set_id'];
@@ -582,7 +582,7 @@ function twcp_custom_fields_get(array $args): array
 		}
 	}
 
-	// B. Theme setting defaults for this post type or taxonomy
+	// Default block sets the theme sets for this post type or taxonomy
 	$opt_key = 'options_set_' . $subtype;
 	$theme_default_ids = get_option($opt_key);
 	if (is_array($theme_default_ids) and !empty($theme_default_ids)) {
@@ -605,7 +605,7 @@ function twcp_custom_fields_get(array $args): array
 		}
 	}
 
-	// C. If the queried object IS ITSELF a Block Set
+	// The blocks of the object when it is a block set itself
 	if (!empty($entity_info['is_block_set'])) {
 		$visited = [];
 		$res = twcp_resolve_block_set($object_id, $visited);

@@ -741,7 +741,7 @@ function twcp_batch_save(string $type, array $state): void
 {
 	$state['updated'] = time();
 
-	// Keep last 40 logs in database to prevent unbounded growth
+	// Keep the last 40 logs, so the saved state does not keep growing
 	if (isset($state['logs']) and is_array($state['logs']) and count($state['logs']) > 40) {
 		$state['logs'] = array_slice($state['logs'], -40);
 	}

@@ -2,8 +2,8 @@
 /**
  * Media & Image Tools
  *
- * Implements MCP tools and automated AI ALT tag generation for media library attachments.
- * Uses dedicated Vision model for image recognition.
+ * MCP tools for the media library, and Alt text written by the model.
+ * Images are described by the vision model.
  *
  * @package Twee_MCP
  */
@@ -88,10 +88,10 @@ function twcp_media_gallery(array $args): array
 /**
  * Find the associated parent post/product that uses or handles this attachment
  *
- * Checks:
- * 1. Direct post_parent on the attachment
- * 2. Featured image (_thumbnail_id) on any published/active post or product
- * 3. WooCommerce product image gallery (_product_image_gallery)
+ * Checks, in order:
+ * - the post the attachment was uploaded to
+ * - a published post or product with it as the featured image (_thumbnail_id)
+ * - a WooCommerce product with it in the gallery (_product_image_gallery)
  *
  * @param int|WP_Post $attachment Attachment ID or WP_Post object.
  *
@@ -104,7 +104,7 @@ function twcp_media_associated_post($attachment): ?WP_Post
 		return null;
 	}
 
-	// 1. Direct parent post
+	// The post it was uploaded to
 	if (!empty($attachment->post_parent)) {
 		$parent = get_post($attachment->post_parent);
 		if ($parent and $parent->post_status !== 'trash') {
@@ -115,7 +115,7 @@ function twcp_media_associated_post($attachment): ?WP_Post
 	global $wpdb;
 	$attachment_id = $attachment->ID;
 
-	// 2. Featured image (_thumbnail_id)
+	// A post with it as the featured image
 	$featured_post_id = $wpdb->get_var($wpdb->prepare("SELECT post_id FROM {$wpdb->postmeta} pm
 		 JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 		 WHERE pm.meta_key = '_thumbnail_id' AND pm.meta_value = %d
@@ -128,7 +128,7 @@ function twcp_media_associated_post($attachment): ?WP_Post
 		}
 	}
 
-	// 3. WooCommerce product gallery image (_product_image_gallery)
+	// A product with it in the gallery
 	$gallery_post_id = $wpdb->get_var($wpdb->prepare("SELECT post_id FROM {$wpdb->postmeta} pm
 		 JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 		 WHERE pm.meta_key = '_product_image_gallery'
@@ -280,7 +280,7 @@ function twcp_media_images(array $args): array
 		$query_args['s'] = sanitize_text_field($args['search']);
 	}
 
-	// Search ALT text and stored filenames too, without extra queries or duplicate rows.
+	// Search Alt text and file names too, without extra queries or duplicate rows
 	$search_filter = function($search, $query) use ($query_args) {
 		if (!$query->get('twcp_image_search')) {
 			return $search;
@@ -419,7 +419,7 @@ PROMPT;
 
 
 /**
- * Generate AI ALT tag for an image attachment using the dedicated Vision Model
+ * Write the Alt text of an image with the vision model
  *
  * @param int  $attachment_id Attachment ID.
  * @param bool $force         Whether to overwrite an existing ALT text.
@@ -466,7 +466,7 @@ function twcp_media_generate_alt(int $attachment_id, bool $force = false): ?stri
 
 	$prompt .= "\nOutput strictly the alt text in plain text with no quotes, prefixes, or markdown.";
 
-	// Use dedicated Vision model for image inspection
+	// The vision model looks at the image itself
 	$alt = twcp_model_vision($prompt, twcp_prompt('twcp_system_prompt_media_alt', 'twcp_prompt_alt_default'), [$attachment_id], ['temperature' => 0.4]);
 
 	if (empty($alt)) {
@@ -513,7 +513,7 @@ function twcp_media_columns(array $columns): array
 	$new_columns = [];
 	foreach ($columns as $key => $title) {
 		$new_columns[$key] = $title;
-		// Insert ALT column right after 'parent' (Uploaded to)
+		// Add the Alt text column after the Uploaded to column
 		if ($key === 'parent') {
 			$new_columns['twcp_alt'] = __('Alt Text', 'twee-mcp');
 		}

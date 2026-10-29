@@ -5,7 +5,7 @@ let gulp,
 	gulpSass,
 	sass;
 
-// Try local node_modules first, fallback to theme node_modules
+// Use the packages of this folder, or those of the theme when one is missing here
 const themeNodeModules = path.resolve(__dirname, '../../themes/straps/assets/node_modules');
 
 function resolveModule(name) {
