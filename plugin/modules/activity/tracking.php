@@ -2,7 +2,7 @@
 /**
  * Twee MCP — Activity tracking
  *
- * Logs what WP Activity Log does not record as WP Activity Log events, for the roles chosen on the Agent Tools screen:
+ * Logs what WP Activity Log does not record as WP Activity Log events, for the roles chosen on the Tools screen:
  * - Editing time: each wp-admin screen counts the seconds its tab is in front and was used in the last two minutes,
  *   and logs them when the tab is hidden or closed, and every ten minutes on long visits.
  * - Term changes: changes of brands, tags, collections and other terms of an item that WP Activity Log does not
@@ -47,12 +47,12 @@ function twcp_tracking_user(?WP_User $user = null): bool
 
 
 /**
- * Register the tracked roles and price fields, set on the Agent Tools screen
+ * Register the tracked roles and price fields, set on the Tools screen
  */
 add_action('admin_init', 'twcp_tracking_admin_init');
 
 /**
- * Register the settings of the tracked roles and price fields, set on the Agent Tools screen
+ * Register the settings of the tracked roles and price fields, set on the Tools screen
  *
  * @return void
  */
@@ -87,7 +87,7 @@ function twcp_tracking_admin_init(): void
 
 
 /**
- * Show the tracking settings on the Agent Tools screen
+ * Show the tracking settings on the Tools screen
  */
 add_filter('twcp_admin_tabs', function(array $tabs): array {
 	$tabs['tools']['parts'][] = 'tracking';
@@ -335,7 +335,7 @@ function twcp_tracking_taxonomies(string $post_type): array
 
 
 /**
- * Meta keys of custom price fields set on the Agent Tools screen, such as the price tables of a theme
+ * Meta keys of custom price fields set on the Tools screen, such as the price tables of a theme
  *
  * @return string[]
  */

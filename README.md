@@ -8,9 +8,8 @@ The plugin can also connect the site to an AI model (OpenAI, OpenRouter, Anthrop
 
 - Use PHP 8.0 or newer. The plugin is tested with WordPress 7.1 and WooCommerce 11.2. The block tools need ACF Pro, and the store tools need WooCommerce.
 - Download `twee-mcp-{version}.zip` from the [latest release](https://github.com/TwistedAndy/twee-mcp/releases/latest), upload it in **Plugins → Add New → Upload Plugin**, and activate it. New releases show up in **Dashboard → Updates**.
-- For the AI jobs, open **AI Tools → AI Provider**, choose a provider, and add an API key or sign in with ChatGPT.
-- Open **AI Tools → Agent Access** for the server URL and the steps for each client.
-- Behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/`, `/.well-known/`, `/register`, `/authorize`, and `/token`. The **Agent Access** screen shows the exact rule.
+- Open **AI Tools → Connection**. For the AI jobs, choose a provider and add an API key or sign in with ChatGPT. Below that are the server URL and the steps for each client.
+- Behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/`, `/.well-known/`, `/register`, `/authorize`, and `/token`. The **Connection** screen shows the exact rule.
 
 ## Connecting AI Clients
 
@@ -43,16 +42,16 @@ Business and Enterprise workspaces need an admin to allow plugins with MCP serve
 
 - The endpoint is `/wp-json/straps/v1/mcp` (Streamable HTTP, protocol `2025-06-18`).
 - Tools are marked as read-only or destructive, so clients can ask before they change or delete anything.
-- Single tools and whole modules can be switched off on the **Agent Tools** screen, and the server on the **Agent Access** screen. Tools that need an inactive plugin, such as WooCommerce, switch off by themselves.
+- Single tools and whole modules can be switched off on the **Tools** screen, and the server on the **Connection** screen. Tools that need an inactive plugin, such as WooCommerce, switch off by themselves.
 
 ### Sign-in and Permissions
 
 - OAuth 2.1 with PKCE, client registration, and a WordPress consent screen. Access tokens last an hour and refresh tokens 90 days.
 - Clients can return only to allowed hosts: `claude.ai`, `claude.com`, `anthropic.com`, `chatgpt.com`, and `openai.com` by default.
 - Connecting needs `edit_posts`. Each tool call is checked against the user's capabilities, such as `publish_posts` to publish, `moderate_comments` for comments, and `edit_shop_orders` for orders.
-- Connected agents and their sessions are listed on the **Agent Access** screen, where they can be revoked.
+- Connected agents and their sessions are listed on the **Connection** screen, where they can be revoked.
 
-### AI Provider
+### AI Model
 
 - OpenAI, OpenRouter, Anthropic, or ChatGPT Plan (experimental), with separate text and vision models.
 - While it writes, the model can look up posts, terms, and products with the read-only tools `get_posts`, `get_terms`, and `get_products`.
@@ -103,7 +102,7 @@ Content jobs need `edit_others_posts`, the media job `upload_files`, and the sto
 
 ### Activity Tracking
 
-For the roles chosen on the **Agent Tools** screen, the plugin logs what WP Activity Log does not, as WP Activity Log events:
+For the roles chosen on the **Tools** screen, the plugin logs what WP Activity Log does not, as WP Activity Log events:
 
 - **Editing time** (event 99102): the seconds a wp-admin tab is in front and in use. Reports show it as `tracked_minutes`.
 - **Term changes** (event 99100): brands, tags, and other terms of an item, before and after.
@@ -176,7 +175,7 @@ add_filter('twcp_modules', function(array $modules): array {
 });
 ```
 
-The `Module` and `Description` lines name the module on the **Agent Tools** screen, where it can be switched off. The `twcp_disabled_modules` option keeps the list of switched-off modules. `twcp_module_active()` tells whether a module is loaded and its plugin is running.
+The `Module` and `Description` lines name the module on the **Tools** screen, where it can be switched off. The `twcp_disabled_modules` option keeps the list of switched-off modules. `twcp_module_active()` tells whether a module is loaded and its plugin is running.
 
 ### Hooks
 
@@ -190,7 +189,7 @@ A filter has the name of the function that applies it: `twcp_batch_types()` retu
 - `twcp_batch_section` (action) - Settings below the cards of a section, such as Internal Links.
 - `twcp_batch_background` - Return `false` to run jobs only while the page is open.
 - `twcp_prompt_groups`, `twcp_prompt_registry`, `twcp_prompt_fields` (action) - Prompts, their groups, and settings saved with a prompt.
-- `twcp_prompt_examples` - Copy-ready prompts on the **Agent Access** screen.
+- `twcp_prompt_examples` - Copy-ready prompts on the **Connection** screen.
 - `twcp_site_catalog`, `twcp_site_facts` - What prompts and the site profile are told about the site.
 - `twcp_post_links`, `twcp_post_link_sources` - Internal links and their sources.
 - `twcp_post_category_taxonomy` - The category taxonomy of a post type, such as `product_cat` for products.

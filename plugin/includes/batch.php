@@ -1025,7 +1025,7 @@ function twcp_batch_ajax_control(): void
 	} elseif ($action === 'start' or $action === 'resume') {
 		$missing = twcp_model_missing();
 		if ($missing) {
-			wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the AI Provider screen first.', 'twee-mcp')]);
+			wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the Connection screen first.', 'twee-mcp')]);
 		}
 		// A fresh run replaces the backup of the previous one
 		if ($action === 'start' and !$state['processed']) {
@@ -1179,7 +1179,7 @@ function twcp_batch_ajax_preview(): void
 
 	$missing = twcp_model_missing();
 	if ($missing) {
-		wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the AI Provider screen first.', 'twee-mcp')]);
+		wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the Connection screen first.', 'twee-mcp')]);
 	}
 
 	$job = twcp_batch_types()[$type];
@@ -1451,7 +1451,7 @@ function twcp_batch_bulk(): void
 		add_action('admin_notices', function() {
 			?>
 			<div class="notice notice-error is-dismissible">
-				<p><?php echo esc_html(twcp_model_missing() ? : __('The AI model was not set up.', 'twee-mcp')); ?> <?php echo esc_html__('Nothing was processed. Add an API key or sign in with ChatGPT on the AI Tools > AI Provider screen.', 'twee-mcp'); ?></p>
+				<p><?php echo esc_html(twcp_model_missing() ? : __('The AI model was not set up.', 'twee-mcp')); ?> <?php echo esc_html__('Nothing was processed. Add an API key or sign in with ChatGPT on the AI Tools > Connection screen.', 'twee-mcp'); ?></p>
 			</div>
 			<?php
 		});
@@ -1466,7 +1466,7 @@ function twcp_batch_bulk(): void
 				$message .= ' ' . sprintf(_n('%d item already had a value and was left as it is.', '%d items already had a value and were left as they are.', $skipped, 'twee-mcp'), $skipped);
 			}
 			if ($failed) {
-				$message .= ' ' . sprintf(_n('%d item failed: check the AI Provider connection and try it again.', '%d items failed: check the AI Provider connection and try them again.', $failed, 'twee-mcp'), $failed);
+				$message .= ' ' . sprintf(_n('%d item failed: check the AI model on the Connection screen and try it again.', '%d items failed: check the AI model on the Connection screen and try them again.', $failed, 'twee-mcp'), $failed);
 			}
 			?>
 			<div class="notice <?php echo $failed ? 'notice-warning' : 'notice-success'; ?> is-dismissible">

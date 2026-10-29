@@ -3,10 +3,9 @@
  * Twee MCP — AI Tools Admin Interface
  *
  * Top-level "AI Tools" menu (last item of the admin menu) with one submenu page per tab:
- * - Automation   (batch jobs for content and shop managers, with the system prompts and internal link settings)
- * - AI Provider  (text & vision models, image size, API key, connection test)
- * - Agent Access (server toggle, endpoint, setup guides, OAuth sessions, copy-ready agent prompts)
- * - Agent Tools  (MCP tool switches)
+ * - Automation (batch jobs for content and shop managers, with the system prompts and internal link settings)
+ * - Tools      (module and MCP tool switches)
+ * - Connection (the AI model of the plugin, the MCP server, setup guides, OAuth sessions, and agent prompts)
  *
  * Every tab renders template parts from parts/{part}.php that receive only the data they need. Modules add tabs,
  * such as Blocks of the blocks module and Images of the images module, or parts of other tabs with the
@@ -29,9 +28,8 @@ function twcp_admin_tabs(): array
 {
 	return twcp_position_sort((array) apply_filters('twcp_admin_tabs', [
 		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'position' => 10, 'parts' => ['automation']],
-		'model'      => ['label' => __('AI Provider', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 40, 'parts' => ['model']],
-		'connection' => ['label' => __('Agent Access', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 50, 'parts' => ['connection', 'examples']],
-		'tools'      => ['label' => __('Agent Tools', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 60, 'parts' => ['modules', 'tools']],
+		'tools'      => ['label' => __('Tools', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 20, 'parts' => ['modules', 'tools']],
+		'connection' => ['label' => __('Connection', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 50, 'parts' => ['model', 'connection', 'examples']],
 	]));
 }
 
@@ -47,6 +45,7 @@ function twcp_admin_legacy(): array
 		'tw-mcp-library'  => 'blocks',
 		'tw-mcp-prompts'  => 'automation',
 		'tw-mcp-examples' => 'connection',
+		'tw-mcp-model'    => 'connection',
 	], array_keys(twcp_admin_tabs()));
 }
 
@@ -133,7 +132,7 @@ function twcp_admin_init(): void
 		]);
 	}
 
-	// Modules and MCP tools switched off on the Agent Tools screen
+	// Modules and MCP tools switched off on the Tools screen
 	register_setting('twcp_modules_group', 'twcp_disabled_modules', ['type' => 'array', 'sanitize_callback' => 'twcp_admin_sanitize_modules', 'default' => []]);
 	register_setting('twcp_tools_group', 'twcp_disabled_tools', ['type' => 'array', 'sanitize_callback' => 'twcp_tools_sanitize_disabled', 'default' => []]);
 }
@@ -333,7 +332,7 @@ function twcp_admin_ajax_context(): void
 
 	$missing = twcp_model_missing();
 	if ($missing) {
-		wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the AI Provider screen first.', 'twee-mcp')]);
+		wp_send_json_error(['message' => $missing . ' ' . __('Set up a model on the Connection screen first.', 'twee-mcp')]);
 	}
 
 	$context = twcp_general_context_generate();
@@ -342,7 +341,7 @@ function twcp_admin_ajax_context(): void
 
 
 /**
- * Sanitize the disabled modules setting. The Agent Tools screen posts folder => 1|0 (1 = enabled), code may store a
+ * Sanitize the disabled modules setting. The Tools screen posts folder => 1|0 (1 = enabled), code may store a
  * plain list of folders.
  *
  * @param mixed $input
@@ -429,7 +428,7 @@ function twcp_admin_data(string $part): array
 				'plugins'          => $plugins,
 				'can_manage'       => current_user_can('manage_options'),
 				'model_missing'    => twcp_model_missing(),
-				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('model')),
+				'model_url'        => admin_url('admin.php?page=' . twcp_admin_slug('connection')),
 			];
 			break;
 

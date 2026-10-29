@@ -1,6 +1,6 @@
 <?php
 /**
- * Tab Template: MCP Connection & Client Authorization
+ * Template part: MCP server, client setup, and sessions of the Connection tab
  *
  * @var bool   $is_enabled
  * @var string $server_url

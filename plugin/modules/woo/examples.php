@@ -2,7 +2,7 @@
 /**
  * Twee MCP — WooCommerce agent prompts
  *
- * Copy-ready prompts for product copy, store reports, and promotions on the Agent Access tab.
+ * Copy-ready prompts for product copy, store reports, and promotions on the Connection tab.
  *
  * @package Twee_MCP
  */

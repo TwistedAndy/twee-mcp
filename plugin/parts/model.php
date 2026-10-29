@@ -1,6 +1,6 @@
 <?php
 /**
- * Tab Template: Model Configuration
+ * Template part: AI model settings of the Connection tab
  *
  * @var array $model_settings
  * @var array $providers
@@ -14,7 +14,7 @@ defined('ABSPATH') or exit;
 
 <div class="item">
 	<div class="header">
-		<h2 class="heading"><?php echo esc_html__('AI Model API Configuration', 'twee-mcp'); ?></h2>
+		<h2 class="heading"><?php echo esc_html__('AI Model', 'twee-mcp'); ?></h2>
 		<div class="badges">
 			<?php if ($model_settings['provider'] === 'chatgpt') { ?>
 				<span class="badge <?php echo $chatgpt['connected'] ? 'badge_success' : ''; ?>">

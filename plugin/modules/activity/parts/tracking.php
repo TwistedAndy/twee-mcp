@@ -1,6 +1,6 @@
 <?php
 /**
- * Template part: Activity Tracking settings on the Agent Tools screen
+ * Template part: Activity Tracking settings on the Tools screen
  *
  * @var bool   $tracking_active
  * @var array  $tracking_roles

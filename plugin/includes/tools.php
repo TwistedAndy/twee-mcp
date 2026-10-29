@@ -148,7 +148,7 @@ function twcp_tools_date($date): ?string
 
 
 /**
- * Tool groups added with the twcp_tools_groups filter, shown on the Agent Tools screen in the order of their position.
+ * Tool groups added with the twcp_tools_groups filter, shown on the Tools screen in the order of their position.
  * A group of a module whose plugin is not running has "active" set to false, so its tools are unavailable.
  *
  * Each tool has a description, its callable, parameters, required parameters, and annotations, and may set a "hint"
@@ -193,7 +193,7 @@ function twcp_tools_missing(string $name): ?string
 
 
 /**
- * Tools switched off on the Agent Tools screen
+ * Tools switched off on the Tools screen
  *
  * @return string[]
  */
@@ -205,7 +205,7 @@ function twcp_tools_disabled(): array
 
 /**
  * Sanitize the disabled tools setting.
- * The Agent Tools screen posts name => 1|0 (1 = enabled), code may store a plain list of names.
+ * The Tools screen posts name => 1|0 (1 = enabled), code may store a plain list of names.
  *
  * @param mixed $input
  *

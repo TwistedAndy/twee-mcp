@@ -2,7 +2,7 @@
 /**
  * Twee MCP — WordPress agent prompts
  *
- * Copy-ready prompts for posts, comments, categories, and images on the Agent Access tab.
+ * Copy-ready prompts for posts, comments, categories, and images on the Connection tab.
  *
  * @package Twee_MCP
  */

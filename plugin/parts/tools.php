@@ -1,6 +1,6 @@
 <?php
 /**
- * Tab Template: Agent Tools
+ * Template part: MCP tools of the Tools tab
  *
  * Administrators choose which MCP tools connected AI agents can see and call.
  *

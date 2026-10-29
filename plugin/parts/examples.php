@@ -1,6 +1,6 @@
 <?php
 /**
- * Tab Template: Agent Prompts
+ * Template part: Agent prompts of the Connection tab
  *
  * Copy-ready prompts for Claude or ChatGPT, grouped by area, see twcp_prompt_examples().
  *

@@ -30,9 +30,9 @@ $prompts = $prompt_groups ? array_merge(...array_values(array_column($prompt_gro
 		<p class="text">
 			<?php echo esc_html($model_missing); ?>
 			<?php if ($can_manage) {
-				echo esc_html__('Add an API key or sign in with ChatGPT on the AI Provider screen to run the jobs below and the AI bulk actions.', 'twee-mcp');
+				echo esc_html__('Add an API key or sign in with ChatGPT on the Connection screen to run the jobs below and the AI bulk actions.', 'twee-mcp');
 			} else {
-				echo esc_html__('Ask an administrator to add an API key or connect a ChatGPT account on the AI Provider screen. The jobs below and the AI bulk actions run once that is done.', 'twee-mcp');
+				echo esc_html__('Ask an administrator to add an API key or connect a ChatGPT account on the Connection screen. The jobs below and the AI bulk actions run once that is done.', 'twee-mcp');
 			} ?>
 		</p>
 		<?php if ($can_manage) { ?>

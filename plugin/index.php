@@ -3,7 +3,7 @@
  * Plugin Name:       Twee MCP
  * Plugin URI:        https://www.linkedin.com/in/toniievych/
  * Description:       Model Context Protocol (MCP) server for WordPress with OAuth 2.1, AI model connectivity, and batch content helpers.
- * Version:           1.3.1
+ * Version:           1.3.2
  * Author:            Twee
  * Author URI:        https://www.linkedin.com/in/toniievych/
  * License:           MIT
@@ -14,7 +14,7 @@
 
 defined('ABSPATH') or exit;
 
-define('TWCP_VERSION', '1.3.1');
+define('TWCP_VERSION', '1.3.2');
 define('TWCP_PATH', plugin_dir_path(__FILE__));
 define('TWCP_URL', plugin_dir_url(__FILE__));
 define('TWCP_PROTOCOL', '2025-06-18');
@@ -197,7 +197,7 @@ require_once TWCP_PATH . 'includes/oauth.php';
 /*
  * Load the modules once the theme is set up, so a theme or plugin can add its module folders, and before WP Activity
  * Log registers its events. Each module.php adds its tools, settings, and screens with hooks. The wp module has the
- * tools the others build on, so it always loads; the others can be switched off on the Agent Tools screen.
+ * tools the others build on, so it always loads; the others can be switched off on the Tools screen.
  */
 add_action('after_setup_theme', function() {
 	$disabled = array_diff((array) get_option('twcp_disabled_modules', []), ['wp']);

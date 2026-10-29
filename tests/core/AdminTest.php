@@ -25,9 +25,10 @@ class AdminTest extends TWCP_TestCase {
 	{
 		$tabs = twcp_admin_tabs();
 
-		$this->assertSame(['automation', 'blocks', 'images', 'model', 'connection', 'tools'], array_keys($tabs), 'Module tabs follow their position');
+		$this->assertSame(['automation', 'tools', 'blocks', 'images', 'connection'], array_keys($tabs), 'Module tabs follow their position');
+		$this->assertSame(['model', 'connection', 'examples'], $tabs['connection']['parts']);
 		$this->assertSame('edit_others_posts', $tabs['automation']['capability']);
-		foreach (['blocks', 'images', 'model', 'connection', 'tools'] as $tab) {
+		foreach (['tools', 'blocks', 'images', 'connection'] as $tab) {
 			$this->assertSame('manage_options', $tabs[$tab]['capability'], $tab);
 		}
 
@@ -281,7 +282,7 @@ class AdminTest extends TWCP_TestCase {
 
 
 	/* -------------------------------------------------------------------------
-	 * Agent Access
+	 * Connection
 	 * ------------------------------------------------------------------------- */
 
 	/**
