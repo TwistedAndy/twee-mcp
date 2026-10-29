@@ -684,3 +684,27 @@
   margin-top: 15px;
   gap: 10px;
 }
+.mcp_box .help {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.mcp_box .help .help_title {
+  margin: 22px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.mcp_box .help .help_list {
+  margin: 0 0 12px 22px;
+}
+.mcp_box .help .help_list li {
+  margin-bottom: 8px;
+}
+.mcp_box .help ul.help_list {
+  list-style: disc;
+}
+.mcp_box .help .help_note {
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  border-left: 4px solid #dba617;
+  background: #fcf9e8;
+}

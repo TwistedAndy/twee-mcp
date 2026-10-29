@@ -8,8 +8,9 @@ The plugin can also connect the site to an AI model (OpenAI, OpenRouter, Anthrop
 
 - Use PHP 8.0 or newer. The plugin is tested with WordPress 7.1 and WooCommerce 11.2. The block tools need ACF Pro, and the store tools need WooCommerce.
 - Download `twee-mcp-{version}.zip` from the [latest release](https://github.com/TwistedAndy/twee-mcp/releases/latest), upload it in **Plugins → Add New → Upload Plugin**, and activate it. New releases show up in **Dashboard → Updates**.
-- Open **AI Tools → Connection**. For the AI jobs, choose a provider and add an API key or sign in with ChatGPT. Below that are the server URL and the steps for each client.
-- Behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/`, `/.well-known/`, `/register`, `/authorize`, and `/token`. The **Connection** screen shows the exact rule.
+- Open **AI Tools → Connection**. For the AI jobs, choose a provider and add an API key or sign in with ChatGPT. Below that is the server URL.
+- The **AI Tools → Help** tab has the steps for each client, the Cloudflare rule, and tips on using the jobs and the chat, in plain English for editors and shop managers.
+- Behind Cloudflare, add a WAF rule that skips the security checks for `/wp-json/straps/v1/`, `/.well-known/`, `/register`, `/authorize`, and `/token`. The **Help** tab shows the exact rule.
 
 ## Connecting AI Clients
 
@@ -49,7 +50,7 @@ Business and Enterprise workspaces need an admin to allow plugins with MCP serve
 - OAuth 2.1 with PKCE, client registration, and a WordPress consent screen. Access tokens last an hour and refresh tokens 90 days.
 - Clients can return only to allowed hosts: `claude.ai`, `claude.com`, `anthropic.com`, `chatgpt.com`, and `openai.com` by default.
 - Connecting needs `edit_posts`. Each tool call is checked against the user's capabilities, such as `publish_posts` to publish, `moderate_comments` for comments, and `edit_shop_orders` for orders.
-- Connected agents and their sessions are listed on the **Connection** screen, where they can be revoked.
+- Connected agents and their sessions are listed on the **Connection** screen. Changing the user's password signs them all out.
 
 ### AI Model
 

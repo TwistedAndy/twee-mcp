@@ -830,4 +830,35 @@
 		margin-top: 15px;
 		gap: 10px;
 	}
+
+	// Help tab: larger text and roomy lists for readers new to AI
+	.help {
+		font-size: 14px;
+		line-height: 1.6;
+
+		.help_title {
+			margin: 22px 0 8px;
+			font-size: 15px;
+			font-weight: 600;
+		}
+
+		.help_list {
+			margin: 0 0 12px 22px;
+
+			li {
+				margin-bottom: 8px;
+			}
+		}
+
+		ul.help_list {
+			list-style: disc;
+		}
+
+		.help_note {
+			padding: 10px 14px;
+			margin: 0 0 12px;
+			border-left: 4px solid #dba617;
+			background: #fcf9e8;
+		}
+	}
 }

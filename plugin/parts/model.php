@@ -5,6 +5,7 @@
  * @var array $model_settings
  * @var array $providers
  * @var array $chatgpt        ChatGPT plan sign-in status
+ * @var string $help_url
  *
  * @package Twee_MCP
  */
@@ -29,6 +30,7 @@ defined('ABSPATH') or exit;
 	</div>
 	<p class="text text_muted">
 		<?php echo esc_html__('Configure ChatGPT (OpenAI), OpenRouter, or Anthropic (Claude) API credentials for text generation, SEO tags, product copywriting, and multimodal image inspection. A ChatGPT Plus or Pro plan can be used instead of an API key as an experimental option.', 'twee-mcp'); ?>
+		<a href="<?php echo esc_url($help_url . '#twcp_help_provider'); ?>"><?php echo esc_html__('Step-by-step help', 'twee-mcp'); ?></a>
 	</p>
 
 	<form method="post" action="options.php" id="twcp_model_form">

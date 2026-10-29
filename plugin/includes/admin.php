@@ -5,12 +5,13 @@
  * Top-level "AI Tools" menu (last item of the admin menu) with one submenu page per tab:
  * - Automation (batch jobs for content and shop managers, with the system prompts and internal link settings)
  * - Tools      (module and MCP tool switches)
- * - Connection (the AI model of the plugin, the MCP server, setup guides, OAuth sessions, and agent prompts)
+ * - Connection (the AI model of the plugin, the MCP server, OAuth sessions, and agent prompts)
+ * - Help       (plain English steps for connecting a provider, Claude, or ChatGPT, using them well, and setup)
  *
  * Every tab renders template parts from parts/{part}.php that receive only the data they need. Modules add tabs,
  * such as Blocks of the blocks module and Images of the images module, or parts of other tabs with the
  * twcp_admin_tabs filter, and their data with the twcp_admin_data filter.
- * Automation is open to editors and shop managers; the other tabs need manage_options.
+ * Automation and Help are open to editors and shop managers; the other tabs need manage_options.
  *
  * @package Twee_MCP
  */
@@ -30,6 +31,7 @@ function twcp_admin_tabs(): array
 		'automation' => ['label' => __('Automation', 'twee-mcp'), 'capability' => 'edit_others_posts', 'position' => 10, 'parts' => ['automation']],
 		'tools'      => ['label' => __('Tools', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 20, 'parts' => ['modules', 'tools']],
 		'connection' => ['label' => __('Connection', 'twee-mcp'), 'capability' => 'manage_options', 'position' => 50, 'parts' => ['model', 'connection', 'examples']],
+		'help'       => ['label' => __('Help', 'twee-mcp'), 'capability' => 'edit_others_posts', 'position' => 60, 'parts' => ['help']],
 	]));
 }
 
@@ -393,6 +395,7 @@ function twcp_admin_data(string $part): array
 				'model_settings' => twcp_model_settings(),
 				'providers'      => twcp_model_providers(),
 				'chatgpt'        => twcp_chatgpt_status(),
+				'help_url'       => admin_url('admin.php?page=' . twcp_admin_slug('help')),
 			];
 			break;
 
@@ -459,6 +462,17 @@ function twcp_admin_data(string $part): array
 				'server_url' => twcp_mcp_url(),
 				'hosts'      => twcp_oauth_hosts(),
 				'sessions'   => twcp_oauth_sessions(get_current_user_id()),
+				'help_url'   => admin_url('admin.php?page=' . twcp_admin_slug('help')),
+			];
+			break;
+
+		case 'help':
+			$data = [
+				'server_url'     => twcp_mcp_url(),
+				'can_manage'     => current_user_can('manage_options'),
+				'connection_url' => admin_url('admin.php?page=' . twcp_admin_slug('connection')),
+				'providers'      => twcp_model_providers(),
+				'active'         => wp_list_pluck(twcp_modules(), 'active'),
 			];
 			break;
 	}

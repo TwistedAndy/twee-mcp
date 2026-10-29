@@ -25,7 +25,7 @@ class AdminTest extends TWCP_TestCase {
 	{
 		$tabs = twcp_admin_tabs();
 
-		$this->assertSame(['automation', 'tools', 'blocks', 'images', 'connection'], array_keys($tabs), 'Module tabs follow their position');
+		$this->assertSame(['automation', 'tools', 'blocks', 'images', 'connection', 'help'], array_keys($tabs), 'Module tabs follow their position');
 		$this->assertSame(['model', 'connection', 'examples'], $tabs['connection']['parts']);
 		$this->assertSame('edit_others_posts', $tabs['automation']['capability']);
 		foreach (['tools', 'blocks', 'images', 'connection'] as $tab) {
@@ -35,6 +35,7 @@ class AdminTest extends TWCP_TestCase {
 		$editor = self::factory()->user->create(['role' => 'editor']);
 		wp_set_current_user($editor);
 		$this->assertTrue(current_user_can($tabs['automation']['capability']));
+		$this->assertTrue(current_user_can($tabs['help']['capability']));
 		$this->assertFalse(current_user_can($tabs['connection']['capability']));
 		$this->assertFalse(current_user_can($tabs['tools']['capability']));
 	}
@@ -286,15 +287,41 @@ class AdminTest extends TWCP_TestCase {
 	 * ------------------------------------------------------------------------- */
 
 	/**
-	 * The ChatGPT steps leave the OAuth settings to discovery, with no client ID to create.
+	 * The Connection tab links to the setup steps on the Help tab, which leave the OAuth settings to discovery, with no
+	 * client ID to create.
 	 */
 	public function test_connection_chatgpt_steps(): void
 	{
 		$html = twcp_template('connection', twcp_admin_data('connection'));
+		$this->assertStringContainsString(esc_url(admin_url('admin.php?page=tw-mcp-help#twcp_help_agents')), $html);
+		$this->assertStringNotContainsString('twcp_client_create', $html);
 
+		$html = twcp_template('help', twcp_admin_data('help'));
 		$this->assertStringContainsString('Add custom MCP server', $html);
 		$this->assertStringContainsString(rest_url('straps/v1/.well-known/oauth-protected-resource'), $html);
 		$this->assertStringNotContainsString('User-Defined OAuth Client', $html);
-		$this->assertStringNotContainsString('twcp_client_create', $html);
+	}
+
+
+	/* -------------------------------------------------------------------------
+	 * Help
+	 * ------------------------------------------------------------------------- */
+
+	/**
+	 * Editors get the server URL and the provider key pages, but no link to the Connection tab they cannot open.
+	 */
+	public function test_help_for_editors(): void
+	{
+		wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
+		$html = twcp_template('help', twcp_admin_data('help'));
+
+		$this->assertStringContainsString(esc_attr(twcp_mcp_url()), $html);
+		$this->assertStringContainsString('https://platform.openai.com/api-keys', $html);
+		$this->assertStringContainsString('Only an administrator', $html);
+		$this->assertStringNotContainsString('Open the Connection Tab', $html);
+
+		// What Claude and ChatGPT can do follows the modules that are running
+		$this->assertStringContainsString('Pages and posts:', $html);
+		$this->assertSame(twcp_module_active('woo'), str_contains($html, 'Store:'));
 	}
 }

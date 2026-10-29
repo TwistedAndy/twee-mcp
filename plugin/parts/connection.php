@@ -6,6 +6,7 @@
  * @var string $server_url
  * @var array  $sessions
  * @var array  $hosts
+ * @var string $help_url
  *
  * @package Twee_MCP
  */
@@ -71,95 +72,25 @@ defined('ABSPATH') or exit;
 		</div>
 		<div class="text text_muted"><?php echo esc_html__('Paste this exact endpoint into the MCP server URL field in Claude, Claude Code, or ChatGPT. Remote clients require a publicly accessible HTTPS URL.', 'twee-mcp'); ?></div>
 	</div>
+	<p class="text text_muted">
+		<?php echo esc_html__('The Help tab has the steps for', 'twee-mcp'); ?>
+		<a href="<?php echo esc_url($help_url . '#twcp_help_agents'); ?>"><?php echo esc_html__('Claude and ChatGPT', 'twee-mcp'); ?></a>,
+		<?php echo esc_html__('and for', 'twee-mcp'); ?>
+		<a href="<?php echo esc_url($help_url . '#twcp_help_setup'); ?>"><?php echo esc_html__('Claude Code, Cloudflare, and connection checks', 'twee-mcp'); ?></a>.
+	</p>
 </div>
 
-<!-- 3. Connect Instructions Card -->
-<div class="item">
-	<h2 class="heading"><?php echo esc_html__('How to Connect AI Clients', 'twee-mcp'); ?></h2>
-
-	<div class="group">
-		<h3 class="title"><?php echo esc_html__('Claude (Web & Desktop App)', 'twee-mcp'); ?></h3>
-		<ol class="list">
-			<li><?php echo esc_html__('Open ', 'twee-mcp'); ?><strong><?php echo esc_html__('Customize → Connectors', 'twee-mcp'); ?></strong><?php echo esc_html__(' from the Claude sidebar.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add → Add custom connector', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('Enter a name (e.g. ', 'twee-mcp'); ?>
-				<em><?php echo esc_html__('Store Management', 'twee-mcp'); ?></em><?php echo esc_html__(') and paste the Server URL: ', 'twee-mcp'); ?>
-				<code><?php echo esc_html($server_url); ?></code></li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Continue', 'twee-mcp'); ?></strong><?php echo esc_html__('. Claude registers its client automatically; do not add an OAuth Client ID manually.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('When the WordPress authorization screen opens, sign in and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Allow', 'twee-mcp'); ?></strong><?php echo esc_html__('. Claude should return to the connector with a Connected status.', 'twee-mcp'); ?></li>
-		</ol>
-		<p class="text text_muted"><?php echo esc_html__('After plugin tools change, open the connector menu and choose Refresh tools list. If Claude shows Reconnect, reconnect and complete the WordPress authorization again.', 'twee-mcp'); ?></p>
-	</div>
-
-	<div class="group">
-		<h3 class="title"><?php echo esc_html__('Claude Code (CLI)', 'twee-mcp'); ?></h3>
-		<p class="text"><?php echo esc_html__('Run this command in your terminal to register the MCP server:', 'twee-mcp'); ?></p>
-		<pre class="pre"><code>claude mcp add --transport http straps <?php echo esc_html($server_url); ?></code></pre>
-		<p class="text text_muted"><?php echo esc_html__('Then run ', 'twee-mcp'); ?><code>/mcp</code><?php echo esc_html__(' inside Claude Code and select authenticate.', 'twee-mcp'); ?></p>
-	</div>
-
-	<div class="group">
-		<h3 class="title"><?php echo esc_html__('ChatGPT', 'twee-mcp'); ?></h3>
-		<ol class="list">
-			<li><?php echo esc_html__('Open ', 'twee-mcp'); ?><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener noreferrer">chatgpt.com/plugins</a><?php echo esc_html__(' in a web browser and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Add → Add custom MCP server', 'twee-mcp'); ?></strong><?php echo esc_html__(' at the top right. The desktop and mobile apps cannot add servers.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('Enter a name (e.g. ', 'twee-mcp'); ?><em><?php echo esc_html(get_bloginfo('name')); ?></em><?php echo esc_html__(') and paste the Server URL: ', 'twee-mcp'); ?><code><?php echo esc_html($server_url); ?></code></li>
-			<li><?php echo esc_html__('Leave ', 'twee-mcp'); ?><strong><?php echo esc_html__('OAuth', 'twee-mcp'); ?></strong><?php echo esc_html__(' and the advanced settings as they are. ChatGPT reads them from this site and registers itself.', 'twee-mcp'); ?></li>
-			<li><?php echo esc_html__('Tick ', 'twee-mcp'); ?><strong><?php echo esc_html__('I understand and want to continue', 'twee-mcp'); ?></strong><?php echo esc_html__(' and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Create as a plugin', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Connect', 'twee-mcp'); ?></strong><?php echo esc_html__('. When the WordPress authorization screen opens, sign in and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Allow', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('In a chat, type ', 'twee-mcp'); ?><code>@</code><?php echo esc_html__(' and pick the plugin by its name.', 'twee-mcp'); ?></li>
-		</ol>
-		<p class="text text_muted"><?php echo esc_html__('In a Business or Enterprise workspace, an admin must allow members to create plugins with MCP servers. If ChatGPT shows "Couldn\'t discover OAuth settings", check that the Server URL is exact and that the Cloudflare rule below is saved, then click Retry discovery.', 'twee-mcp'); ?></p>
-	</div>
-
-	<div class="group" style="border-top: 1px solid #e2e4e7; padding-top: 18px; margin-top: 18px;">
-		<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-			<h3 class="title" style="margin: 0;"><?php echo esc_html__('Cloudflare Configuration & WAF Rules', 'twee-mcp'); ?></h3>
-			<span class="badge badge_primary"><?php echo esc_html__('Required for Live Sites behind Cloudflare', 'twee-mcp'); ?></span>
-		</div>
-		<p class="text">
-			<?php echo esc_html__('Cloudflare Bot Management, Managed Challenges, or WAF rules will block automated Claude and ChatGPT servers during OAuth discovery and MCP queries. Create a WAF Custom Rule / Skip Rule to bypass security checks for the MCP and OAuth paths:', 'twee-mcp'); ?>
-		</p>
-		<ol class="list">
-			<li><?php echo esc_html__('In the Cloudflare Dashboard, navigate to ', 'twee-mcp'); ?><strong><?php echo esc_html__('Security → Security rules', 'twee-mcp'); ?></strong>.</li>
-			<li><?php echo esc_html__('Create a ', 'twee-mcp'); ?><strong><?php echo esc_html__('Custom rule', 'twee-mcp'); ?></strong><?php echo esc_html__(' and name it ', 'twee-mcp'); ?><em><?php echo esc_html__('Allow MCP Server & OAuth', 'twee-mcp'); ?></em>.</li>
-			<li><?php echo esc_html__('Click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Edit expression', 'twee-mcp'); ?></strong><?php echo esc_html__(' and paste the following expression:', 'twee-mcp'); ?>
-				<pre class="pre" style="margin: 10px 0;"><code>(http.request.uri.path starts_with "/wp-json/straps/v1/") or (http.request.uri.path starts_with "/.well-known/") or (http.request.uri.path eq "/authorize") or (http.request.uri.path eq "/register") or (http.request.uri.path eq "/token")</code></pre>
-			</li>
-			<li><?php echo esc_html__('For the ', 'twee-mcp'); ?><strong><?php echo esc_html__('Action', 'twee-mcp'); ?></strong><?php echo esc_html__(', select ', 'twee-mcp'); ?><strong><?php echo esc_html__('Skip', 'twee-mcp'); ?></strong><?php echo esc_html__(' and select these components:', 'twee-mcp'); ?>
-				<ul style="list-style: disc; margin: 6px 0 6px 20px;">
-					<li><?php echo esc_html__('All remaining custom rules', 'twee-mcp'); ?></li>
-					<li><?php echo esc_html__('All rate limiting rules', 'twee-mcp'); ?></li>
-					<li><?php echo esc_html__('All managed rules', 'twee-mcp'); ?></li>
-					<li><?php echo esc_html__('All Super Bot Fight Mode rules', 'twee-mcp'); ?></li>
-				</ul>
-			</li>
-			<li><?php echo esc_html__('Set the rule position to ', 'twee-mcp'); ?><strong><?php echo esc_html__('First', 'twee-mcp'); ?></strong><?php echo esc_html__(' and click ', 'twee-mcp'); ?><strong><?php echo esc_html__('Save', 'twee-mcp'); ?></strong>.</li>
-		</ol>
-	</div>
-
-	<div class="group" style="border-top: 1px solid #e2e4e7; padding-top: 18px; margin-top: 18px;">
-		<h3 class="title"><?php echo esc_html__('Connection Troubleshooting', 'twee-mcp'); ?></h3>
-		<p class="text">
-			<?php echo esc_html__('Refreshing a tool list only re-reads the available tool definitions; it does not sign the client in. Connected Agents & Active Sessions remains empty until the WordPress OAuth flow finishes and the client exchanges its authorization code for tokens.', 'twee-mcp'); ?>
-		</p>
-		<p class="text text_muted">
-			<?php echo esc_html__('If authentication fails or the client asks you to reconnect, confirm that the MCP server is enabled and the Cloudflare skip rule above is saved, then reconnect and approve access in WordPress again.', 'twee-mcp'); ?>
-		</p>
-		<p class="text">
-			<?php $metadata_url = set_url_scheme(rest_url('straps/v1/.well-known/oauth-protected-resource'));
-			echo esc_html__('Open ', 'twee-mcp'); ?><a href="<?php echo esc_url($metadata_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($metadata_url); ?></a><?php echo esc_html__('. It should show JSON. If it shows an error or a challenge page instead, a firewall, security plugin, or Cloudflare rule blocks the REST API for AI clients; allow the paths in the Cloudflare rule above.', 'twee-mcp'); ?>
-		</p>
-	</div>
-</div>
-
-<!-- 4. Connected Agents Card -->
+<!-- 3. Connected Agents Card -->
 <div class="item">
 	<div class="header">
 		<h2 class="heading"><?php echo esc_html__('Connected Agents & Active Sessions', 'twee-mcp'); ?></h2>
 		<span class="badge"><?php echo sprintf(esc_html__('%d active', 'twee-mcp'), count($sessions)); ?></span>
 	</div>
 	<?php if (empty($sessions)) { ?>
-		<p class="text text_muted"><?php echo esc_html__('No external AI agents have connected yet.', 'twee-mcp'); ?></p>
+		<p class="text text_muted">
+			<?php echo esc_html__('No external AI agents have connected yet.', 'twee-mcp'); ?>
+			<a href="<?php echo esc_url($help_url . '#twcp_help_agents'); ?>"><?php echo esc_html__('How to connect one', 'twee-mcp'); ?></a>
+		</p>
 	<?php } else { ?>
 		<table class="widefat striped" style="margin-top: 12px;">
 			<thead>
